@@ -472,9 +472,10 @@ service cloud.firestore {
                 && appended('history') && pdfAppended() && routeRecordKept() && routeMoveOk()
                 && request.resource.data.get('data', {}).diff(resource.data.get('data', {})).affectedKeys().hasOnly(assignedKeys())
                 && request.resource.data.get('refNos', {}).diff(resource.data.get('refNos', {})).affectedKeys().hasOnly(assignedKeys())));
-      // The preparer deletes only a draft never converted to PDF nor routed (no signatures, no
-      // reference no., no public record).
-      allow delete: if isAdmin()
+      // Only the superadmin deletes a document (administrators cannot). The preparer deletes only
+      // their own draft never converted to PDF nor routed (no signatures, no reference no., no
+      // public record).
+      allow delete: if isSuper()
         || (isActive() && actsAsPreparer()
             && resource.data.status == 'draft' && !('workflow' in resource.data)
             && resource.data.get('pdf', {}).get('files', []).size() == 0);

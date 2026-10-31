@@ -205,6 +205,10 @@ Attaching something that is not on the checklist? Under **Additional documents**
 
 To prepare a document like one already in DMS (the same payee, items or purpose), open it and click **Copy as new draft** (at the top of the document page, next to Print; any document, also a completed or processed one). DMS makes a new **draft** of the same type in your office, with a new control number and the details the preparer encoded, and opens it to edit. It does not copy what the offices filled in along the route (DV No., check details, assigned numbers), the checklist ticks or links, the PDF or signatures; the date is today. Change what differs, then save it and mark it complete as usual. The new document shows *Copied from* with a link to the original. For an **uploaded** document, **Copy as new draft** opens **Upload a document** with the same type, payee/subject, fund and notes filled in: choose the new file and upload it.
 
+### Delete a document
+
+Only the **superadmin** can delete a document (**Delete**, at the top of the document page). Administrators cannot. The preparer can delete only their own **draft** that was never converted to PDF or routed; once a document has a PDF or is on its route, ask the superadmin, or **Cancel document** instead (it stays on record as cancelled).
+
 ### Search by contents
 
 The search box in **All/Office/My Documents**, **Archive** and **Folders** looks through everything in a document, not only its number and payee: every detail encoded in it (particulars, items, purpose, amounts, names), its reference numbers, who prepared it and where it is filed. Type several words to find the documents that have all of them; amounts are found with or without commas (12,500 or 12500). A PDF uploaded from now on is also found by the words in it (its first 30 pages). A scan or photo has no readable words, so search for it by its payee or subject.

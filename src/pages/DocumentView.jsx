@@ -148,7 +148,7 @@ export default function DocumentView() {
 
 function DocumentPage({ docId }) {
   const navigate = useNavigate();
-  const { actor, settings, isAdmin, isHead, isRecords, isExternal, canRefer, user, profile, folderGrant } = useAuth();
+  const { actor, settings, isAdmin, isSuper, isHead, isRecords, isExternal, canRefer, user, profile, folderGrant } = useAuth();
   const [docData, setDocData] = useState(null);
   const [type, setType] = useState(null);
   const [error, setError] = useState('');
@@ -324,7 +324,7 @@ function DocumentPage({ docId }) {
               Cancel document
             </button>
           )}
-          {(isAdmin || (isOwner && docData.status === 'draft' && !wf && !(docData.pdf?.files || []).length)) && <button className="btn btn-danger" disabled={busy} onClick={remove}>Delete</button>}
+          {(isSuper || (isOwner && docData.status === 'draft' && !wf && !(docData.pdf?.files || []).length)) && <button className="btn btn-danger" disabled={busy} onClick={remove}>Delete</button>}
         </div>
       </div>
 
