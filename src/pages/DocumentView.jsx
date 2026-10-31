@@ -485,7 +485,7 @@ function DocumentPage({ docId }) {
             <h3>History</h3>
             <ul className="history">
               {[...(docData.history || [])].filter((h) => !['received', 'received (referred)'].includes(h.action)).reverse().map((h, i) => (
-                <li key={i}><b>{h.action}</b> {h.note && `(${h.note})`}<div className="small muted">{h.by} · {new Date(h.at).toLocaleString()}</div></li>
+                <li key={i}><b>{h.action === 'released' ? 'routed' : h.action}</b> {h.note && `(${h.note})`}<div className="small muted">{h.by} · {new Date(h.at).toLocaleString()}</div></li>
               ))}
             </ul>
           </section>

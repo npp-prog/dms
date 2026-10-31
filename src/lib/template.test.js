@@ -354,7 +354,7 @@ test('alternate offices on a step: the preparer chooses before releasing', () =>
   assert.equal(doc.workflow.steps[2].routedTo, 'Office of the Municipal Vice Mayor');
   assert.equal(doc.workflow.events.at(-1).remarks, 'Step 3: Office of the Municipal Vice Mayor');
   doc = { ...doc, ...applyAction(doc, 'release', user, '', 't2') };
-  assert.throws(() => chooseOffices(doc, { 2: 'Office of the Municipal Mayor' }, user), /before the document is first released/);
+  assert.throws(() => chooseOffices(doc, { 2: 'Office of the Municipal Mayor' }, user), /before the document is first routed/);
   const acct = { uid: 'a1', displayName: 'Rosa', office: 'Municipal Accounting Office' };
   doc = { ...doc, ...applyAction(doc, 'release', acct, '', 't4') };
   assert.equal(doc.currentOffice, 'Office of the Municipal Vice Mayor');

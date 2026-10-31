@@ -7,7 +7,7 @@ const STEP_MS = 3000;
 const STEPS = [
   { key: 'prepare', label: 'Prepare or upload', icon: 'new', text: 'Fill in the official format step by step, with its checklist of requirements, or upload a file you already have.' },
   { key: 'sign', label: 'Sign', icon: 'sign', text: 'Sign the PDF in DMS with your DICT PNPKI digital signature, or your e-signature mark if you have no PNPKI.' },
-  { key: 'route', label: 'Route', icon: 'send', text: 'Release it to the next office on its route. Everyone can see where it is, and the preparer is notified at each step.' },
+  { key: 'route', label: 'Route', icon: 'send', text: 'Route it to the next office on its route. Everyone can see where it is, and the preparer is notified at each step.' },
   { key: 'done', label: 'Processed', icon: 'check', text: 'The last office marks it processed: it is filed in the Archive, in its folder, and backed up to Google Drive.' },
 ];
 const OFFICES = ['Requesting office', 'Budget', 'Accounting', 'Treasury', 'Mayor'];

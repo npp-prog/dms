@@ -753,7 +753,7 @@ export async function workflowAction(id, action, user, { stage, remarks = '' } =
       patch.referred = [...new Set([...(d.referred || []), patch.currentOffice.slice(7)])];
     }
     const label = d.workflow.referral ? { back: 'sent back' }[action]
-      : { release: 'released', return: 'returned', complete: 'processed' }[action];
+      : { release: 'routed', return: 'returned', complete: 'processed' }[action];
     const history = [...(d.history || []), historyEntry(label, user, remarks)];
     tx.update(ref, { ...patch, updatedAt: serverTimestamp(), history });
     publishCheck(tx, id, { ...d, ...patch });
@@ -762,7 +762,7 @@ export async function workflowAction(id, action, user, { stage, remarks = '' } =
   const at = (wf) => officeOf(wf.steps[wf.stage], d) || 'your office';
   const why = remarks ? ` — ${remarks}` : '';
   const text = {
-    release: () => `released by ${who} to ${at(patch.workflow)}${why}.`,
+    release: () => `routed by ${who} to ${at(patch.workflow)}${why}.`,
     return: () => `returned by ${who} to ${at(patch.workflow)}${why}.`,
     complete: () => `processed by ${who}: its route is complete${why}.`,
     back: () => `sent back by ${who} to ${at(patch.workflow)}${why}.`,

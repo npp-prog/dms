@@ -232,8 +232,8 @@ export default function PdfCard({ docData, type, settings, actor, canConvert, ca
     // The PDF now follows the document's route (Administration > Workflow).
     if (!docData.workflow) await startWorkflow(docData.id, type, actor, settings.offices || []);
     setNotice(docData.workflow
-      ? (signed ? 'New PDF made: it supersedes the signed one. Sign it if your office signs, then release it: each office on the route signs it again.' : 'Converted to PDF again.')
-      : 'Converted to PDF. It now follows its workflow: sign it if your office signs, then release it to the next office.');
+      ? (signed ? 'New PDF made: it supersedes the signed one. Sign it if your office signs, then route it: each office on the route signs it again.' : 'Converted to PDF again.')
+      : 'Converted to PDF. It now follows its workflow: sign it if your office signs, then route it to the next office.');
     onChanged();
   });
 

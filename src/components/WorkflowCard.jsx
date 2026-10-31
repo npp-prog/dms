@@ -5,7 +5,7 @@ import Select from './Select.jsx';
 
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const EVENT_TEXT = {
-  started: 'Started', released: 'Released', returned: 'Returned', completed: 'Processed', cancelled: 'Cancelled', assigned: 'Assigned',
+  started: 'Started', released: 'Routed', returned: 'Returned', completed: 'Processed', cancelled: 'Cancelled', assigned: 'Assigned',
   route: 'Offices chosen', referred: 'Referred', 'referral back': 'Sent back',
 };
 
@@ -142,7 +142,7 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
             <button className="btn btn-primary" disabled={busy} onClick={onStart}>Start workflow</button>
           </>
         ) : <p className="small muted">The workflow starts when the document is converted to PDF: the PDF then goes from office to
-          office along its route, to be signed and released.</p>}
+          office along its route, to be signed and routed.</p>}
       </section>
     );
   }
@@ -206,7 +206,7 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
 
       {onlyPositions && (
         <div className="alert-info small no-print">This step is for the <b>{onlyPositions.join(' or ')}</b> of your office: only they (or the office head) can sign
-          and release it.</div>
+          and route it.</div>
       )}
       {showChoice && <OfficeChoice key={JSON.stringify(wf.steps.map((s) => s.routedTo))} doc={doc} busy={busy} onChoose={onChooseOffices} />}
 
@@ -257,20 +257,20 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
                 </StepTasks>
               )}
               {(fillsMissing(doc).length > 0 || uploadMissing(doc)) && (
-                <div className="alert-info small">Before releasing: {[fillsMissing(doc).length && 'fill in and save the details above', uploadMissing(doc) && `upload ${wf.steps[wf.stage].upload}`].filter(Boolean).join(', and ')}.</div>
+                <div className="alert-info small">Before routing: {[fillsMissing(doc).length && 'fill in and save the details above', uploadMissing(doc) && `upload ${wf.steps[wf.stage].upload}`].filter(Boolean).join(', and ')}.</div>
               )}
               {toAssign && (
                 <div className="alert-info small">The <b>{fieldLabel(toAssign)}</b> is not assigned yet.{' '}
                   <button type="button" className="link" disabled={busy} onClick={onAssign}>Assign it now</button></div>
               )}
               {refPending && (
-                <div className="alert-info small">Put the <b>{refPending.label} {refPending.value}</b> on the PDF under <b>PDF and digital signatures</b>{wf.steps[wf.stage].sign ? ' (with your signature)' : ''}, then release it.</div>
+                <div className="alert-info small">Put the <b>{refPending.label} {refPending.value}</b> on the PDF under <b>PDF and digital signatures</b>{wf.steps[wf.stage].sign ? ' (with your signature)' : ''}, then route it.</div>
               )}
               {unsigned && (
-                <div className="alert-info small">This step requires a signature. Sign the PDF under <b>PDF and digital signatures</b>, then release it.</div>
+                <div className="alert-info small">This step requires a signature. Sign the PDF under <b>PDF and digital signatures</b>, then route it.</div>
               )}
               <div className="row gap wrap">
-                {actions.includes('release') && <button className="btn btn-primary" disabled={busy || unsigned || blocked || (wf.stage === 0 && wf.choose)} onClick={() => act('release')}>Release to {nameOf(next)}</button>}
+                {actions.includes('release') && <button className="btn btn-primary" disabled={busy || unsigned || blocked || (wf.stage === 0 && wf.choose)} onClick={() => act('release')}>Route to {nameOf(next)}</button>}
                 {actions.includes('complete') && <button className="btn btn-primary" disabled={busy || unsigned || blocked} onClick={() => act('complete')}>{ACTION_LABELS.complete}</button>}
                 {actions.includes('return') && <button className="btn btn-ghost" disabled={busy} onClick={() => setReturning(true)}>Return to {nameOf(prev)}</button>}
                 {canRefer && <button className="btn btn-ghost" disabled={busy} onClick={() => setReferring(true)}>Refer to a person…</button>}

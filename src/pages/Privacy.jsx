@@ -21,7 +21,7 @@ export default function Privacy({ standalone = false }) {
           TIN, amounts, bank or check details, and the attached supporting documents.</li>
         <li><b>Signatures:</b> the signatures on the PDFs, with the name and certificate details of each signatory. Your PNPKI certificate
           file and signature mark are stored for you alone; your certificate password is never stored by DMS.</li>
-        <li><b>Records of actions:</b> who released, returned, signed, numbered or processed a document, when, and their remarks.</li>
+        <li><b>Records of actions:</b> who routed, returned, signed, numbered or processed a document, when, and their remarks.</li>
         <li><b>Messages, communities and notes:</b> what you write there, and the files you share.</li>
       </ul>
 

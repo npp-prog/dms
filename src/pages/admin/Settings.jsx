@@ -103,7 +103,7 @@ export default function Settings() {
         </div>
         <h3>Positions</h3>
         <p className="small muted">One position per line: the roles of people within an office. Give each user theirs under <b>Users</b>; a
-          workflow step can name the positions that act on it (only they receive, sign and release it there). Positions can also be added
+          workflow step can name the positions that act on it (only they receive, sign and route it there). Positions can also be added
           from Users and Workflow.</p>
         <div className="fields">
           <div className="field field-wide">

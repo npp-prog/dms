@@ -140,7 +140,7 @@ export default function Inbox() {
                       : step.action}</td>
                     <td>{wf.events.filter((e) => !HIDDEN_EVENTS.has(e.type)).at(-1)?.type === 'returned'
                       ? <span className="badge badge-red">Returned</span>
-                      : <span className="badge badge-blue">{wf.referral ? 'Referred' : 'Released'}</span>}</td>
+                      : <span className="badge badge-blue">{wf.referral ? 'Referred' : 'Routed'}</span>}</td>
                     <td className="small">{since(d.updatedAt)}</td>
                   </tr>
                 );

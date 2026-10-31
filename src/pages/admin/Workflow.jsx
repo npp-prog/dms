@@ -210,7 +210,7 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                     <input value={s.action} onChange={(e) => set(i, { action: e.target.value })} />
                   </label>
                   {s.office === THIRD_PARTY ? (
-                    <p className="help">The preparer designates the third party (a supplier, payee or other person with a DMS account) before releasing the document. They sign it, if this step signs, and release it to the next step.</p>
+                    <p className="help">The preparer designates the third party (a supplier, payee or other person with a DMS account) before routing the document. They sign it, if this step signs, and release it to the next step.</p>
                   ) : (
                   <div className="field">
                     <span className="field-label">Alternate offices <span className="muted">(optional)</span></span>
@@ -236,7 +236,7 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                         <PositionsPicker value={s.positions || []} choices={positionsOf(settings)} onNew={newPosition}
                           placeholder="+ Add a position…" onChange={(positions) => set(i, { positions })} />
                       </div>
-                      <span className="help">{s.positions?.length ? 'Only these positions (and the office head) sign and release it.' : 'Anyone in the office.'}</span>
+                      <span className="help">{s.positions?.length ? 'Only these positions (and the office head) sign and route it.' : 'Anyone in the office.'}</span>
                     </div>
                   ) : <div />}
                   <div className="route-options">

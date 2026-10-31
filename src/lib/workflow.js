@@ -7,7 +7,7 @@
 //   stage: index of the current step,
 //   received: always true now (documents are no longer received; older ones may have false),
 //   steps: [{ office (as in the guide), action, routedTo (office in Settings, or '' = preparer),
-//            sign (the office must sign the PDF before releasing it) }],
+//            sign (the office must sign the PDF before routing it) }],
 //   events: [{ type: 'started' | 'received' | 'released' | 'returned' | 'completed' | 'cancelled'
 //              | 'route' | 'referred' | 'referral received' | 'referral back', stage, office, by, uid, at, remarks }],
 //   choose: true while the preparer has yet to choose the office of the steps with alternates
@@ -58,7 +58,7 @@ export function resolveOffice(stepOffice, offices = []) {
 
 // Who holds a step: the office it is routed to, or the preparer's office.
 // A route step for a third party (not an office): a supplier, payee or other person outside the
-// route's offices, whom the preparer designates (step.party: { uid, name }) before releasing it.
+// route's offices, whom the preparer designates (step.party: { uid, name }) before routing it.
 export const THIRD_PARTY = '@third-party';
 export const isThirdParty = (step) => step?.office === THIRD_PARTY;
 
@@ -129,7 +129,7 @@ export function buildWorkflow(type, doc, offices, user, at = new Date().toISOStr
   if (!steps.length) return null;
   const workflow = {
     state: 'in-progress', stage: 0, received: true, steps,
-    // Steps with alternate offices, or for a third party: the preparer chooses before releasing it.
+    // Steps with alternate offices, or for a third party: the preparer chooses before routing it.
     ...(steps.some((s) => s.alternates?.length || isThirdParty(s)) ? { choose: true } : {}),
     events: [{ type: 'started', stage: 0, office: officeOf(steps[0], doc), by: user.displayName || user.email, uid: user.uid, at, remarks: '' }],
   };
@@ -272,26 +272,26 @@ export function applyAction(doc, action, user, remarks = '', at = new Date().toI
   if (!availableActions(doc).includes(action)) throw new Error(`"${action}" is not possible at this step.`);
   // The PDF is what travels: the preparer's office converts the document before it leaves.
   if (action === 'release' && wf.stage === 0 && !(doc.pdf?.files || []).length) {
-    throw new Error('Convert the document to PDF (PDF and digital signatures) before releasing it.');
+    throw new Error('Convert the document to PDF (PDF and digital signatures) before routing it.');
   }
   if ((action === 'release' || action === 'complete') && fillsMissing(doc).length) {
-    throw new Error('Fill in this step\'s details (in the Workflow card) before releasing it.');
+    throw new Error('Fill in this step\'s details (in the Workflow card) before routing it.');
   }
   if ((action === 'release' || action === 'complete') && uploadMissing(doc)) {
-    throw new Error(`Upload ${wf.steps[wf.stage].upload} before releasing it.`);
+    throw new Error(`Upload ${wf.steps[wf.stage].upload} before routing it.`);
   }
   if ((action === 'release' || action === 'complete') && assignPending(doc)) {
-    throw new Error('This step assigns a reference no. that is not assigned yet: assign it (Workflow card), put it on the PDF, then release it.');
+    throw new Error('This step assigns a reference no. that is not assigned yet: assign it (Workflow card), put it on the PDF, then route it.');
   }
   if ((action === 'release' || action === 'complete') && refStampMissing(doc)) {
-    throw new Error(`Put the ${refStampMissing(doc).label} on the PDF (PDF and digital signatures) before releasing it.`);
+    throw new Error(`Put the ${refStampMissing(doc).label} on the PDF (PDF and digital signatures) before routing it.`);
   }
   if ((action === 'release' || action === 'complete') && signatureMissing(doc)) {
-    throw new Error('This step requires a signature: sign the PDF (PDF and digital signatures) before releasing it.');
+    throw new Error('This step requires a signature: sign the PDF (PDF and digital signatures) before routing it.');
   }
-  if (action === 'release' && wf.stage === 0 && wf.choose) throw new Error('Choose the office of each step with alternates, and the third party, before releasing it.');
+  if (action === 'release' && wf.stage === 0 && wf.choose) throw new Error('Choose the office of each step with alternates, and the third party, before routing it.');
   if (action === 'release' && isThirdParty(wf.steps[wf.stage + 1]) && !wf.steps[wf.stage + 1].party?.uid) {
-    throw new Error(`Choose the third party of step ${wf.stage + 2} before releasing it.`);
+    throw new Error(`Choose the third party of step ${wf.stage + 2} before routing it.`);
   }
   if (action === 'release' && wf.stage === 0 && !wf.events.some((e) => e.type === 'released') && approverMismatch(doc)) {
     const m = approverMismatch(doc);
@@ -334,7 +334,7 @@ export function referDocument(doc, to, note, user, at = new Date().toISOString()
 export function chooseOffices(doc, picks, user, at = new Date().toISOString()) {
   const wf = doc.workflow;
   if (!wf || wf.state !== 'in-progress' || wf.stage !== 0 || wf.referral || wf.events.some((e) => e.type === 'released')) {
-    throw new Error('The offices can only be chosen before the document is first released.');
+    throw new Error('The offices can only be chosen before the document is first routed.');
   }
   const changed = [];
   const steps = wf.steps.map((s, i) => {
@@ -398,5 +398,5 @@ export function assignPending(doc) {
   return Boolean(step?.assign?.field && !String(doc.data?.[step.assign.field] || '').trim());
 }
 
-export const ACTION_LABELS = { release: 'Release', return: 'Return', complete: 'Mark processed', back: 'Send back' };
+export const ACTION_LABELS = { release: 'Route', return: 'Return', complete: 'Mark processed', back: 'Send back' };
 
