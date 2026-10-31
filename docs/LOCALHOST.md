@@ -107,7 +107,7 @@ Your office, role, Office head and the positions that decide which workflow step
 
 Only the office head, administrators and the **Records Officer** change access and restrictions; editors cannot. Administrators and the Records Officer do it for any office: in Folders → **Access**, first choose the office.
 
-**Archive** (menu, under Documents) holds the **processed** documents: once the last office marks a document processed, it leaves All/Office/My Documents and is kept here. Everyone sees the processed documents they may open; search by control no., DV/OBR no., payee or where it is filed, and filter by year, type or office. The **Records Officer** (a position in Users; administrators too) sees the whole archive and controls it:
+**Archive** (menu, under Documents) holds the **processed** documents: once the last office marks a document processed, it leaves All/Office/My Documents and is kept here. Everyone sees the processed documents they may open; search by control no., DV/OBR no., payee, where it is filed or anything in the document, and filter by year, type or office. The **Records Officer** (a position in Users; administrators too) sees the whole archive and controls it:
 
 - **Where it is filed.** Under **Filed at**, **Record where it is filed** (or **Change**): the cabinet, box or shelf of the paper, and a note.
 - **Google Drive (automatic).** The **Google Drive** card: **Connect Google Drive** and sign in with the Google account that keeps the backups. From then on, every 10 minutes DMS copies each processed document (new or changed) to the folder **DMS Archive** in that Drive, by year and type, a folder per document with its PDFs, attachments and record.json; nobody needs to be signed in. **Several accounts:** the Records Officer and each administrator can connect their own Google account (**Connect my Google Drive too**); each Drive keeps its own full copy, and the same Google account cannot be connected twice. For each account the card shows who connected it, the last run and any problem; **Back up now** runs it at once; **Disconnect** stops it (the files stay in that Drive): your own, or anyone's for an administrator. An administrator sets it up once in Netlify (README).
@@ -200,6 +200,14 @@ Attaching something that is not on the checklist? Under **Additional documents**
 **Review & Save** tells you what is still missing. **Mark complete** stays disabled until every required field and every always-required checklist item is done.
 
 ![Review](images/12-dv-review.png)
+
+### Copy a document as a new draft
+
+To prepare a document like one already in DMS (the same payee, items or purpose), open it and click **Copy as new draft** (any document prepared in DMS, also a completed or processed one; not an uploaded file). DMS makes a new **draft** of the same type in your office, with a new control number and the details the preparer encoded, and opens it to edit. It does not copy what the offices filled in along the route (DV No., check details, assigned numbers), the checklist ticks or links, the PDF or signatures; the date is today. Change what differs, then save it and mark it complete as usual. The new document shows *Copied from* with a link to the original.
+
+### Search by contents
+
+The search box in **All/Office/My Documents**, **Archive** and **Folders** looks through everything in a document, not only its number and payee: every detail encoded in it (particulars, items, purpose, amounts, names), its reference numbers, who prepared it and where it is filed. Type several words to find the documents that have all of them; amounts are found with or without commas (12,500 or 12500). A PDF uploaded from now on is also found by the words in it (its first 30 pages). A scan or photo has no readable words, so search for it by its payee or subject.
 
 ### Print and process
 

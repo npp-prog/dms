@@ -90,6 +90,24 @@ export function initialData(type) {
   return data;
 }
 
+// A copy of a document's details for a new draft of the same type: what the preparer encoded,
+// not what the offices filled in along the route (DV No., check details) nor the numbers they
+// assigned, and today's date.
+export function copiedData(type, src) {
+  const data = initialData(type);
+  const skip = new Set(Object.keys(src?.refNos || {}));
+  for (const s of [...(type?.route || []), ...(type?.processing || [])]) {
+    if (s?.assign?.field) skip.add(s.assign.field);
+    if (s?.assign?.dateField) skip.add(s.assign.dateField);
+    (s?.fills || []).forEach((k) => skip.add(k));
+  }
+  for (const f of type?.fields || []) {
+    if (f.filledBy || skip.has(f.key) || f.key === 'date' || !(f.key in (src?.data || {}))) continue;
+    data[f.key] = JSON.parse(JSON.stringify(src.data[f.key]));
+  }
+  return data;
+}
+
 // Steps for the guided process. Fields without a valid step go to a catch-all step.
 // Fields the Accounting Office fills in on the saved document (e.g. the DV No. and date),
 // not shown to the end user in the wizard.

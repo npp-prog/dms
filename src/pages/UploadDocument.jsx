@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Icon from '../components/Icon.jsx';
+import { pdfText } from '../lib/pdfjs.js';
 import { addPdfVersion, createUploadedDocument, deleteDocument, getDocument, listDocumentTypes, setDocumentStatus, startWorkflow } from '../lib/api.js';
 import Select from '../components/Select.jsx';
 import { verifyUrl } from '../lib/qr.js';
@@ -47,7 +48,8 @@ export default function UploadDocument() {
       if (file.type === 'application/pdf' && !/^%PDF-/.test(new TextDecoder('latin1').decode(pdf.subarray(0, 5)))) throw new Error('This file is not a PDF.');
       setBusy('Saving…');
       // A draft until its file is stored: if the upload fails, the draft is removed again.
-      const created = await createUploadedDocument(type, { ...form, title: form.title.trim(), fileName: file.name }, actor);
+      const contentText = file.type === 'application/pdf' ? await pdfText(pdf) : '';
+      const created = await createUploadedDocument(type, { ...form, title: form.title.trim(), fileName: file.name, contentText }, actor);
       // The QR code of its public check page on every page (lib/qrStamp.js: also on a signed PDF,
       // in an update after its signatures, where the PDF allows it).
       setBusy('Adding the QR code…');

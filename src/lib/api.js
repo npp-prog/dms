@@ -10,6 +10,7 @@ import { CHECKLIST_LIBRARY_VERSION, DEFAULT_SETTINGS, FORMAT_KEYS, STARTER_TYPES
 import { checkRecord, pdfIsPublic } from './publicRecord.js';
 import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing } from './workflow.js';
 import { withApprover } from './approver.js';
+import { copiedData } from './forms.js';
 import { localDay } from './archiveFiles.js';
 import { notify } from './social.js';
 
@@ -459,7 +460,7 @@ async function nextControlNo() {
 
 // A document that already exists as a file (scanned, or made outside DMS): it gets a control
 // number and follows the route of its type like a prepared one; its file is its PDF.
-export async function createUploadedDocument(type, { title, fund = '', notes = '', fileName }, user) {
+export async function createUploadedDocument(type, { title, fund = '', notes = '', fileName, contentText = '' }, user) {
   const controlNo = await nextControlNo();
   const ref = await addDoc(collection(db, 'documents'), {
     restricted: false,
@@ -477,6 +478,8 @@ export async function createUploadedDocument(type, { title, fund = '', notes = '
     signatories: null,
     status: 'draft', // complete once its file is stored
     uploaded: { name: fileName, at: new Date().toISOString() },
+    // The text read from the PDF, to find it by its contents (lib/docSearch.js).
+    ...(contentText ? { contentText } : {}),
     title,
     createdBy: user.uid,
     createdByName: user.displayName || user.email,
@@ -500,7 +503,7 @@ function historyEntry(action, user, note = '') {
   return { action, note, by: user.displayName || user.email, uid: user.uid, at: new Date().toISOString() };
 }
 
-export async function createDocument(type, { data, checklist, additionalDocs = [], links = {}, transaction = null, signatories = null, status }, user) {
+export async function createDocument(type, { data, checklist, additionalDocs = [], links = {}, transaction = null, signatories = null, status, copiedFrom = null }, user) {
   const controlNo = await nextControlNo();
   const ref = await addDoc(collection(db, 'documents'), {
     restricted: false,
@@ -527,9 +530,21 @@ export async function createDocument(type, { data, checklist, additionalDocs = [
     office: user.office || '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-    history: [historyEntry('created', user, status)],
+    ...(copiedFrom ? { copiedFrom } : {}),
+    history: [historyEntry('created', user, copiedFrom ? `draft, copied from ${copiedFrom.controlNo}` : status)],
   });
   return ref.id;
+}
+
+// Copy as new draft: a new document of the same type (as it is now) with the details the preparer
+// encoded on src, in the user's office, to edit and complete like any draft.
+export async function copyDocument(src, user, signatories) {
+  const type = src.typeId ? await getDocumentType(src.typeId) : null;
+  if (!type || type.active === false || type.uploadOnly) throw new Error(`${src.typeName || 'This document type'} is no longer prepared in DMS, so this document cannot be copied.`);
+  return createDocument(type, {
+    data: copiedData(type, src), checklist: {}, additionalDocs: [], links: {}, transaction: src.transaction || null,
+    signatories, status: 'draft', copiedFrom: { id: src.id, controlNo: src.controlNo || '' },
+  }, user);
 }
 
 export async function updateDocument(id, type, { data, checklist, additionalDocs = [], links = {}, transaction = null, status }, user, history = []) {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { matchesSearch } from '../lib/docSearch.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listDocuments } from '../lib/api.js';
 import { drnOf } from '../lib/naming.js';
@@ -67,7 +68,7 @@ export default function Folders() {
 
   const folder = code ? folders.find((f) => f.code === code) : null;
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = (folder?.docs || []).filter((d) => words.every((w) => `${d.controlNo} ${d.title} ${d.createdByName} ${drnOf(d) || ''}`.toLowerCase().includes(w)));
+  const shown = (folder?.docs || []).filter((d) => words.every((w) => String(drnOf(d) || '').toLowerCase().includes(w) || matchesSearch(d, w)));
 
   return (
     <div className="page">
@@ -123,7 +124,7 @@ export default function Folders() {
       {docs && code && (
         <>
           <div className="filters">
-            <input className="search" placeholder="Search control no., DRN, payee…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <input className="search" placeholder="Search by number, DRN, payee or anything in the document…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           {!folder || shown.length === 0 ? <p className="muted">No documents{q ? ' match' : ' in this folder'}.</p> : view === 'tiles' ? (
             <div className="doc-tiles">

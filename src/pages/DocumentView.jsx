@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion } from '../lib/api.js';
+import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion } from '../lib/api.js';
 import { assignPending, canAct, editableByPreparer, holdsPosition, isPreparer, isReceived, liveFiles, officeOf } from '../lib/workflow.js';
 import { readSignatures } from '../lib/signing.js';
+import { signatoriesFrom } from '../lib/signatories.js';
 import { effectiveChecklist, isChecked, itemTypeCode, missingRequired } from '../lib/checklists.js';
 import AccountingPanel from '../components/AccountingPanel.jsx';
 import BulkDownload from '../components/BulkDownload.jsx';
@@ -251,6 +252,8 @@ function DocumentPage({ docId }) {
   // An uploaded document's file is its PDF: nothing to encode, edit or convert.
   const uploaded = Boolean(docData.uploaded);
   const canChange = !uploaded && editable && (!hasSignature || revising) && (isAdmin || (isOwner && editableByPreparer(docData)));
+  // Copy as new draft: any document prepared in DMS, by LGU personnel with an office.
+  const canCopy = !uploaded && !docData.supports && Boolean(docData.typeId) && !isExternal && Boolean(profile.office);
   const canConvert = !uploaded && editable && (docData.status === 'complete' || (revising && (docData.pdf?.files || []).length > 0)) && (!hasSignature || revising) && (isAdmin || (isOwner && editableByPreparer(docData)));
   const canSign = editable && docData.status === 'complete' && wf?.state !== 'done' && (isAdmin || (wf ? isReceived(wf) && canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }) : isOwner));
   // (The office holding it signs: documents are no longer received first.)
@@ -296,6 +299,7 @@ function DocumentPage({ docId }) {
           <div className="crumbs">{isExternal ? <Link to="/notifications">Documents for you</Link> : <Link to="/documents">Documents</Link>} / {docData.controlNo}</div>
           <h1>{docData.typeName} <StatusBadge status={docData.status} /></h1>
           <p className="muted">{docData.title} · {docData.uploaded ? 'Uploaded' : 'Prepared'} by {docData.createdByName}</p>
+          {docData.copiedFrom?.id && <p className="small">Copied from <Link to={`/documents/${docData.copiedFrom.id}`}>{docData.copiedFrom.controlNo || 'another document'}</Link>.</p>}
           {docData.supports && (
             <p className="small">Supporting document of <Link to={`/documents/${docData.supports.id}`}>{docData.supports.controlNo}</Link>
               {docData.supports.typeCode ? ` (${docData.supports.typeCode})` : ''}, checklist item <i>{docData.supports.item}</i>.</p>
@@ -305,6 +309,13 @@ function DocumentPage({ docId }) {
           {view !== 'pdf' && <button className="btn btn-primary" onClick={() => window.print()}>Print {view === 'checklist' ? 'checklist' : 'document'}</button>}
           {type && !isExternal && (type.bulkDownload || docData.typeCode === 'DV') && <BulkDownload docData={docData} type={type} settings={settings} />}
           {canChange && <Link className="btn btn-ghost" to={`/documents/${docId}/edit`}>Edit</Link>}
+          {canCopy && (
+            <button className="btn btn-ghost" disabled={busy} title="A new draft with the same details, to edit"
+              onClick={async () => {
+                setBusy(true); setActionError('');
+                try { navigate(`/documents/${await copyDocument({ ...docData, id: docId }, actor, signatoriesFrom(settings))}/edit`); } catch (e) { setActionError(e.message); setBusy(false); }
+              }}>Copy as new draft</button>
+          )}
           {canCancel && (
             <button className="btn btn-ghost" disabled={busy}
               onClick={() => window.confirm('Cancel this document?') && run(() => setDocumentStatus(docId, 'cancelled', actor, docData.history))}>

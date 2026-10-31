@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { matchesSearch } from '../lib/docSearch.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listDocuments } from '../lib/api.js';
 import { STATUSES } from '../lib/defaults.js';
@@ -35,7 +36,7 @@ export default function Documents() {
     return !isArchived(d) && (!filters.status || d.status === filters.status)
       && (!filters.type || d.typeCode === filters.type)
       && (!filters.office || (filters.office === '__none' ? !d.office : d.office === filters.office))
-      && (!q || `${d.controlNo} ${d.title} ${d.createdByName} ${Object.values(d.refNos || {}).map((r) => r.value).join(' ')}`.toLowerCase().includes(q));
+      && matchesSearch(d, q);
   }), [docs, filters]);
 
   return (
@@ -51,7 +52,7 @@ export default function Documents() {
       </div>
       {isAdmin && docs && zipOpen && <ZipExport docs={shown} onClose={() => setZipOpen(false)} />}
       <div className="filters">
-        <input className="search" placeholder="Search control no., DV/OBR no., payee…" value={filters.q}
+        <input className="search" placeholder="Search by number, payee or anything in the document…" value={filters.q}
           onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
         <Select value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}>
           <option value="">All types</option>

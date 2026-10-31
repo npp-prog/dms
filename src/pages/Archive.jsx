@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { matchesSearch } from '../lib/docSearch.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listDocuments } from '../lib/api.js';
 import {
@@ -35,7 +36,7 @@ export default function Archive() {
     return (!filters.type || d.typeCode === filters.type)
       && (!filters.office || d.office === filters.office)
       && (!filters.year || processedAt(d).startsWith(filters.year))
-      && (!q || `${d.controlNo} ${d.title} ${d.createdByName} ${d.archive?.location || ''} ${Object.values(d.refNos || {}).map((r) => r.value).join(' ')}`.toLowerCase().includes(q));
+      && matchesSearch(d, q);
   }), [docs, filters]);
 
   const saveFiling = async () => {
@@ -48,7 +49,7 @@ export default function Archive() {
       {keeper && <DriveBackup />}
       {keeper && docs && <Backups docs={docs} me={actor} />}
       <div className="filters">
-        <input className="search" placeholder="Search control no., DV/OBR no., payee, where filed…" value={filters.q}
+        <input className="search" placeholder="Search by number, payee, where filed or anything in the document…" value={filters.q}
           onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
         <Select value={filters.year} onChange={(e) => setFilters({ ...filters, year: e.target.value })} aria-label="Year">
           <option value="">All years</option>

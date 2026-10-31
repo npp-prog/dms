@@ -1,21 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { loadPdfjs } from '../lib/pdfjs.js';
 
 // Shows a PDF inside the page (no pop-up, no download): every page drawn with pdf.js, sized to
 // the space it has. While a signatory places their signature mark, tapping a page puts the mark
 // there (onPlace gets the page and the rectangle in PDF points).
-let pdfjs = null;
-async function loadPdfjs() {
-  if (!pdfjs) {
-    const [lib, worker] = await Promise.all([
-      import('pdfjs-dist/build/pdf.min.mjs'),
-      import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
-    ]);
-    lib.GlobalWorkerOptions.workerSrc = worker.default;
-    pdfjs = lib;
-  }
-  return pdfjs;
-}
-
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'medium' }) : '—');
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-PH', { dateStyle: 'medium' }) : '—');
 const CHAIN = { verified: 'Verified', partial: 'Partly included in the signature', broken: 'Does not verify' };
