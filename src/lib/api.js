@@ -460,7 +460,7 @@ async function nextControlNo() {
 
 // A document that already exists as a file (scanned, or made outside DMS): it gets a control
 // number and follows the route of its type like a prepared one; its file is its PDF.
-export async function createUploadedDocument(type, { title, fund = '', notes = '', fileName, contentText = '' }, user) {
+export async function createUploadedDocument(type, { title, fund = '', notes = '', fileName, contentText = '', copiedFrom = null }, user) {
   const controlNo = await nextControlNo();
   const ref = await addDoc(collection(db, 'documents'), {
     restricted: false,
@@ -480,6 +480,7 @@ export async function createUploadedDocument(type, { title, fund = '', notes = '
     uploaded: { name: fileName, at: new Date().toISOString() },
     // The text read from the PDF, to find it by its contents (lib/docSearch.js).
     ...(contentText ? { contentText } : {}),
+    ...(copiedFrom ? { copiedFrom } : {}),
     title,
     createdBy: user.uid,
     createdByName: user.displayName || user.email,

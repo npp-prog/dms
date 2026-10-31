@@ -32,6 +32,18 @@ export default function UploadDocument() {
   const [drag, setDrag] = useState(false);
 
   useEffect(() => { listDocumentTypes({ activeOnly: true }).then(setTypes).catch((e) => setError(e.message)); }, []);
+  // Copy as new draft of an uploaded document (?copy=<id>): its type, payee, fund and notes.
+  const copyId = params.get('copy') || '';
+  const [copiedFrom, setCopiedFrom] = useState(null);
+  useEffect(() => {
+    if (!copyId) return;
+    getDocument(copyId).then((d) => {
+      if (!d) return;
+      setCopiedFrom({ id: copyId, controlNo: d.controlNo || '' });
+      setTypeId(d.typeId || '');
+      setForm({ title: d.title || '', fund: d.data?.fund || '', notes: d.data?.notes || '' });
+    }).catch((e) => setError(e.message));
+  }, [copyId]);
   const type = (types || []).find((t) => t.id === typeId) || OTHER;
   const set = (k) => (e) => setForm({ ...form, [k]: k === 'notes' ? e.target.value : e.target.value.toUpperCase() });
 
@@ -49,7 +61,7 @@ export default function UploadDocument() {
       setBusy('Saving…');
       // A draft until its file is stored: if the upload fails, the draft is removed again.
       const contentText = file.type === 'application/pdf' ? await pdfText(pdf) : '';
-      const created = await createUploadedDocument(type, { ...form, title: form.title.trim(), fileName: file.name, contentText }, actor);
+      const created = await createUploadedDocument(type, { ...form, title: form.title.trim(), fileName: file.name, contentText, copiedFrom }, actor);
       // The QR code of its public check page on every page (lib/qrStamp.js: also on a signed PDF,
       // in an update after its signatures, where the PDF allows it).
       setBusy('Adding the QR code…');
@@ -78,6 +90,7 @@ export default function UploadDocument() {
           <h1>Upload a document</h1>
         </div>
       </div>
+      {copiedFrom && <div className="alert-info">Copied from <Link to={`/documents/${copiedFrom.id}`}>{copiedFrom.controlNo}</Link>: choose the file of the new document.</div>}
       <form className="card upload-form" onSubmit={submit}>
         <div className="field upload-wide">
           <label className="field-label" htmlFor={`${id}-t`}>Document type</label>

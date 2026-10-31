@@ -203,7 +203,7 @@ Attaching something that is not on the checklist? Under **Additional documents**
 
 ### Copy a document as a new draft
 
-To prepare a document like one already in DMS (the same payee, items or purpose), open it and click **Copy as new draft** (any document prepared in DMS, also a completed or processed one; not an uploaded file). DMS makes a new **draft** of the same type in your office, with a new control number and the details the preparer encoded, and opens it to edit. It does not copy what the offices filled in along the route (DV No., check details, assigned numbers), the checklist ticks or links, the PDF or signatures; the date is today. Change what differs, then save it and mark it complete as usual. The new document shows *Copied from* with a link to the original.
+To prepare a document like one already in DMS (the same payee, items or purpose), open it and click **Copy as new draft** (at the top of the document page, next to Print; any document, also a completed or processed one). DMS makes a new **draft** of the same type in your office, with a new control number and the details the preparer encoded, and opens it to edit. It does not copy what the offices filled in along the route (DV No., check details, assigned numbers), the checklist ticks or links, the PDF or signatures; the date is today. Change what differs, then save it and mark it complete as usual. The new document shows *Copied from* with a link to the original. For an **uploaded** document, **Copy as new draft** opens **Upload a document** with the same type, payee/subject, fund and notes filled in: choose the new file and upload it.
 
 ### Search by contents
 

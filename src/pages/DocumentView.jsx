@@ -252,8 +252,9 @@ function DocumentPage({ docId }) {
   // An uploaded document's file is its PDF: nothing to encode, edit or convert.
   const uploaded = Boolean(docData.uploaded);
   const canChange = !uploaded && editable && (!hasSignature || revising) && (isAdmin || (isOwner && editableByPreparer(docData)));
-  // Copy as new draft: any document prepared in DMS, by LGU personnel with an office.
-  const canCopy = !uploaded && !docData.supports && Boolean(docData.typeId) && !isExternal && Boolean(profile.office);
+  // Copy as new draft (LGU personnel): a prepared document becomes a new draft with its details;
+  // an uploaded one opens Upload with its type, payee, fund and notes (the new file is chosen).
+  const canCopy = !docData.supports && !isExternal && (uploaded || Boolean(docData.typeId));
   const canConvert = !uploaded && editable && (docData.status === 'complete' || (revising && (docData.pdf?.files || []).length > 0)) && (!hasSignature || revising) && (isAdmin || (isOwner && editableByPreparer(docData)));
   const canSign = editable && docData.status === 'complete' && wf?.state !== 'done' && (isAdmin || (wf ? isReceived(wf) && canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }) : isOwner));
   // (The office holding it signs: documents are no longer received first.)
@@ -312,6 +313,7 @@ function DocumentPage({ docId }) {
           {canCopy && (
             <button className="btn btn-ghost" disabled={busy} title="A new draft with the same details, to edit"
               onClick={async () => {
+                if (uploaded) { navigate(`/upload?copy=${docId}`); return; }
                 setBusy(true); setActionError('');
                 try { navigate(`/documents/${await copyDocument({ ...docData, id: docId }, actor, signatoriesFrom(settings))}/edit`); } catch (e) { setActionError(e.message); setBusy(false); }
               }}>Copy as new draft</button>
