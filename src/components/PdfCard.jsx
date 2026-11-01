@@ -127,7 +127,8 @@ export default function PdfCard({ docData, type, settings, actor, canConvert, ca
   // The reference no. this office assigned (e.g. the DV No.): it goes on the face of the PDF, where
   // they tap, with their signature or stamped on its own; the step is released only once it is.
   const pendingRef = canSign ? refStampMissing(docData) : null;
-  const refLines = pendingRef ? [`${pendingRef.label} ${pendingRef.value}`, ...(pendingRef.date ? [`Date: ${new Date(`${pendingRef.date}T00:00:00`).toLocaleDateString('en-PH', { dateStyle: 'medium' })}`] : [])] : [];
+  // The number only (e.g. 2026-0005), not its name (Travel Order No.): the form prints the name.
+  const refLines = pendingRef ? [String(pendingRef.value), ...(pendingRef.date ? [`Date: ${new Date(`${pendingRef.date}T00:00:00`).toLocaleDateString('en-PH', { dateStyle: 'medium' })}`] : [])] : [];
   const placingRef = Boolean(pendingRef) && (mode === 'sign' || esign || mode === 'stamp');
   const active = [placingMark && 'mark', placingText && 'text', placingRef && 'ref'].filter(Boolean);
   const tapFor = active.includes(target) ? target : active[0];
