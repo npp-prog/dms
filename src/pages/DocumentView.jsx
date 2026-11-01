@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion } from '../lib/api.js';
-import { assignPending, canAct, editableByPreparer, holdsPosition, isPreparer, isReceived, liveFiles, officeOf } from '../lib/workflow.js';
+import { assignPending, canAct, editableByPreparer, holdsPosition, isPreparer, isReceived, linkLocked, liveFiles, officeOf } from '../lib/workflow.js';
 import { readSignatures } from '../lib/signing.js';
 import { signatoriesFrom } from '../lib/signatories.js';
 import { effectiveChecklist, isChecked, itemTypeCode, missingRequired } from '../lib/checklists.js';
@@ -111,7 +111,8 @@ function ItemLinks({ item, n, links, canEdit, canAdd = canEdit, docId, parent, a
   };
   return (
     <>
-      <LinkList links={links} onOpen={onOpen && ((l, i) => onOpen(l, `${item.id}:${i}`))} onRemove={canEdit ? (i) => onChange(links.filter((_, j) => j !== i), `removed ${linkText(links[i])}`) : undefined} />
+      <LinkList links={links} onOpen={onOpen && ((l, i) => onOpen(l, `${item.id}:${i}`))} isLocked={(l) => linkLocked(parent, l)}
+        onRemove={canEdit ? (i) => onChange(links.filter((_, j) => j !== i), `removed ${linkText(links[i])}`) : undefined} />
       {error && <div className="alert small">{error}</div>}
       {canAdd && (open
         ? <LinkEditor item={item} excludeId={docId} onCancel={() => setOpen(false)} onAdd={(l) => { setOpen(false); onChange([...links, l], linkText(l)); }} />

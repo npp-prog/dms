@@ -3,8 +3,9 @@ import TransactionPicker from './TransactionPicker.jsx';
 import { LinkEditor, LinkList } from './DocLinks.jsx';
 import { toCaps } from '../lib/forms.js';
 import { checklistProgress, effectiveChecklist, groupItems, isChecked } from '../lib/checklists.js';
+import { linkLocked } from '../lib/workflow.js';
 
-function Answer({ item, value, onChange, links = [], onLinks, docId }) {
+function Answer({ item, value, onChange, links = [], onLinks, docId, doc }) {
   const y = isChecked(value);
   const na = value === 'NA';
   const [linking, setLinking] = useState(false);
@@ -19,7 +20,7 @@ function Answer({ item, value, onChange, links = [], onLinks, docId }) {
         {item.details && <div className="muted small">{item.details}</div>}
         {onLinks && (
           <>
-            <LinkList links={links} onRemove={(i) => onLinks(links.filter((_, j) => j !== i))} />
+            <LinkList links={links} isLocked={(l) => linkLocked(doc, l)} onRemove={(i) => onLinks(links.filter((_, j) => j !== i))} />
             {linking ? (
               <LinkEditor item={item} excludeId={docId} onCancel={() => setLinking(false)}
                 onAdd={(l) => {
@@ -40,7 +41,8 @@ function Answer({ item, value, onChange, links = [], onLinks, docId }) {
 // Checklist step of the wizard: tick Y / N/A for each required document.
 // For library-based document types (DV, Payroll, LR) the type of transaction is chosen here,
 // which loads its checklist from the library.
-export default function ChecklistStep({ type, transaction, state, onState, onTransaction, additional = [], onAdditional, links = {}, onLinks, docId, startPicking = false }) {
+// doc: the saved document being edited (links kept once it was routed on stay: lib/workflow.js linkLocked).
+export default function ChecklistStep({ type, transaction, state, onState, onTransaction, additional = [], onAdditional, links = {}, onLinks, docId, doc = null, startPicking = false }) {
   const [picking, setPicking] = useState(startPicking);
   const library = type.checklistSource && type.checklistSource !== 'own';
   const checklist = effectiveChecklist(type, transaction);
@@ -82,7 +84,7 @@ export default function ChecklistStep({ type, transaction, state, onState, onTra
                   <div key={gi} className="cl-answers">
                     {g.group && <div className="cl-groupname">{g.group}</div>}
                     {g.items.map((item) => (
-                      <Answer key={item.id} item={item} value={state[item.id]} docId={docId}
+                      <Answer key={item.id} item={item} value={state[item.id]} docId={docId} doc={doc}
                         onChange={(v) => onState((s) => ({ ...s, [item.id]: v }))}
                         links={links[item.id] || []}
                         onLinks={onLinks && ((l) => onLinks({ ...links, [item.id]: l }))} />

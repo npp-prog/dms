@@ -42,3 +42,12 @@ test('a supporting document goes into the Archive with its processed main docume
   assert.equal(processedAt(s), '2026-11-01T10:52:00Z');
   assert.equal(sup.parentProcessedAt, undefined); // the documents read are not changed
 });
+
+import { linkLocked } from './workflow.js';
+test('a link is kept once the document is routed on after it was added', () => {
+  const doc = { workflow: { events: [{ type: 'started' }, { type: 'released' }, { type: 'returned' }] } };
+  assert.equal(linkLocked({}, { atEvent: 0 }), false); // not routed yet
+  assert.equal(linkLocked(doc, {}), true); // an old link: routed since
+  assert.equal(linkLocked(doc, { atEvent: 1 }), true); // added before it was routed
+  assert.equal(linkLocked(doc, { atEvent: 2 }), false); // added after it was routed and returned
+});

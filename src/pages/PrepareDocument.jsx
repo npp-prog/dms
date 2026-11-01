@@ -209,7 +209,7 @@ function Wizard({ typeId, docId }) {
 
           {step.id === '__checklist' && (
             <ChecklistStep type={type} transaction={transaction} state={checklist} onState={setChecklist}
-              additional={additionalDocs} onAdditional={setAdditionalDocs} links={links} onLinks={setLinks} docId={docId}
+              additional={additionalDocs} onAdditional={setAdditionalDocs} links={links} onLinks={setLinks} docId={docId} doc={existing}
               startPicking={changeChecklist}
               onTransaction={(t) => {
                 if (transaction?.code !== t.code) {

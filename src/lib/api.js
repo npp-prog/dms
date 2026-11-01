@@ -560,11 +560,11 @@ export async function copyDocument(src, user, signatories) {
 }
 
 export async function updateDocument(id, type, { data, checklist, additionalDocs = [], links = {}, transaction = null, status }, user, history = []) {
-  await withLinkClaims(id, { links }, user, () => updateDoc(doc(db, 'documents', id), {
+  await withLinkClaims(id, { links }, user, (st) => updateDoc(doc(db, 'documents', id), {
     data,
     checklist,
     additionalDocs,
-    links,
+    links: st.links,
     transaction,
     status,
     title: summarize(type, data),
@@ -621,21 +621,38 @@ async function releaseLinks(parentId, before, after) {
     if (c?.parent === parentId) await deleteDoc(ref).catch(() => {});
   }
 }
-// The document's links change (to links and/or supplements): claimed before, freed after.
+// Each link added now gets atEvent (how many route events the document has): once it is routed
+// on after that, the link is kept (lib/workflow.js linkLocked). Links already there keep theirs.
+const linkKey = (l) => `${l?.kind}:${l?.path || l?.id || l?.url || l?.ref || ''}`;
+function stampNew(before = [], after = [], at = 0) {
+  const left = new Map();
+  for (const l of before || []) left.set(linkKey(l), (left.get(linkKey(l)) || 0) + 1);
+  return (after || []).map((l) => {
+    const n = left.get(linkKey(l)) || 0;
+    if (n > 0) { left.set(linkKey(l), n - 1); return l; }
+    return l.atEvent !== undefined ? l : { ...l, atEvent: at };
+  });
+}
+// The document's links change (to links and/or supplements): links added now are stamped, and
+// documents of a link-once type claimed before, freed after. write(stamped) saves.
 async function withLinkClaims(id, next, user, write) {
   const cur = (await getDoc(doc(db, 'documents', id))).data() || {};
+  const at = (cur.workflow?.events || []).length;
+  const stamped = {};
+  if (next.links) stamped.links = Object.fromEntries(Object.entries(next.links).map(([k, list]) => [k, stampNew(cur.links?.[k], list, at)]));
+  if (next.supplements) stamped.supplements = stampNew(cur.supplements, next.supplements, at);
   const before = linkedDocs(cur);
-  const after = linkedDocs({ links: next.links ?? cur.links, supplements: next.supplements ?? cur.supplements });
+  const after = linkedDocs({ links: stamped.links ?? cur.links, supplements: stamped.supplements ?? cur.supplements });
   await claimLinks({ id, controlNo: cur.controlNo }, before, after, user);
-  await write();
+  await write(stamped);
   await releaseLinks(id, before, after);
 }
 
 // Links to supporting documents, added or removed on a saved document (also after it is
 // complete). A newly linked item is ticked Y.
 export async function saveDocumentLinks(id, { links, checklist }, user, history = [], note = '') {
-  await withLinkClaims(id, { links }, user, () => updateDoc(doc(db, 'documents', id), {
-    links,
+  await withLinkClaims(id, { links }, user, (st) => updateDoc(doc(db, 'documents', id), {
+    links: st.links,
     checklist,
     updatedAt: serverTimestamp(),
     history: [...history, historyEntry('linked', user, note)],
@@ -645,9 +662,9 @@ export async function saveDocumentLinks(id, { links, checklist }, user, history 
 // Attachments that are not on the checklist (extraItems: [{ id, label }], their links in links[id]),
 // added without changing the checklist.
 export async function saveExtraItems(id, { extraItems, links }, user, history = [], note = '') {
-  await withLinkClaims(id, { links }, user, () => updateDoc(doc(db, 'documents', id), {
+  await withLinkClaims(id, { links }, user, (st) => updateDoc(doc(db, 'documents', id), {
     extraItems,
-    links,
+    links: st.links,
     updatedAt: serverTimestamp(),
     history: [...history, historyEntry('attachments', user, note)],
   }));
@@ -715,9 +732,9 @@ export async function finishSupportingDocument(id, link, bytes, user) {
 // supporting DMS document of its own (lib/supporting.js). Removing one keeps that document.
 export async function saveSupplements(id, supplements, user, note) {
   const ref = doc(db, 'documents', id);
-  await withLinkClaims(id, { supplements }, user, () => runTransaction(db, async (tx) => {
+  await withLinkClaims(id, { supplements }, user, (st) => runTransaction(db, async (tx) => {
     const d = (await tx.get(ref)).data();
-    tx.update(ref, { supplements, updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('supplemental', user, note)] });
+    tx.update(ref, { supplements: st.supplements, updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('supplemental', user, note)] });
   }));
 }
 

@@ -381,6 +381,10 @@ export function whereIs(doc) {
 }
 
 // The preparer may still change the document while it is at the first step (their office).
+// A link (or supplemental document) is kept once the document was routed on after it was added
+// (atEvent: how many route events there were then): it can no longer be removed.
+export const linkLocked = (doc, link) => (doc?.workflow?.events || []).slice(Number(link?.atEvent) || 0).some((e) => e.type === 'released');
+
 export function editableByPreparer(doc) {
   const wf = doc?.workflow;
   if (!wf) return true;

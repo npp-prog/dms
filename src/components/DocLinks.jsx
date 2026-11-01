@@ -24,7 +24,8 @@ export function linkText(l) {
 const kb = (n) => (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 // onOpen(link): show an uploaded file (in the document page's viewer).
-export function LinkList({ links = [], onRemove, onOpen }) {
+// isLocked(link): kept for good (the document was routed on after it was added): no ×.
+export function LinkList({ links = [], onRemove, onOpen, isLocked }) {
   if (!links.length) return null;
   return (
     <ul className="doc-links">
@@ -46,7 +47,7 @@ export function LinkList({ links = [], onRemove, onOpen }) {
                     : <span className="doc-link-name plain" title={title}>{title}</span>}
               <span className="doc-link-meta">{meta.filter(Boolean).map((m, j) => <span key={j}>{m}</span>)}</span>
             </span>
-            {onRemove && <button type="button" className="btn-icon" title="Remove" onClick={() => onRemove(i)}>×</button>}
+            {onRemove && !isLocked?.(l, i) && <button type="button" className="btn-icon" title="Remove" onClick={() => onRemove(i)}>×</button>}
           </li>
         );
       })}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LinkEditor, LinkList } from './DocLinks.jsx';
+import { linkLocked } from '../lib/workflow.js';
 import { UPLOAD_TYPES, uploadSupporting } from '../lib/supporting.js';
 
 // Supplemental documents: what goes with the document but is not on its checklist: a file uploaded
@@ -46,6 +47,7 @@ export default function SupplementsCard({ doc, actor, canAdd, canRemove, busy, o
         with its own control number) or link a document already in DMS. Each opens as a tab after the PDF.</p>}
       <LinkList links={list.map((l) => ({ ...l, name: l.label || l.name }))}
         onOpen={(l, i) => onOpen(list[i], `supp:${i}`)}
+        isLocked={(l, i) => linkLocked(doc, list[i])}
         onRemove={canRemove ? (i) => window.confirm('Remove it from this document? It stays in All Documents.') && onSave(list.filter((_, j) => j !== i), `removed ${list[i].dms?.controlNo || list[i].controlNo || list[i].name}`) : undefined} />
       {error && <div className="alert small">{error}</div>}
       {canAdd && (
