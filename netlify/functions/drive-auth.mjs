@@ -10,10 +10,12 @@ import { accountStore, backupStore, listAccounts } from '../lib/store.mjs';
 //   POST { action: 'start', firebaseRefreshToken } → { url }: Google's consent page
 //   GET  ?code&state                                ← Google, after consent; back to /archive
 //   POST { action: 'disconnect', uid? }             forgets a connection (its files stay in its
-//                                                   Drive): one's own; an administrator, anyone's
+//                                                   Drive): one's own; an Admin or the superadmin, anyone's
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const back = (result, reason = '') => new Response(null, { status: 302, headers: { location: `/archive?drive=${result}${reason ? `&reason=${encodeURIComponent(reason.slice(0, 200))}` : ''}` } });
-const isAdmin = (p) => ['admin', 'superadmin', 'itadmin', 'records'].includes(p?.role);
+// Disconnects someone else's Google Drive: the Admin and the superadmin only (not IT Admin or the
+// Records Officer, who disconnect their own).
+const isAdmin = (p) => ['admin', 'superadmin'].includes(p?.role);
 
 export default async (req) => {
   if (!driveConfigured()) {
@@ -61,7 +63,7 @@ export default async (req) => {
   }
   if (body.action === 'disconnect') {
     const uid = body.uid || me.uid;
-    if (uid !== me.uid && !isAdmin(me.profile)) return json(403, { error: 'Only an administrator can disconnect someone else\'s Google Drive.' });
+    if (uid !== me.uid && !isAdmin(me.profile)) return json(403, { error: 'Only an Admin or the superadmin can disconnect someone else\'s Google Drive.' });
     const store = accountStore(base, uid);
     const secret = await store.get('secret');
     if (secret?.googleRefreshToken) await revoke(secret.googleRefreshToken);

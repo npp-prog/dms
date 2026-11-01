@@ -147,7 +147,8 @@ function DriveAccount({ a, busy, canDisconnect, onRun, onDisconnect }) {
 }
 
 function DriveBackup() {
-  const { isAdmin } = useAuth();
+  // Someone else's Drive: only the Admin and the superadmin disconnect it.
+  const { canManageSettings: disconnectsAny } = useAuth();
   const [s, setS] = useState(null);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState(() => {
@@ -192,7 +193,7 @@ function DriveBackup() {
       {accounts.length > 0 && (
         <ul className="drive-accounts">
           {accounts.map((a) => (
-            <DriveAccount key={a.uid} a={a} busy={busy} canDisconnect={a.mine || isAdmin}
+            <DriveAccount key={a.uid} a={a} busy={busy} canDisconnect={a.mine || disconnectsAny}
               onRun={() => run(a)} onDisconnect={() => disconnect(a)} />
           ))}
         </ul>
