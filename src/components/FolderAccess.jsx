@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react';
-import { getFolderRules, listDirectory, listDocumentTypes, listFolderAccess, setFolderAccess, setRestrictedFolders } from '../lib/api.js';
+import { EVERY_OFFICE, getFolderRules, listDirectory, listDocumentTypes, listFolderAccess, setFolderAccess, setRestrictedFolders } from '../lib/api.js';
 import Select from './Select.jsx';
+import PersonPicker from './PersonPicker.jsx';
 
 // Folders → Access (office head): gives people of the office access to the office's documents
 // of chosen folders (document types), or all of them: as viewer (opens them) or editor (does what
 // their preparer does). The preparer always has their own. Restricted folders: no one gets at them
-// through folder access. Administrators and the Records Officer do this for any office.
+// through folder access. Administrators and the Records Officer do this for any office, and give
+// anyone access to folders of every office (office '*': EVERY_OFFICE).
 export default function FolderAccess({ office, me, actor, codes = [] }) {
+  const every = office === EVERY_OFFICE;
   const [people, setPeople] = useState(null);
   const [grants, setGrants] = useState({});
+  // People with access to folders of every office (set by an administrator, not here).
+  const [everyGrants, setEveryGrants] = useState({});
   const [types, setTypes] = useState([]);
   const [restricted, setRestricted] = useState([]);
   const [busy, setBusy] = useState('');
@@ -16,11 +21,14 @@ export default function FolderAccess({ office, me, actor, codes = [] }) {
 
   useEffect(() => {
     setPeople(null);
-    Promise.all([listDirectory(), listFolderAccess(office), listDocumentTypes().catch(() => []), getFolderRules(office)])
-      .then(([dir, list, t, rules]) => {
+    Promise.all([listDirectory(), listFolderAccess(office), listDocumentTypes().catch(() => []), every ? { restricted: [] } : getFolderRules(office),
+      every ? [] : listFolderAccess(EVERY_OFFICE).catch(() => [])])
+      .then(([dir, list, t, rules, everyList]) => {
         setRestricted(rules.restricted);
-        setPeople(dir.filter((p) => p.office === office && !p.external && p.uid !== me));
+        const granted = new Set(list.map((g) => g.uid));
+        setPeople(dir.filter((p) => !p.external && p.uid !== me && (every ? granted.has(p.uid) : p.office === office)));
         setGrants(Object.fromEntries(list.map((g) => [g.uid, g])));
+        setEveryGrants(Object.fromEntries(everyList.map((g) => [g.uid, g])));
         setTypes(t);
       })
       .catch((e) => setError(e.message));
@@ -32,7 +40,7 @@ export default function FolderAccess({ office, me, actor, codes = [] }) {
   const save = async (p, next) => {
     setBusy(p.uid); setError('');
     try {
-      await setFolderAccess(p, next, actor);
+      await setFolderAccess(p, { ...next, everyOffice: every }, actor);
       setGrants((g) => {
         const { [p.uid]: _old, ...rest } = g;
         return next.all || next.types.length ? { ...rest, [p.uid]: { uid: p.uid, office, ...next } } : rest;
@@ -47,10 +55,22 @@ export default function FolderAccess({ office, me, actor, codes = [] }) {
 
   return (
     <section className="card folder-access">
-      <h3>Access to the folders of {office}</h3>
-      <p className="small muted">A viewer opens every document of {office} in their folders (the documents prepared by its people: the folders shown above); an editor also does what the preparer does (edits drafts, converts to PDF, routes, cancels). To give access to one document only, open it and use Access.</p>
+      <h3>{every ? 'Access to the folders of all offices' : `Access to the folders of ${office}`}</h3>
+      {every ? (
+        <p className="small muted">Give anyone, of any office, access to chosen folders (document types) of every office, also documents with no office.
+          A viewer opens those documents; an editor also does what the preparer does (edits drafts, converts to PDF, routes, cancels).
+          This replaces the access their office head gave them. Restricted documents stay out.</p>
+      ) : (
+        <p className="small muted">A viewer opens every document of {office} in their folders: those prepared in the office and those routed to it (the folders shown above). An editor also does what the preparer does (edits drafts, converts to PDF, routes, cancels) on the office's own documents. To give access to one document only, open it and use Access.</p>
+      )}
       {error && <div className="alert">{error}</div>}
-      <div className="restricted-folders">
+      {every && people && (
+        <div className="access-add">
+          <PersonPicker value={null} exclude={[me, ...people.map((p) => p.uid)]} placeholder="Add a person: type a name or email…"
+            onChange={(p) => p && setPeople((list) => [...list, p])} />
+        </div>
+      )}
+      {!every && <div className="restricted-folders">
         <span className="small"><b>Restricted folders</b> <span className="muted">No one opens their documents through folder access.</span></span>
         <span className="access-chips">
           {restricted.length === 0 && <span className="small muted">None</span>}
@@ -66,18 +86,28 @@ export default function FolderAccess({ office, me, actor, codes = [] }) {
             {allCodes.filter((c) => !restricted.includes(c)).map((c) => <option key={c} value={c}>{c} — {nameOf(c)}</option>)}
           </Select>
         </span>
-      </div>
-      {!people ? <div className="spinner" /> : people.length === 0 ? <p className="muted small">No one else in {office}.</p> : (
+      </div>}
+      {!people ? <div className="spinner" /> : people.length === 0 ? <p className="muted small">{every ? 'No one has access to the folders of all offices yet.' : `No one else in ${office}.`}</p> : (
         <table className="data-table">
           <thead><tr><th>Person</th><th>Folders</th><th>Give access to</th><th>As</th></tr></thead>
           <tbody>
             {people.map((p) => {
               const g = grants[p.uid];
+              const e = everyGrants[p.uid];
+              if (e) {
+                return (
+                  <tr key={p.uid}>
+                    <td><b>{p.displayName}</b><div className="xs muted">{p.email}</div></td>
+                    <td colSpan={3}><span className="small">{e.all ? 'All folders' : (e.types || []).join(', ')} of <b>all offices</b>, as {e.edit ? 'editor' : 'viewer'}</span>
+                      <div className="xs muted">Given by an administrator: change it under Folders → All offices → Access.</div></td>
+                  </tr>
+                );
+              }
               const given = g?.all ? [] : g?.types || [];
               const edit = Boolean(g?.edit);
               return (
                 <tr key={p.uid}>
-                  <td><b>{p.displayName}</b><div className="xs muted">{p.email}</div></td>
+                  <td><b>{p.displayName}</b><div className="xs muted">{every ? [p.email, p.office].filter(Boolean).join(' · ') : p.email}</div></td>
                   <td>
                     {!g && <span className="small muted">Own documents only</span>}
                     <span className="access-chips">

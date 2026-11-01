@@ -355,21 +355,27 @@ service cloud.firestore {
       // The office head (or an administrator or the Records Officer) gave this user, of the same
       // office, access to this folder (document type) of the office's documents, or to all of them
       // (Folders: Access). Not to a restricted document, nor to a folder the office restricted.
+      // office '*': an administrator gave them these folders of every office (any user).
       function folderGranted() {
         let g = /databases/$(database)/documents/folderAccess/$(request.auth.uid);
-        let r = /databases/$(database)/documents/folderRules/$(resource.data.get('office', '-'));
-        return myOffice() != '' && resource.data.get('office', '') == myOffice() && exists(g)
-          && get(g).data.office == myOffice()
+        let r = /databases/$(database)/documents/folderRules/$(myOffice());
+        return exists(g)
           && (get(g).data.all == true || resource.data.get('typeCode', '') in get(g).data.types)
           && resource.data.get('restricted', false) == false
-          && !(exists(r) && resource.data.get('typeCode', '') in get(r).data.get('restricted', []));
+          && (get(g).data.office == '*'
+              || (myOffice() != '' && get(g).data.office == myOffice()
+                  && (resource.data.get('office', '') == myOffice() || myOffice() in resource.data.get('routeOffices', []))
+                  && !(exists(r) && resource.data.get('typeCode', '') in get(r).data.get('restricted', []))));
       }
-      // Editor (given by the office head, of this document or its folder): does what its preparer does.
+      // Editor (given by the office head, of this document or its folder; or by an administrator,
+      // of folders of every office): does what its preparer does.
       function actsAsPreparer() {
         return resource.data.createdBy == request.auth.uid
           || (myOffice() != '' && resource.data.get('office', '') == myOffice()
-              && (request.auth.uid in resource.data.get('editors', [])
-                  || (folderGranted() && get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.get('edit', false) == true)));
+              && request.auth.uid in resource.data.get('editors', []))
+          || (folderGranted() && get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.get('edit', false) == true
+              && (get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.office == '*'
+                  || resource.data.get('office', '') == myOffice()));
       }
       // The workflow fields change only through the office holding the document.
       function workflowUntouched() {
@@ -490,11 +496,13 @@ service cloud.firestore {
         return (isOfficeHead() && myOffice() == o) || isRecords();
       }
       allow read: if isActive() && (request.auth.uid == uid || isAdmin() || headOf(resource.data.office));
+      // office '*' (folders of every office, for anyone): administrators and the Records Officer only.
       allow create, update: if (isAdmin() || headOf(request.resource.data.office))
         && (resource == null || isAdmin() || headOf(resource.data.office))
         && request.resource.data.keys().hasOnly(['office', 'all', 'types', 'edit', 'name', 'by', 'byName', 'at'])
         && request.resource.data.all is bool && request.resource.data.get('edit', false) is bool && request.resource.data.types is list
-        && get(/databases/$(database)/documents/users/$(uid)).data.get('office', '') == request.resource.data.office
+        && (request.resource.data.office == '*'
+            || get(/databases/$(database)/documents/users/$(uid)).data.get('office', '') == request.resource.data.office)
         && get(/databases/$(database)/documents/users/$(uid)).data.role != 'payee';
       allow delete: if isActive() && (isAdmin() || headOf(resource.data.office));
     }
@@ -563,9 +571,11 @@ service cloud.firestore {
       function handles(d) {
         return d.createdBy == request.auth.uid
           || (myOffice() != '' && d.get('office', '') == myOffice() && request.auth.uid in d.get('editors', []))
-          || (myOffice() != '' && d.get('office', '') == myOffice() && exists(/databases/$(database)/documents/folderAccess/$(request.auth.uid))
+          || (exists(/databases/$(database)/documents/folderAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.get('edit', false) == true
-              && get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.office == myOffice())
+              && (get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.office == '*'
+                  || (myOffice() != '' && d.get('office', '') == myOffice()
+                      && get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.office == myOffice())))
           || (myOffice() != '' && d.get('currentOffice', '') == myOffice() && d.get('atPreparer', true) == false)
           || d.get('currentOffice', '') == 'person:' + request.auth.uid
           || (myOffice() != '' && profile().get('head', false) == true && d.get('office', '') == myOffice());

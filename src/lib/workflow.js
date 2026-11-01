@@ -159,10 +159,13 @@ export const holdsPosition = (step, positions = [], isHead = false) => isHead ||
 export function isPreparer(doc, { uid, office = '', grant = null } = {}) {
   if (!doc || !uid) return false;
   if (doc.createdBy === uid) return true;
+  const inFolder = Boolean(grant?.edit && !doc.restricted && (grant.all || (grant.types || []).includes(doc.typeCode)));
+  // An editor of these folders in every office (given by an administrator).
+  if (inFolder && grant.office === '*') return true;
   if (!office || doc.office !== office) return false;
   if ((doc.editors || []).includes(uid)) return true;
   // Not through a folder to a restricted document.
-  return Boolean(grant?.edit && !doc.restricted && grant.office === office && (grant.all || (grant.types || []).includes(doc.typeCode)));
+  return inFolder && grant.office === office;
 }
 
 // May this user act on the document's current step?

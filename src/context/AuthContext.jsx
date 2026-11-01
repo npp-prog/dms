@@ -40,7 +40,7 @@ export function AuthProvider({ children }) {
     setProfile(p);
     if (p.active) {
       setSettings(await getSettings().catch(() => ({})));
-      setFolderGrant(p.role !== 'payee' && p.office ? await getFolderAccess(firebaseUser.uid).catch(() => null) : null);
+      setFolderGrant(p.role !== 'payee' ? await getFolderAccess(firebaseUser.uid).catch(() => null) : null);
       syncDirectoryEntry(firebaseUser.uid, p).catch(() => {});
       if (['admin', 'superadmin'].includes(p.role)) syncDirectory().catch(() => {});
     }

@@ -55,7 +55,7 @@ export default function Folders() {
       .catch((e) => setError(e.message));
   }, [user.uid, profile.office, isAdmin, isHead, isRecords]);
 
-  const officeDocs = useMemo(() => (anyOffice && accessOffice ? (docs || []).filter((d) => (d.office || '') === accessOffice) : docs || []), [docs, anyOffice, accessOffice]);
+  const officeDocs = useMemo(() => (anyOffice && accessOffice ? (docs || []).filter((d) => (d.office || '') === accessOffice || (d.routeOffices || []).includes(accessOffice)) : docs || []), [docs, anyOffice, accessOffice]);
   const folders = useMemo(() => {
     const map = new Map();
     for (const d of officeDocs) {
@@ -93,8 +93,9 @@ export default function Folders() {
           </Select>
         </div>
       )}
-      {canGrant && access && anyOffice && !accessOffice && <p className="small muted">Choose an office to set who may open its folders.</p>}
-      {canGrant && access && accessOffice && <FolderAccess key={accessOffice} office={accessOffice} me={user.uid} actor={actor} codes={folders.map((f) => f.code)} />}
+      {canGrant && access && (accessOffice || anyOffice) && (
+        <FolderAccess key={accessOffice || '*'} office={accessOffice || '*'} me={user.uid} actor={actor} codes={folders.map((f) => f.code)} />
+      )}
       {error && <div className="alert">{error}</div>}
       {!docs && !error && <div className="spinner" />}
 

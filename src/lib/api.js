@@ -1175,12 +1175,14 @@ export async function listFolderAccess(office) {
 }
 
 // all: every folder; otherwise types (codes); edit: editor, else viewer. Nothing left: the access
-// is removed.
-export async function setFolderAccess(person, { all = false, types = [], edit = false }, user) {
+// is removed. everyOffice (administrators and the Records Officer): those folders of every office
+// (office '*'), for anyone, whatever their office.
+export const EVERY_OFFICE = '*';
+export async function setFolderAccess(person, { all = false, types = [], edit = false, everyOffice = false }, user) {
   const ref = doc(db, 'folderAccess', person.uid);
   if (!all && !types.length) return deleteDoc(ref);
   return setDoc(ref, {
-    office: person.office, all, types: all ? [] : [...new Set(types)].sort(), edit: Boolean(edit), name: person.displayName || person.email || '',
+    office: everyOffice ? EVERY_OFFICE : person.office || '', all, types: all ? [] : [...new Set(types)].sort(), edit: Boolean(edit), name: person.displayName || person.email || '',
     by: user.uid, byName: user.displayName || user.email || '', at: new Date().toISOString(),
   });
 }
@@ -1265,14 +1267,20 @@ export async function getDocument(id) {
 // by folder: Folders → Access).
 export async function listDocuments({ uid, office = '', all = false, head = false, granted = false, max = 1000 } = {}) {
   const docs = collection(db, 'documents');
-  const grant = granted && !all && !head && office ? await getFolderAccess(uid).catch(() => null) : null;
-  // A folder at a time, leaving out the folders and documents the office restricted.
+  const grant = granted && !all ? await getFolderAccess(uid).catch(() => null) : null;
+  // A folder at a time, leaving out the folders and documents the office restricted. Access to the
+  // folders of every office (given by an administrator): those folders of all offices.
+  const every = grant?.office === EVERY_OFFICE;
   let folderTypes = [];
-  if (grant?.office === office) {
-    const [rules, types] = await Promise.all([getFolderRules(office).catch(() => ({ restricted: [] })), grant.all ? listDocumentTypes() : null]);
+  if (every || (grant && office && !head && grant.office === office)) {
+    const [rules, types] = await Promise.all([every ? { restricted: [] } : getFolderRules(office).catch(() => ({ restricted: [] })), grant.all ? listDocumentTypes() : null]);
     folderTypes = (grant.all ? [...new Set([...types.map((t) => t.code), 'DOC'])] : grant.types || []).filter((t) => t && !rules.restricted.includes(t));
   }
-  const folderQueries = folderTypes.map((t) => query(docs, where('office', '==', office), where('typeCode', '==', t), where('restricted', '==', false), limit(max)));
+  // An office's folders hold its own documents and those routed through it.
+  const folderQueries = folderTypes.flatMap((t) => (every
+    ? [query(docs, where('typeCode', '==', t), where('restricted', '==', false), limit(max))]
+    : [query(docs, where('office', '==', office), where('typeCode', '==', t), where('restricted', '==', false), limit(max)),
+      query(docs, where('routeOffices', 'array-contains', office), where('typeCode', '==', t), where('restricted', '==', false), limit(max))]));
   const queries = all
     ? [query(docs, orderBy('updatedAt', 'desc'), limit(max))]
     : [
