@@ -219,8 +219,8 @@ test('document workflow', () => {
       assert.deepEqual(fillsMissing(doc), ['checkNo', 'checkDate', 'bankName']);
       assert.throws(() => applyAction(doc, a, { uid: 'x', displayName: 'X' }), /Fill in/);
       doc.data = { ...doc.data, checkNo: '0012345', checkDate: '2026-10-29', bankName: 'LBP' };
-      assert.throws(() => applyAction(doc, a, { uid: 'x', displayName: 'X' }), /Upload DV signed by the payee in Box E/);
-      doc.stepFiles = [{ stage: doc.workflow.stage, name: 'box-e.pdf' }];
+      // The DV signed by the payee in Box E is optional: the step goes on without it.
+      assert.doesNotThrow(() => applyAction(doc, a, { uid: 'x', displayName: 'X' }));
     }
     doc = { ...doc, ...applyAction(doc, a, { uid: 'x', displayName: 'X' }) };
   }

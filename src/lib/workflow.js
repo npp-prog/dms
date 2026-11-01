@@ -282,9 +282,8 @@ export function applyAction(doc, action, user, remarks = '', at = new Date().toI
   if ((action === 'release' || action === 'complete') && fillsMissing(doc).length) {
     throw new Error('Fill in this step\'s details (in the Workflow card) before routing it.');
   }
-  if ((action === 'release' || action === 'complete') && uploadMissing(doc)) {
-    throw new Error(`Upload ${wf.steps[wf.stage].upload} before routing it.`);
-  }
+  // (A step's upload, e.g. the DV signed by the payee in Box E, is optional: it does not hold the
+  // document back.)
   if ((action === 'release' || action === 'complete') && assignPending(doc)) {
     throw new Error('This step assigns a reference no. that is not assigned yet: assign it (Workflow card), put it on the PDF, then route it.');
   }

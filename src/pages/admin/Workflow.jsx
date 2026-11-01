@@ -181,7 +181,7 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                     {s.sign && <span className="sign-tag" title="Signs the PDF"><Icon name="sign" />Signs</span>}
                     {s.assign && <span className="badge badge-blue">Assigns {fieldLabel(s.assign.field)}</span>}
                     {s.fills?.length > 0 && <span className="badge badge-blue">Fills in {s.fills.length} detail{s.fills.length > 1 ? 's' : ''}</span>}
-                    {s.upload !== undefined && <span className="badge badge-blue">Upload</span>}
+                    {s.upload !== undefined && <span className="badge badge-blue">Upload (optional)</span>}
                   </span>
                 </button>
                 {tools(i)}

@@ -90,7 +90,9 @@ function ExtraItems({ docData, docId, actor, start, canEdit, busy, run, onOpen }
   );
 }
 
-function ItemLinks({ item, n, links, canEdit, docId, parent, actor, onChange, onOpen }) {
+// canAdd: may link or upload to it (a checklist item only once it is ticked as attached); canEdit:
+// may also remove what is linked.
+function ItemLinks({ item, n, links, canEdit, canAdd = canEdit, docId, parent, actor, onChange, onOpen }) {
   const [open, setOpen] = useState(false);
   const [upload, setUpload] = useState('');
   const [error, setError] = useState('');
@@ -111,7 +113,7 @@ function ItemLinks({ item, n, links, canEdit, docId, parent, actor, onChange, on
     <>
       <LinkList links={links} onOpen={onOpen && ((l, i) => onOpen(l, `${item.id}:${i}`))} onRemove={canEdit ? (i) => onChange(links.filter((_, j) => j !== i), `removed ${linkText(links[i])}`) : undefined} />
       {error && <div className="alert small">{error}</div>}
-      {canEdit && (open
+      {canAdd && (open
         ? <LinkEditor item={item} excludeId={docId} onCancel={() => setOpen(false)} onAdd={(l) => { setOpen(false); onChange([...links, l], linkText(l)); }} />
         : (
           <div className="item-actions no-print">
@@ -469,6 +471,8 @@ function DocumentPage({ docId }) {
                       <ItemLinks item={c} n={ci + 1} links={docData.links?.[c.id] || []} docId={docId} parent={{ ...docData, id: docId }} actor={actor}
                         onOpen={(l, key) => (l.kind === 'fts' ? openLinked(l, key) : openFile(l, key))}
                         canEdit={editable && (isAdmin || (isOwner && notDone))}
+                        // Only an item ticked as attached (☑): not one marked N/A or left unticked.
+                        canAdd={editable && (isAdmin || (isOwner && notDone)) && isChecked(v)}
                         onChange={(list, note) => run(async () => saveDocumentLinks(docId, {
                           links: { ...(docData.links || {}), [c.id]: list },
                           checklist: list.length > (docData.links?.[c.id] || []).length && !isChecked(v)

@@ -3,7 +3,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { getFileBytes, getPdfBytes } from './api.js';
-import { docFolder, filesOf, processedAt } from './archiveFiles.js';
+import { docFolder, filesOf, isArchived, processedAt, withParents } from './archiveFiles.js';
 
 export { filesOf };
 
@@ -26,7 +26,19 @@ export async function listArchive(page = 500) {
     if (snap.size < page) break;
     last = snap.docs[snap.docs.length - 1];
   }
-  return all.sort((a, b) => processedAt(b).localeCompare(processedAt(a)));
+  // And the supporting documents of those (they have no route of their own; they follow it).
+  const supporting = [];
+  let lastS = null;
+  for (;;) {
+    const snap = await getDocs(query(collection(db, 'documents'), where('supports.id', '>', ''), orderBy('supports.id'),
+      ...(lastS ? [startAfter(lastS)] : []), limit(page)));
+    snap.docs.forEach((d) => supporting.push({ id: d.id, ...d.data() }));
+    if (snap.size < page) break;
+    lastS = snap.docs[snap.docs.length - 1];
+  }
+  const ids = new Set(all.map((d) => d.id));
+  return [...all, ...withParents(supporting, all).filter((d) => isArchived(d) && !ids.has(d.id))]
+    .sort((a, b) => processedAt(b).localeCompare(processedAt(a)));
 }
 
 // Where the paper is filed (e.g. a cabinet, box or shelf).

@@ -11,7 +11,7 @@ import { checkRecord, pdfIsPublic } from './publicRecord.js';
 import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing } from './workflow.js';
 import { withApprover } from './approver.js';
 import { copiedData } from './forms.js';
-import { localDay } from './archiveFiles.js';
+import { localDay, withParents } from './archiveFiles.js';
 import { notify } from './social.js';
 
 // ---------- Users ----------
@@ -1326,7 +1326,16 @@ export async function setDocumentStatus(id, status, user, history = [], extra = 
 
 export async function getDocument(id) {
   const snap = await getDoc(doc(db, 'documents', id));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return snap.exists() ? (await withMainDocuments([{ id: snap.id, ...snap.data() }]))[0] : null;
+}
+
+// Supporting documents follow their main document into the Archive (lib/archiveFiles.js
+// withParents): the main documents not among docs are read too (those the user may open).
+async function withMainDocuments(docs) {
+  const have = new Set(docs.map((d) => d.id));
+  const missing = [...new Set(docs.filter((d) => d.supports?.id && !d.workflow && !have.has(d.supports.id)).map((d) => d.supports.id))];
+  const parents = (await Promise.all(missing.map((id) => getDoc(doc(db, 'documents', id)).then((s) => (s.exists() ? { id: s.id, ...s.data() } : null)).catch(() => null)))).filter(Boolean);
+  return withParents(docs, [...docs, ...parents]);
 }
 
 // Admins: every document. Others: their own, their office's and those routed through their
@@ -1362,7 +1371,7 @@ export async function listDocuments({ uid, office = '', all = false, head = fals
       if (snap.size < 500 || out.length >= Math.max(max, 5000)) break;
       last = snap.docs[snap.docs.length - 1];
     }
-    return out;
+    return withMainDocuments(out);
   }
   const queries = all
     ? []
@@ -1384,7 +1393,7 @@ export async function listDocuments({ uid, office = '', all = false, head = fals
   for (const snap of await Promise.all(queries.map((q) => getDocs(q)))) {
     for (const d of snap.docs) byId.set(d.id, { id: d.id, ...d.data() });
   }
-  return [...byId.values()].sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+  return withMainDocuments([...byId.values()].sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0)));
 }
 
 // The document and its public record (what its QR code opens), together.

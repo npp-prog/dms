@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ACTION_LABELS, HIDDEN_EVENTS, approverMismatch, isThirdParty, assignPending, availableActions, fillsMissing, officeOf, refStampMissing, signatureMissing, uploadMissing } from '../lib/workflow.js';
+import { ACTION_LABELS, HIDDEN_EVENTS, approverMismatch, isThirdParty, assignPending, availableActions, fillsMissing, officeOf, refStampMissing, signatureMissing } from '../lib/workflow.js';
 import PersonPicker from './PersonPicker.jsx';
 import Select from './Select.jsx';
 
@@ -112,7 +112,7 @@ function StepTasks({ doc, step, busy, onFill, onUpload, onOpenFile, children }) 
       )}
       {step.upload && (
         <div className="step-upload">
-          <div className="field-label">{step.upload}</div>
+          <div className="field-label">{step.upload} <span className="muted">(optional)</span></div>
           {files.map((f, i) => <div key={i} className="small"><button type="button" className="link" onClick={() => onOpenFile(f)}>{f.name}</button> · {f.by}</div>)}
           <label className="btn btn-ghost btn-sm">
             {files.length ? 'Upload another' : 'Upload'}
@@ -159,7 +159,8 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
   const showChoice = wf.state === 'in-progress' && hasAlternates && wf.stage === 0 && !released && !referral && canAct;
   const refPending = refStampMissing(doc);
   const toAssign = canAct && assignPending(doc) ? wf.steps[wf.stage].assign.field : '';
-  const blocked = fillsMissing(doc).length > 0 || uploadMissing(doc) || Boolean(refPending) || Boolean(toAssign);
+  // (The step's upload is optional: it does not block routing.)
+  const blocked = fillsMissing(doc).length > 0 || Boolean(refPending) || Boolean(toAssign);
   const act = (action) => onAction(action, remarks, () => { setRemarks(''); setReturning(false); });
 
   return (
@@ -256,8 +257,8 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
                   {!fillsMissing(doc).length && sendPanel}
                 </StepTasks>
               )}
-              {(fillsMissing(doc).length > 0 || uploadMissing(doc)) && (
-                <div className="alert-info small">Before routing: {[fillsMissing(doc).length && 'fill in and save the details above', uploadMissing(doc) && `upload ${wf.steps[wf.stage].upload}`].filter(Boolean).join(', and ')}.</div>
+              {fillsMissing(doc).length > 0 && (
+                <div className="alert-info small">Before routing: fill in and save the details above.</div>
               )}
               {toAssign && (
                 <div className="alert-info small">The <b>{fieldLabel(toAssign)}</b> is not assigned yet.{' '}

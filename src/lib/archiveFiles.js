@@ -5,8 +5,18 @@
 // server in UTC): toISOString().slice(0, 10) gives the UTC day, the day before until 8 a.m.
 export const localDay = (d = new Date()) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 
-export const isArchived = (d) => d?.workflow?.state === 'done';
-export const processedAt = (d) => [...(d?.workflow?.events || [])].reverse().find((e) => e.type === 'completed')?.at || '';
+// Processed (in the Archive): its route is done; or it is a supporting document (with no route of
+// its own) of a document that is processed: it goes into the Archive with it (parentProcessedAt,
+// added when the documents are read: withParents).
+export const isArchived = (d) => d?.workflow?.state === 'done' || Boolean(d?.parentProcessedAt);
+export const processedAt = (d) => [...(d?.workflow?.events || [])].reverse().find((e) => e.type === 'completed')?.at || d?.parentProcessedAt || '';
+
+// Supporting documents follow their main document: those whose main document (among parents) is
+// processed get its processed date. Not stored: worked out each time the documents are read.
+export function withParents(docs, parents = docs) {
+  const done = new Map(parents.filter((p) => p?.workflow?.state === 'done').map((p) => [p.id, processedAt(p)]));
+  return docs.map((d) => (d?.supports?.id && !d.workflow && done.has(d.supports.id) ? { ...d, parentProcessedAt: done.get(d.supports.id) } : d));
+}
 
 export const safe = (s) => String(s || '').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
 
@@ -19,6 +29,8 @@ export function filesOf(d) {
     for (const l of list || []) if (l?.kind === 'file' && l.path) out.push({ path: l.path, name: `attachments/${safe(l.name) || 'file'}` });
   }
   for (const f of d.stepFiles || []) if (f?.path) out.push({ path: f.path, name: `step files/${safe(f.label)} ${safe(f.name)}` });
+  // Supplemental documents (files that go with it, not on its checklist).
+  for (const f of d.supplements || []) if (f?.path) out.push({ path: f.path, name: `supplements/${safe(f.label || f.name) || 'file'}` });
   return out;
 }
 
