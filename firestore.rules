@@ -24,7 +24,17 @@ service cloud.firestore {
     function isActive() {
       return hasProfile() && profile().active == true;
     }
+    // Admin-level roles: Admin, IT Admin, Records Officer and the superadmin run the documents,
+    // formats, workflow and folders of every office (src/lib/roles.js).
     function isAdmin() {
+      return isActive() && profile().role in ['admin', 'superadmin', 'itadmin', 'records'];
+    }
+    // Users (add, approve, edit, invites): not the Records Officer.
+    function managesUsers() {
+      return isActive() && profile().role in ['admin', 'superadmin', 'itadmin'];
+    }
+    // Settings: the superadmin (and Admin); not IT Admin nor the Records Officer.
+    function managesSettings() {
       return isActive() && profile().role in ['admin', 'superadmin'];
     }
     function isSuper() {
@@ -32,7 +42,7 @@ service cloud.firestore {
     }
     // The Records Officer (a position, Users) sees every document, to keep and download the records.
     function isRecords() {
-      return isActive() && 'Records Officer' in profile().get('positions', []);
+      return isActive() && (profile().role == 'records' || 'Records Officer' in profile().get('positions', []));
     }
     function isOwnerEmail() {
       return signedIn()
@@ -149,12 +159,12 @@ service cloud.firestore {
     // ---- System metadata ----
     match /meta/settings {
       allow read: if isActive();
-      allow write: if isAdmin();
+      allow write: if managesSettings();
     }
     // The privacy notice's contacts (the Data Protection Officer): public, like the notice itself.
     match /meta/privacy {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if managesSettings();
     }
     // The Archive's settings (backup devices, how often to back up): the Records Officer keeps them.
     match /meta/archive {
@@ -207,16 +217,16 @@ service cloud.firestore {
     // positions, already active. ----
     match /invites/{email} {
       // the person themself may read theirs (to know they are expected)
-      allow read: if isAdmin() || (signedIn() && request.auth.token.email.lower() == email);
-      allow create, update: if isAdmin() && email == email.lower()
+      allow read: if managesUsers() || (signedIn() && request.auth.token.email.lower() == email);
+      allow create, update: if managesUsers() && email == email.lower()
         && request.resource.data.keys().hasOnly(['email', 'displayName', 'office', 'role', 'positions', 'head', 'canRefer', 'by', 'byName', 'at'])
         && request.resource.data.email == email
         && request.resource.data.positions is list && request.resource.data.head is bool && request.resource.data.canRefer is bool
         // administrators only by the superadmin; a third party has no office
-        && (request.resource.data.role == 'user' || (isSuper() && request.resource.data.role == 'admin')
+        && (request.resource.data.role == 'user' || (isSuper() && request.resource.data.role in ['admin', 'itadmin', 'records'])
             || (request.resource.data.role == 'payee' && request.resource.data.office == '' && request.resource.data.head == false
                 && request.resource.data.positions.size() == 0 && request.resource.data.canRefer == false));
-      allow delete: if isAdmin();
+      allow delete: if managesUsers();
     }
 
     // ---- User profiles ----
@@ -283,8 +293,8 @@ service cloud.firestore {
         // (The copy of their folder access only as folderAccess says: grantCopyOk.)
         (isSuper() && (request.auth.uid != uid || unchanged(['role', 'active']))
             && (unchanged(['folderGrant']) || grantCopyOk()))
-        // Admin may approve/deactivate and edit regular users only.
-        || (isAdmin() && request.auth.uid != uid
+        // Admin and IT Admin approve/deactivate and edit regular users only.
+        || (managesUsers() && request.auth.uid != uid
             && resource.data.role in ['user', 'payee'] && request.resource.data.role in ['user', 'payee']
             && (unchanged(['folderGrant']) || grantCopyOk()))
         // Anyone may edit their own name, position (job title), ID no. and profile picture (not

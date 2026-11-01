@@ -13,7 +13,7 @@ import { accountStore, backupStore, listAccounts } from '../lib/store.mjs';
 //                                                   Drive): one's own; an administrator, anyone's
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const back = (result, reason = '') => new Response(null, { status: 302, headers: { location: `/archive?drive=${result}${reason ? `&reason=${encodeURIComponent(reason.slice(0, 200))}` : ''}` } });
-const isAdmin = (p) => ['admin', 'superadmin'].includes(p?.role);
+const isAdmin = (p) => ['admin', 'superadmin', 'itadmin', 'records'].includes(p?.role);
 
 export default async (req) => {
   if (!driveConfigured()) {

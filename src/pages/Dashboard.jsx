@@ -8,8 +8,8 @@ import { stateOf, trackingViews } from '../components/WorkflowTracking.jsx';
 import NotesCard from '../components/NotesCard.jsx';
 import { drnOf } from '../lib/naming.js';
 import { backupStatus, getArchiveSettings, listBackups } from '../lib/archive.js';
+import { ROLE_NAMES } from '../lib/roles.js';
 
-const ROLE_NAMES = { superadmin: 'Superadmin', admin: 'Administrator', user: 'User', payee: 'Third Party' };
 
 function greeting() {
   const h = Number(new Date().toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Manila' }));

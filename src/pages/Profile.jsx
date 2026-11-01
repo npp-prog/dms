@@ -10,6 +10,7 @@ import { prepareMark } from '../lib/markImage.js';
 import Select from '../components/Select.jsx';
 import { Avatar } from '../components/Icon.jsx';
 import { staleReload } from '../lib/freshness.js';
+import { ROLE_NAMES } from '../lib/roles.js';
 
 // A square JPEG (320 px) of the middle of the chosen picture, made on the device.
 async function squarePhoto(file) {
@@ -25,7 +26,6 @@ async function squarePhoto(file) {
 }
 
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-PH', { dateStyle: 'medium' }) : '');
-const ROLE_NAMES = { superadmin: 'Superadmin', admin: 'Administrator', user: 'User' };
 
 // My Profile: the user's details and their digital signature, registered once and changed any
 // time: the DICT PNPKI certificate file (.p12/.pfx) and the signature mark placed on the PDFs

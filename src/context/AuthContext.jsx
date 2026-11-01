@@ -6,6 +6,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebase.js';
 import { ensureUserProfile, getFolderAccess, getSettings, listUsers, setupSite, syncDirectory, syncDirectoryEntry, syncFolderGrants, updateUser } from '../lib/api.js';
+import { isAdminRole, managesUsers } from '../lib/roles.js';
 
 const AuthContext = createContext(null);
 
@@ -42,7 +43,7 @@ export function AuthProvider({ children }) {
       setSettings(await getSettings().catch(() => ({})));
       setFolderGrant(p.role !== 'payee' ? await getFolderAccess(firebaseUser.uid).catch(() => null) : null);
       syncDirectoryEntry(firebaseUser.uid, p).catch(() => {});
-      if (['admin', 'superadmin'].includes(p.role)) {
+      if (isAdminRole(p.role)) {
         listUsers().then((users) => Promise.all([syncDirectory(users), syncFolderGrants(users)])).catch(() => {});
       }
     }
@@ -80,17 +81,20 @@ export function AuthProvider({ children }) {
     dismissSetupNotice: () => setSetupNotice([]),
     loading,
     error,
-    isAdmin: profile?.active && ['admin', 'superadmin'].includes(profile.role),
+    // Admin-level roles (lib/roles.js): Admin, IT Admin, Records Officer and the superadmin.
+    isAdmin: Boolean(profile?.active && isAdminRole(profile.role)),
+    // Users page: not the Records Officer.
+    canManageUsers: Boolean(profile?.active && managesUsers(profile.role)),
     isSuper: profile?.active && profile.role === 'superadmin',
     // The office head sees every document of the office (Users > Office head).
     isHead: Boolean(profile?.active && profile.office && profile.head),
     // The Records Officer (a position, Users) sees and downloads every document.
-    isRecords: Boolean(profile?.active && (profile.positions || []).includes('Records Officer')),
+    isRecords: Boolean(profile?.active && (profile.role === 'records' || (profile.positions || []).includes('Records Officer'))),
     // A supplier or payee (not LGU personnel): only the documents referred to them.
     isExternal: Boolean(profile?.active && profile.role === 'payee'),
     // May refer a document they hold to any active user outside its route (Users > May route to
     // any person); admins always may.
-    canRefer: Boolean(profile?.active && (['admin', 'superadmin'].includes(profile.role) || profile.canRefer)),
+    canRefer: Boolean(profile?.active && (isAdminRole(profile.role) || profile.canRefer)),
     // Saves changes to the user's own profile (e.g. their name) and shows them at once.
     updateMyProfile: async (patch) => {
       await updateUser(user.uid, patch);

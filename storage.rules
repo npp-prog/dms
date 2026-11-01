@@ -16,7 +16,7 @@ service firebase.storage {
       return request.auth != null && profile().active == true;
     }
     function isAdmin() {
-      return profile().role in ['admin', 'superadmin'];
+      return profile().role in ['admin', 'superadmin', 'itadmin', 'records'];
     }
     function myOffice() {
       return profile().get('office', '');
@@ -41,7 +41,7 @@ service firebase.storage {
     }
     // The Records Officer (a position) reads every document's files.
     function isRecords() {
-      return 'Records Officer' in profile().get('positions', []);
+      return profile().role == 'records' || 'Records Officer' in profile().get('positions', []);
     }
     // The office head gave this user access to the document's folder (document type), or all;
     // not to a restricted document or folder (as in firestore.rules).

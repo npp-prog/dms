@@ -8,15 +8,15 @@ import AskDms from './AskDms.jsx';
 import { isUnread, listInbox, watchConversations } from '../lib/api.js';
 import { listCirculars, toReceive, watchCommunities, watchNotifications } from '../lib/social.js';
 import { watchIdle } from '../lib/idle.js';
+import { ROLE_NAMES } from '../lib/roles.js';
 
-const ROLE_NAMES = { superadmin: 'Superadmin', admin: 'Administrator', user: 'User', payee: 'Third Party' };
 
 // A supplier or payee may open only these: the documents referred to them, Messages, and their
 // profile (certificate and signature mark).
 const EXTERNAL_PAGES = /^\/(notifications|messages|profile|documents\/[^/]+)\/?$/;
 
 export default function Layout() {
-  const { user, profile, settings, isAdmin, isSuper, isHead, isRecords, isExternal, logout } = useAuth();
+  const { user, profile, settings, isAdmin, isSuper, canManageUsers, isHead, isRecords, isExternal, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const location = useLocation();
   useEffect(() => setOpen(false), [location.pathname]);
@@ -77,7 +77,7 @@ export default function Layout() {
       items: [
         ['/admin/types', 'types', 'Document Types'],
         ['/admin/workflow', 'workflow', 'Workflow'],
-        ['/admin/users', 'users', 'Users'],
+        canManageUsers && ['/admin/users', 'users', 'Users'],
         isSuper && ['/admin/settings', 'settings', 'Settings'],
       ].filter(Boolean),
     },

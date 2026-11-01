@@ -5,8 +5,8 @@ import { positionsOf } from '../../lib/defaults.js';
 import Select from '../../components/Select.jsx';
 import PositionsPicker from '../../components/PositionsPicker.jsx';
 import { Avatar } from '../../components/Icon.jsx';
+import { ROLE_NAMES } from '../../lib/roles.js';
 
-const ROLE_NAMES = { user: 'User', payee: 'Third Party', admin: 'Admin', superadmin: 'Superadmin' };
 
 // One person: name, office and what they may do at a glance; Edit opens their settings below.
 function UserRow({ u, me, isSuper, settings, offices, canManage, onChange, onNewPosition }) {
@@ -49,6 +49,8 @@ function UserRow({ u, me, isSuper, settings, offices, canManage, onChange, onNew
                 <option value="user">User</option>
                 <option value="payee">Third Party</option>
                 {isSuper && <option value="admin">Admin</option>}
+                {isSuper && <option value="itadmin">IT Admin</option>}
+                {isSuper && <option value="records">Records Officer</option>}
                 {isSuper && <option value="superadmin">Superadmin</option>}
               </Select>
             ) : <span className="small">{ROLE_NAMES[u.role] || u.role}</span>}
@@ -110,6 +112,8 @@ function InviteForm({ initial, isSuper, settings, offices, onNewPosition, onSave
             <option value="user">User</option>
             <option value="payee">Third Party</option>
             {isSuper && <option value="admin">Admin</option>}
+            {isSuper && <option value="itadmin">IT Admin</option>}
+            {isSuper && <option value="records">Records Officer</option>}
           </Select></label>
         <label className="field"><span className="field-label">Office</span>
           <Select value={f.office} disabled={payee} onChange={(e) => set({ office: e.target.value, ...(e.target.value ? {} : { head: false }) })}>

@@ -29,9 +29,9 @@ import Checklists from './pages/Checklists.jsx';
 import ChecklistView from './pages/ChecklistView.jsx';
 import ChecklistEditor from './pages/admin/ChecklistEditor.jsx';
 
-function AdminOnly({ children, superOnly = false }) {
-  const { isAdmin, isSuper } = useAuth();
-  if (superOnly ? !isSuper : !isAdmin) return <Navigate to="/" replace />;
+function AdminOnly({ children, superOnly = false, users = false }) {
+  const { isAdmin, isSuper, canManageUsers } = useAuth();
+  if (superOnly ? !isSuper : users ? !canManageUsers : !isAdmin) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -85,7 +85,7 @@ export default function App() {
         <Route path="admin/types/new" element={<AdminOnly><DocumentTypeEditor /></AdminOnly>} />
         <Route path="admin/types/:typeId" element={<AdminOnly><DocumentTypeEditor /></AdminOnly>} />
         <Route path="admin/workflow" element={<AdminOnly><Workflow /></AdminOnly>} />
-        <Route path="admin/users" element={<AdminOnly><Users /></AdminOnly>} />
+        <Route path="admin/users" element={<AdminOnly users><Users /></AdminOnly>} />
         <Route path="admin/settings" element={<AdminOnly superOnly><Settings /></AdminOnly>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
