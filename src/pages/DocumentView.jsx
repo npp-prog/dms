@@ -415,7 +415,10 @@ function DocumentPage({ docId }) {
               })}
               onFill={(values) => run(() => fillStepFields(docId, values, actor, wf.stage))}
               onUpload={(file) => file && run(async () => {
-                const link = await uploadAttachment(docId, `step-${wf.stage}`, file, actor);
+                // A document of its own (DMS number, QR code, in All Documents, archived with this
+                // one), shown as a tab after the PDF, like a supplemental document.
+                const label = wf.steps[wf.stage].upload || 'Uploaded at this step';
+                const link = await uploadSupporting({ parent: { ...docData, id: docId }, slot: `step-${wf.stage}`, label, file, actor });
                 await addStepFile(docId, wf.stage, link, actor);
               })}
               onOpenFile={openFile}
@@ -509,7 +512,7 @@ function DocumentPage({ docId }) {
         </div>
         {type ? (
           <div className="doc-main" ref={viewer}>
-            {((activeChecklist && activeChecklist.items.length > 0) || pdfView || (!isExternal && (docData.supplements || []).length > 0)) && (
+            {((activeChecklist && activeChecklist.items.length > 0) || pdfView || (!isExternal && ((docData.supplements || []).length > 0 || (docData.stepFiles || []).length > 0))) && (
               <div className="tabs view-toggle no-print">
                 {pdfView && <button className={view === 'pdf' ? 'active' : ''} onClick={() => setView('pdf')}>{hasSignature ? 'Signed PDF' : 'PDF'}</button>}
                 {(isExternal ? [] : docData.supplements || []).map((l, i) => (
@@ -517,6 +520,15 @@ function DocumentPage({ docId }) {
                     className={view === 'file' && linkKey === `supp:${i}` ? 'active' : ''}
                     onClick={() => openFile(l, `supp:${i}`)}>{l.label && l.label !== 'Supplemental document' ? l.label : `Supplemental ${i + 1}`}</button>
                 ))}
+                {/* Files uploaded at a route step (e.g. the DV signed by the payee in Box E). */}
+                {(isExternal ? [] : docData.stepFiles || []).map((l, i) => {
+                  const name = l.label || 'Uploaded file';
+                  return (
+                    <button key={`step:${i}`} title={`${name}: ${l.dms?.controlNo || l.name}`}
+                      className={view === 'file' && linkKey === `step:${i}` ? 'active' : ''}
+                      onClick={() => openFile(l, `step:${i}`)}>{name.length > 30 ? `${name.slice(0, 28).trim()}…` : name}</button>
+                  );
+                })}
                 {!uploaded && <button className={view === 'document' ? 'active' : ''} onClick={() => setView('document')}>{docData.typeCode}</button>}
                 {activeChecklist && activeChecklist.items.length > 0 && (
                   <button className={view === 'checklist' ? 'active' : ''} onClick={() => setView('checklist')}>Checklist{docData.transaction ? ` ${docData.transaction.code}` : ''}</button>
