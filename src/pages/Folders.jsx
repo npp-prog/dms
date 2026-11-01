@@ -41,7 +41,9 @@ export default function Folders() {
   const anyOffice = isAdmin || isRecords;
   const canGrant = anyOffice || (isHead && Boolean(profile.office));
   const offices = settings.offices || [];
-  const [accessOffice, setAccessOffice] = useState(anyOffice ? profile.office || offices[0] || '' : profile.office);
+  // Administrators and the Records Officer see every office's documents: the office chosen here
+  // shows that office's folders (what its people see, and whose access is set below).
+  const [accessOffice, setAccessOffice] = useState(anyOffice ? '' : profile.office);
   const [docs, setDocs] = useState(null);
   const [error, setError] = useState('');
   const [view, setView] = useView();
@@ -53,9 +55,10 @@ export default function Folders() {
       .catch((e) => setError(e.message));
   }, [user.uid, profile.office, isAdmin, isHead, isRecords]);
 
+  const officeDocs = useMemo(() => (anyOffice && accessOffice ? (docs || []).filter((d) => (d.office || '') === accessOffice) : docs || []), [docs, anyOffice, accessOffice]);
   const folders = useMemo(() => {
     const map = new Map();
-    for (const d of docs || []) {
+    for (const d of officeDocs) {
       const key = d.typeCode || 'DOC';
       if (!map.has(key)) map.set(key, { code: key, name: d.typeName || key, docs: [], last: null });
       const f = map.get(key);
@@ -64,7 +67,7 @@ export default function Folders() {
       if (!f.last || at > f.last) f.last = at;
     }
     return [...map.values()].sort((a, b) => a.code.localeCompare(b.code));
-  }, [docs]);
+  }, [officeDocs]);
 
   const folder = code ? folders.find((f) => f.code === code) : null;
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -82,19 +85,20 @@ export default function Folders() {
           <ViewSwitch view={view} onChange={setView} />
         </div>
       </div>
-      {canGrant && access && anyOffice && (
+      {anyOffice && (
         <div className="filters">
           <Select value={accessOffice} aria-label="Office" onChange={(e) => setAccessOffice(e.target.value)}>
-            {!accessOffice && <option value="">Choose an office…</option>}
+            <option value="">All offices</option>
             {[...new Set([...offices, ...(profile.office ? [profile.office] : [])])].sort().map((o) => <option key={o} value={o}>{o}</option>)}
           </Select>
         </div>
       )}
+      {canGrant && access && anyOffice && !accessOffice && <p className="small muted">Choose an office to set who may open its folders.</p>}
       {canGrant && access && accessOffice && <FolderAccess key={accessOffice} office={accessOffice} me={user.uid} actor={actor} codes={folders.map((f) => f.code)} />}
       {error && <div className="alert">{error}</div>}
       {!docs && !error && <div className="spinner" />}
 
-      {docs && !code && (folders.length === 0 ? <p className="muted">No documents yet.</p> : view === 'tiles' ? (
+      {docs && !code && (folders.length === 0 ? <p className="muted">{anyOffice && accessOffice ? `No documents of ${accessOffice} yet.` : 'No documents yet.'}</p> : view === 'tiles' ? (
         <div className="folder-tiles">
           {folders.map((f) => (
             <Link key={f.code} to={`/folders/${encodeURIComponent(f.code)}`} className="folder-tile">
@@ -134,6 +138,7 @@ export default function Folders() {
                   <b>{d.controlNo}</b>
                   <span className="doc-tile-title">{d.title || d.typeName}</span>
                   <span className="small muted">{drnOf(d) || (d.uploaded ? 'Uploaded' : d.createdByName)}</span>
+                  {anyOffice && !accessOffice && <span className="xs muted">{d.office || 'No office'}</span>}
                   <span className="doc-tile-foot"><StatusBadge status={d.status} /><span className="xs muted">{day(d.updatedAt)}</span></span>
                 </Link>
               ))}
@@ -141,13 +146,14 @@ export default function Folders() {
           ) : (
             <div className="card table-card">
               <table className="data-table">
-                <thead><tr><th>Control No.</th><th>DRN</th><th>Payee / Subject</th><th>Prepared by</th><th>Status</th><th>Where</th><th>Updated</th></tr></thead>
+                <thead><tr><th>Control No.</th><th>DRN</th><th>Payee / Subject</th><th>Office</th><th>Prepared by</th><th>Status</th><th>Where</th><th>Updated</th></tr></thead>
                 <tbody>
                   {shown.map((d) => (
                     <tr key={d.id}>
                       <td><Link to={`/documents/${d.id}`}><b>{d.controlNo}</b></Link></td>
                       <td className="small">{drnOf(d) || '—'}</td>
                       <td>{d.title}</td>
+                      <td className="small">{d.office || '—'}</td>
                       <td className="small">{d.uploaded ? `Uploaded by ${d.createdByName}` : d.createdByName}</td>
                       <td><StatusBadge status={d.status} /></td>
                       <td className="small">{whereIs(d) || '—'}</td>

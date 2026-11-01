@@ -48,7 +48,7 @@ export default function FolderAccess({ office, me, actor, codes = [] }) {
   return (
     <section className="card folder-access">
       <h3>Access to the folders of {office}</h3>
-      <p className="small muted">A viewer opens every document of the office in their folders; an editor also does what the preparer does (edits drafts, converts to PDF, routes, cancels). To give access to one document only, open it and use Access.</p>
+      <p className="small muted">A viewer opens every document of {office} in their folders (the documents prepared by its people: the folders shown above); an editor also does what the preparer does (edits drafts, converts to PDF, routes, cancels). To give access to one document only, open it and use Access.</p>
       {error && <div className="alert">{error}</div>}
       <div className="restricted-folders">
         <span className="small"><b>Restricted folders</b> <span className="muted">No one opens their documents through folder access.</span></span>
