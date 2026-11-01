@@ -207,7 +207,7 @@ To prepare a document like one already in DMS (the same payee, items or purpose)
 
 ### Delete a document
 
-Only the **superadmin** can delete a document (**Delete**, at the top of the document page). Administrators cannot. The preparer can delete only their own **draft** that was never converted to PDF or routed; once a document has a PDF or is on its route, ask the superadmin, or **Cancel document** instead (it stays on record as cancelled).
+Only the **superadmin** can delete a document (**Delete**, at the top of the document page). Administrators cannot. The preparer (or an editor) can delete a **draft**: one never marked complete, or one that was routed, returned to the preparer's office and saved as a draft again (**Edit** → **Save as draft**). A document that is **complete**, or out on its route at another office, cannot be deleted by the preparer: ask the superadmin, or **Cancel document** instead (it stays on record as cancelled). Deleting also removes its QR record, so its QR code no longer shows it as genuine.
 
 ### Search by contents
 

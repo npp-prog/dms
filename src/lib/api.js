@@ -1296,8 +1296,12 @@ export async function listDocuments({ uid, office = '', all = false, head = fals
   return [...byId.values()].sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 }
 
-export function deleteDocument(id) {
-  return deleteDoc(doc(db, 'documents', id));
+// The document and its public record (what its QR code opens), together.
+export async function deleteDocument(id) {
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'checks', id));
+  batch.delete(doc(db, 'documents', id));
+  await batch.commit();
 }
 
 export function snapshotType(type) {

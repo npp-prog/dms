@@ -324,7 +324,7 @@ function DocumentPage({ docId }) {
               Cancel document
             </button>
           )}
-          {(isSuper || (isOwner && docData.status === 'draft' && !wf && !(docData.pdf?.files || []).length)) && <button className="btn btn-danger" disabled={busy} onClick={remove}>Delete</button>}
+          {(isSuper || (isOwner && docData.status === 'draft' && editableByPreparer(docData))) && <button className="btn btn-danger" disabled={busy} onClick={remove}>Delete</button>}
         </div>
       </div>
 

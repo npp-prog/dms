@@ -472,13 +472,14 @@ service cloud.firestore {
                 && appended('history') && pdfAppended() && routeRecordKept() && routeMoveOk()
                 && request.resource.data.get('data', {}).diff(resource.data.get('data', {})).affectedKeys().hasOnly(assignedKeys())
                 && request.resource.data.get('refNos', {}).diff(resource.data.get('refNos', {})).affectedKeys().hasOnly(assignedKeys())));
-      // Only the superadmin deletes a document (administrators cannot). The preparer deletes only
-      // their own draft never converted to PDF nor routed (no signatures, no reference no., no
-      // public record).
+      // Only the superadmin deletes any document (administrators cannot). The preparer (or an
+      // editor) deletes a draft: one never completed, or one routed and returned to their step and
+      // saved as a draft again. Not while it is complete or out on its route.
       allow delete: if isSuper()
-        || (isActive() && actsAsPreparer()
-            && resource.data.status == 'draft' && !('workflow' in resource.data)
-            && resource.data.get('pdf', {}).get('files', []).size() == 0);
+        || (isActive() && actsAsPreparer() && resource.data.status == 'draft'
+            && (!('workflow' in resource.data)
+                || (resource.data.workflow.state == 'in-progress' && resource.data.workflow.stage == 0
+                    && resource.data.workflow.get('referral', null) == null)));
     }
 
     // ---- Folder access: the office head lets a user of the office read the office's documents of
@@ -580,7 +581,12 @@ service cloud.firestore {
         && (request.resource.data.get('pdf', '') == ''
             || request.resource.data.pdf == docAfter().pdf.files[docAfter().pdf.files.size() - 1].path)
         && (isAdmin() || handles(docBefore()) || handles(docAfter()));
-      allow delete: if isAdmin();
+      // With the document: by an administrator, or by its preparer while it is a draft (deleted
+      // together, in one batch).
+      allow delete: if isAdmin()
+        || (isActive() && exists(/databases/$(database)/documents/documents/$(docId))
+            && get(/databases/$(database)/documents/documents/$(docId)).data.status == 'draft'
+            && handles(get(/databases/$(database)/documents/documents/$(docId)).data));
     }
 
     // ---- Control number sequences ----
