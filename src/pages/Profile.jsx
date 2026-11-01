@@ -9,6 +9,7 @@ import { isValidAt, readCertificate } from '../lib/signing.js';
 import { prepareMark } from '../lib/markImage.js';
 import Select from '../components/Select.jsx';
 import { Avatar } from '../components/Icon.jsx';
+import { staleReload } from '../lib/freshness.js';
 
 // A square JPEG (320 px) of the middle of the chosen picture, made on the device.
 async function squarePhoto(file) {
@@ -59,7 +60,7 @@ export default function Profile() {
 
   const run = async (label, fn) => {
     setBusy(label); setMsg(null);
-    try { await fn(); } catch (e) { setMsg({ ok: false, text: e.message }); } finally { setBusy(''); }
+    try { await fn(); } catch (e) { if (!staleReload(e)) setMsg({ ok: false, text: e.message }); } finally { setBusy(''); }
   };
 
   const detailsChanged = name.trim() !== (profile.displayName || '') || position.trim() !== (profile.position || '')

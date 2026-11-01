@@ -9,6 +9,7 @@ import { verifyUrl } from '../lib/qr.js';
 import { withDmsQr } from '../lib/qrStamp.js';
 import { imageToPdf } from '../lib/imagePdf.js';
 import { fundsOf } from '../lib/defaults.js';
+import { staleReload } from '../lib/freshness.js';
 
 // A document that is not prepared in DMS but already exists as a file: a scanned OBR, a letter,
 // a PDF made in another system. It gets a DMS control number, its file becomes its PDF (a photo
@@ -77,6 +78,7 @@ export default function UploadDocument() {
       if ((type.route || type.processing || []).length) await startWorkflow(created.id, type, actor, settings.offices || []);
       navigate(`/documents/${created.id}`, { replace: true });
     } catch (err) {
+      if (staleReload(err)) return;
       setError(err.message);
       setBusy('');
     }

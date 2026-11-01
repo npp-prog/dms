@@ -24,6 +24,7 @@ import { uploadSupporting } from '../lib/supporting.js';
 import PdfViewer from '../components/PdfViewer.jsx';
 import { verifyUrl } from '../lib/qr.js';
 import { hasDmsQr, withDmsQr } from '../lib/qrStamp.js';
+import { staleReload } from '../lib/freshness.js';
 
 function downloadBytes(bytes, name, type) {
   const a = document.createElement('a');
@@ -268,7 +269,7 @@ function DocumentPage({ docId }) {
   const run = async (fn) => {
     setBusy(true);
     setActionError('');
-    try { await fn(); await load(); } catch (e) { setActionError(e.message); } finally { setBusy(false); }
+    try { await fn(); await load(); } catch (e) { if (!staleReload(e)) setActionError(e.message); } finally { setBusy(false); }
   };
 
   const remove = () => {
@@ -315,7 +316,7 @@ function DocumentPage({ docId }) {
               onClick={async () => {
                 if (uploaded) { navigate(`/upload?copy=${docId}`); return; }
                 setBusy(true); setActionError('');
-                try { navigate(`/documents/${await copyDocument({ ...docData, id: docId }, actor, signatoriesFrom(settings))}/edit`); } catch (e) { setActionError(e.message); setBusy(false); }
+                try { navigate(`/documents/${await copyDocument({ ...docData, id: docId }, actor, signatoriesFrom(settings))}/edit`); } catch (e) { if (!staleReload(e)) setActionError(e.message); setBusy(false); }
               }}>Copy as new draft</button>
           )}
           {canCancel && (

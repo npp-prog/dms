@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { loadPdfjs } from '../lib/pdfjs.js';
+import { staleReload } from '../lib/freshness.js';
 
 // Shows a PDF inside the page (no pop-up, no download): every page drawn with pdf.js, sized to
 // the space it has. While a signatory places their signature mark, tapping a page puts the mark
@@ -120,7 +121,7 @@ export default function PdfViewer({ bytes, signatures = [], title = '', placing 
         task = page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
         await task.promise;
       }
-    })().catch((e) => !cancelled && e?.name !== 'RenderingCancelledException' && setError(`Could not show the PDF: ${e.message}`));
+    })().catch((e) => !cancelled && e?.name !== 'RenderingCancelledException' && !staleReload(e) && setError(`Could not show the PDF: ${e.message}`));
     return () => { cancelled = true; task?.cancel(); };
   }, [doc, width, sizes]);
 

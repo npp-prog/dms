@@ -9,6 +9,7 @@ import { byOffice, missingFields } from '../lib/forms.js';
 import { markPixels } from '../lib/markImage.js';
 import { certId, forgetPassword, rememberedPassword, rememberedStatus } from '../lib/rememberPassword.js';
 import { documentPdf, pdfFileName } from './printables.jsx';
+import { staleReload } from '../lib/freshness.js';
 
 // Mark sizes in points (width, height): small fits a DV signature line.
 const MARK_SIZES = { S: [110, 30], M: [150, 42], L: [200, 56] };
@@ -211,7 +212,7 @@ export default function PdfCard({ docData, type, settings, actor, canConvert, ca
   const run = async (label, fn) => {
     if (busy) return; // e.g. Enter pressed again while signing
     setBusy(label); setError(''); setNotice('');
-    try { await fn(); } catch (e) { setError(e.message); } finally { setBusy(''); }
+    try { await fn(); } catch (e) { if (!staleReload(e)) setError(e.message); } finally { setBusy(''); }
   };
 
   const uploading = (p) => setBusy(`Saving… ${Math.round(p * 100)}%`);

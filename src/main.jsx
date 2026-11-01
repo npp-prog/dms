@@ -5,6 +5,9 @@ import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { isConfigured } from './firebase.js';
 import './styles.css';
+import { watchStaleChunks } from './lib/freshness.js';
+
+watchStaleChunks();
 
 function NotConfigured() {
   return (

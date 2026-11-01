@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import UpdateBar from './UpdateBar.jsx';
 import Icon, { Avatar } from './Icon.jsx';
 import BackButton from './BackButton.jsx';
 import AskDms from './AskDms.jsx';
@@ -140,6 +141,7 @@ export default function Layout() {
           </Link>
         </header>
         <main className="main">
+          <UpdateBar />
           <BackButton />
           {isExternal && !EXTERNAL_PAGES.test(location.pathname) ? <Navigate to="/notifications" replace /> : <Outlet />}
         </main>
