@@ -16,7 +16,7 @@ export default function SupplementsCard({ doc, actor, canAdd, canRemove, busy, o
   // A document already in DMS: linked (it keeps its own control no. and route).
   const link = async (l) => {
     setLinking(false); setError('');
-    if (list.some((x) => x.kind === 'fts' && x.id === l.id)) { setError(`${l.controlNo} is already a supplemental document.`); return; }
+    // (The same document may be linked more than once, e.g. under another label.)
     try {
       await onSave([...list, { ...l, label: label.trim() || `${l.typeCode} ${l.controlNo}` }], `linked ${l.controlNo}`);
       setLabel('');
