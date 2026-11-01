@@ -192,6 +192,11 @@ export default function DocumentTypeEditor() {
                 Show its PDF to anyone who scans the QR code</label>
               <div className="help">Off: the QR page still shows that the document is genuine, its route and signatories, and checks a copy;
                 its PDF opens only for signed-in DMS users who handle it (for documents with personal data, such as Payroll).</div></div>
+            <div className="field"><label className="field-label">Linking</label>
+              <label className="check"><input type="checkbox" checked={Boolean(type.linkOnce)} onChange={(e) => patch({ linkOnce: e.target.checked })} />
+                May be linked to only one document</label>
+              <div className="help">On: a document of this type is linked (to a checklist item, as an attachment or a supplemental document) to one
+                document only, once (e.g. an OBR to its DV). Off: it may be linked to any number of documents.</div></div>
             <div className="field field-wide"><label className="field-label">Description</label>
               <textarea rows={3} value={type.description} onChange={(e) => patch({ description: e.target.value })} /></div>
           </div>

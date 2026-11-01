@@ -271,6 +271,7 @@ export async function getDocumentType(id) {
 }
 
 export async function saveDocumentType(id, data, user) {
+  linkOnceCache = null; // "May be linked to only one document" may have changed
   const { id: _ignored, createdAt, ...clean } = data;
   const payload = { ...clean, updatedAt: serverTimestamp(), updatedBy: user.uid };
   if (id) {
@@ -513,7 +514,10 @@ function historyEntry(action, user, note = '') {
 
 export async function createDocument(type, { data, checklist, additionalDocs = [], links = {}, transaction = null, signatories = null, status, copiedFrom = null }, user) {
   const controlNo = await nextControlNo();
-  const ref = await addDoc(collection(db, 'documents'), {
+  const ref = doc(collection(db, 'documents'));
+  // Linked in the wizard: documents of a link-once type are claimed for this new document.
+  await claimLinks({ id: ref.id, controlNo }, [], linkedDocs({ links }), user);
+  await setDoc(ref, {
     restricted: false,
     typeId: type.id,
     typeCode: type.code,
@@ -556,7 +560,7 @@ export async function copyDocument(src, user, signatories) {
 }
 
 export async function updateDocument(id, type, { data, checklist, additionalDocs = [], links = {}, transaction = null, status }, user, history = []) {
-  await updateDoc(doc(db, 'documents', id), {
+  await withLinkClaims(id, { links }, user, () => updateDoc(doc(db, 'documents', id), {
     data,
     checklist,
     additionalDocs,
@@ -566,29 +570,87 @@ export async function updateDocument(id, type, { data, checklist, additionalDocs
     title: summarize(type, data),
     updatedAt: serverTimestamp(),
     history: [...history, historyEntry('updated', user, status)],
-  });
+  }));
+}
+
+// ---- Linking a document to one document only (document type: linkOnce) ----
+// linkClaims/{linked doc id}: { parent, parentControlNo }: where a document of such a type is
+// linked. A second link (to another document, or again to the same one) is refused; removing the
+// link frees it. Documents of other types may be linked any number of times.
+let linkOnceCache = null;
+async function linkOnceCodes() {
+  if (!linkOnceCache || Date.now() - linkOnceCache.at > 5 * 60e3) {
+    const types = await listDocumentTypes().catch(() => []);
+    linkOnceCache = { at: Date.now(), codes: new Set(types.filter((t) => t.linkOnce).map((t) => t.code)) };
+  }
+  return linkOnceCache.codes;
+}
+// Every DMS document linked from a document: checklist items and attachments (links), and
+// supplemental documents. [{ id, controlNo, typeCode }], one entry per link.
+export const linkedDocs = ({ links = {}, supplements = [] } = {}) => [
+  ...Object.values(links || {}).flat(),
+  ...(supplements || []),
+].filter((l) => l?.kind === 'fts' && l.id);
+
+// Before saving the document's links: claims each newly linked document of a link-once type
+// (throws if it is linked elsewhere, or twice here).
+async function claimLinks(parent, before, after, user) {
+  const once = await linkOnceCodes();
+  if (!once.size) return;
+  const count = new Map();
+  for (const l of after.filter((x) => once.has(x.typeCode))) {
+    count.set(l.id, (count.get(l.id) || 0) + 1);
+    if (count.get(l.id) > 1) throw new Error(`${l.controlNo} (${l.typeCode}) may be linked to one document only, once.`);
+  }
+  const had = new Set(before.map((l) => l.id));
+  for (const l of after.filter((x) => once.has(x.typeCode) && !had.has(x.id))) {
+    const ref = doc(db, 'linkClaims', l.id);
+    await runTransaction(db, async (tx) => {
+      const c = (await tx.get(ref)).data();
+      if (c && c.parent !== parent.id) throw new Error(`${l.controlNo} (${l.typeCode}) is already linked to ${c.parentControlNo || 'another document'}: a ${l.typeCode} may be linked to one document only.`);
+      tx.set(ref, { parent: parent.id, parentControlNo: parent.controlNo || '', by: user.displayName || user.email || '', at: new Date().toISOString() });
+    });
+  }
+}
+// After saving: frees the documents no longer linked from it.
+async function releaseLinks(parentId, before, after) {
+  const still = new Set(after.map((l) => l.id));
+  for (const id of new Set(before.map((l) => l.id).filter((x) => !still.has(x)))) {
+    const ref = doc(db, 'linkClaims', id);
+    const c = await getDoc(ref).then((s) => s.data()).catch(() => null);
+    if (c?.parent === parentId) await deleteDoc(ref).catch(() => {});
+  }
+}
+// The document's links change (to links and/or supplements): claimed before, freed after.
+async function withLinkClaims(id, next, user, write) {
+  const cur = (await getDoc(doc(db, 'documents', id))).data() || {};
+  const before = linkedDocs(cur);
+  const after = linkedDocs({ links: next.links ?? cur.links, supplements: next.supplements ?? cur.supplements });
+  await claimLinks({ id, controlNo: cur.controlNo }, before, after, user);
+  await write();
+  await releaseLinks(id, before, after);
 }
 
 // Links to supporting documents, added or removed on a saved document (also after it is
 // complete). A newly linked item is ticked Y.
 export async function saveDocumentLinks(id, { links, checklist }, user, history = [], note = '') {
-  await updateDoc(doc(db, 'documents', id), {
+  await withLinkClaims(id, { links }, user, () => updateDoc(doc(db, 'documents', id), {
     links,
     checklist,
     updatedAt: serverTimestamp(),
     history: [...history, historyEntry('linked', user, note)],
-  });
+  }));
 }
 
 // Attachments that are not on the checklist (extraItems: [{ id, label }], their links in links[id]),
 // added without changing the checklist.
 export async function saveExtraItems(id, { extraItems, links }, user, history = [], note = '') {
-  await updateDoc(doc(db, 'documents', id), {
+  await withLinkClaims(id, { links }, user, () => updateDoc(doc(db, 'documents', id), {
     extraItems,
     links,
     updatedAt: serverTimestamp(),
     history: [...history, historyEntry('attachments', user, note)],
-  });
+  }));
 }
 
 // A supporting document uploaded to a checklist item (a scanned PDF or a photo), kept at
@@ -653,10 +715,10 @@ export async function finishSupportingDocument(id, link, bytes, user) {
 // supporting DMS document of its own (lib/supporting.js). Removing one keeps that document.
 export async function saveSupplements(id, supplements, user, note) {
   const ref = doc(db, 'documents', id);
-  await runTransaction(db, async (tx) => {
+  await withLinkClaims(id, { supplements }, user, () => runTransaction(db, async (tx) => {
     const d = (await tx.get(ref)).data();
     tx.update(ref, { supplements, updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('supplemental', user, note)] });
-  });
+  }));
 }
 
 export async function getFileBytes(path) {
@@ -1398,6 +1460,9 @@ export async function listDocuments({ uid, office = '', all = false, head = fals
 
 // The document and its public record (what its QR code opens), together.
 export async function deleteDocument(id) {
+  // The documents it linked are free to be linked again.
+  const cur = await getDoc(doc(db, 'documents', id)).then((s) => s.data()).catch(() => null);
+  if (cur) await releaseLinks(id, linkedDocs(cur), []);
   const batch = writeBatch(db);
   batch.delete(doc(db, 'checks', id));
   batch.delete(doc(db, 'documents', id));

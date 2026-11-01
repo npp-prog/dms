@@ -661,6 +661,22 @@ service cloud.firestore {
             && handles(get(/databases/$(database)/documents/documents/$(docId)).data));
     }
 
+    // ---- Where a document of a link-once type is linked (document type: linkOnce) ----
+    // One per linked document: the document it is linked to. Taken when it is linked (refused if
+    // taken by another document), given back when it is unlinked or that document is deleted.
+    match /linkClaims/{targetId} {
+      allow read: if isActive();
+      allow create: if isStaff()
+        && request.resource.data.keys().hasOnly(['parent', 'parentControlNo', 'by', 'at'])
+        && request.resource.data.parent is string;
+      // Kept by the same document; or taken over when that document no longer exists.
+      allow update: if isStaff()
+        && request.resource.data.keys().hasOnly(['parent', 'parentControlNo', 'by', 'at'])
+        && (request.resource.data.parent == resource.data.parent
+            || !exists(/databases/$(database)/documents/documents/$(resource.data.parent)));
+      allow delete: if isStaff();
+    }
+
     // ---- Control number sequences ----
     match /counters/{counterId} {
       allow read: if isStaff();
