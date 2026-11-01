@@ -358,8 +358,8 @@ A type with no route yet follows its processing guide; the editor starts from it
 **Users** is where you approve new accounts and **assign each person to an office**. Each person is one row (name, email, office, Office head and positions, role, status); search by name, email, office or position, or show only those **Pending approval**. **Approve** activates a new account; **Edit** opens the person's office, role, positions, **Office head** and **May route documents to any person**, and **Deactivate**. Users see only the documents of their own office (and their own); administrators see all documents and can filter by office. The office someone types when registering is only a request, shown as *Asked for*. The list of offices is in **Settings**. Only the superadmin can make someone an administrator.
 
 **Roles.** **User** (LGU personnel) and **Third Party** (outside the LGU), and four roles that run DMS for every office (all documents, document types, workflow, checklists, folder access, circulars, the archive):
-- **Superadmin:** everything, including **Settings**; the only one who gives the roles below, and the only one who deletes documents.
-- **Admin:** everything except Settings.
+- **Superadmin:** everything; the only one who gives the roles below, and the only one who deletes documents.
+- **Admin:** everything, including **Settings** (not giving these roles, nor deleting documents).
 - **IT Admin:** like Admin (adds, approves and edits users in **Users**), without Settings.
 - **Records Officer:** like Admin (keeps the records, the archive and its downloads), without **Users** and Settings.
 The superadmin sets the role in **Users** (Edit → Role) or when adding someone with **+ Add user**. Admin and IT Admin manage Users and Third Parties only, not the other roles. (The *Records Officer* position, given under an office, still lets a user see and download every document read-only; the Records Officer role does all of the above.)

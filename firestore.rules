@@ -33,7 +33,7 @@ service cloud.firestore {
     function managesUsers() {
       return isActive() && profile().role in ['admin', 'superadmin', 'itadmin'];
     }
-    // Settings: the superadmin (and Admin); not IT Admin nor the Records Officer.
+    // Settings: the superadmin and Admin; not IT Admin nor the Records Officer.
     function managesSettings() {
       return isActive() && profile().role in ['admin', 'superadmin'];
     }

@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebase.js';
 import { ensureUserProfile, getFolderAccess, getSettings, listUsers, setupSite, syncDirectory, syncDirectoryEntry, syncFolderGrants, updateUser } from '../lib/api.js';
-import { isAdminRole, managesUsers } from '../lib/roles.js';
+import { isAdminRole, managesSettings, managesUsers } from '../lib/roles.js';
 
 const AuthContext = createContext(null);
 
@@ -85,6 +85,8 @@ export function AuthProvider({ children }) {
     isAdmin: Boolean(profile?.active && isAdminRole(profile.role)),
     // Users page: not the Records Officer.
     canManageUsers: Boolean(profile?.active && managesUsers(profile.role)),
+    // Settings: the superadmin and Admin.
+    canManageSettings: Boolean(profile?.active && managesSettings(profile.role)),
     isSuper: profile?.active && profile.role === 'superadmin',
     // The office head sees every document of the office (Users > Office head).
     isHead: Boolean(profile?.active && profile.office && profile.head),

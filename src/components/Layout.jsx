@@ -16,7 +16,7 @@ import { ROLE_NAMES } from '../lib/roles.js';
 const EXTERNAL_PAGES = /^\/(notifications|messages|profile|documents\/[^/]+)\/?$/;
 
 export default function Layout() {
-  const { user, profile, settings, isAdmin, isSuper, canManageUsers, isHead, isRecords, isExternal, logout } = useAuth();
+  const { user, profile, settings, isAdmin, isSuper, canManageUsers, canManageSettings, isHead, isRecords, isExternal, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const location = useLocation();
   useEffect(() => setOpen(false), [location.pathname]);
@@ -78,7 +78,7 @@ export default function Layout() {
         ['/admin/types', 'types', 'Document Types'],
         ['/admin/workflow', 'workflow', 'Workflow'],
         canManageUsers && ['/admin/users', 'users', 'Users'],
-        isSuper && ['/admin/settings', 'settings', 'Settings'],
+        canManageSettings && ['/admin/settings', 'settings', 'Settings'],
       ].filter(Boolean),
     },
   ].filter(Boolean);
