@@ -140,7 +140,7 @@ export default function Folders() {
                   <span className="doc-tile-title">{d.title || d.typeName}</span>
                   <span className="small muted">{drnOf(d) || (d.uploaded ? 'Uploaded' : d.createdByName)}</span>
                   {anyOffice && !accessOffice && <span className="xs muted">{d.office || 'No office'}</span>}
-                  <span className="doc-tile-foot"><StatusBadge status={d.status} /><span className="xs muted">{day(d.updatedAt)}</span></span>
+                  <span className="doc-tile-foot"><StatusBadge doc={d} /><span className="xs muted">{day(d.updatedAt)}</span></span>
                 </Link>
               ))}
             </div>
@@ -156,7 +156,7 @@ export default function Folders() {
                       <td>{d.title}</td>
                       <td className="small">{d.office || '—'}</td>
                       <td className="small">{d.uploaded ? `Uploaded by ${d.createdByName}` : d.createdByName}</td>
-                      <td><StatusBadge status={d.status} /></td>
+                      <td><StatusBadge doc={d} /></td>
                       <td className="small">{whereIs(d) || '—'}</td>
                       <td className="small">{day(d.updatedAt)}</td>
                     </tr>

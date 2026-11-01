@@ -133,7 +133,7 @@ export default function Dashboard() {
                 <li key={d.id}>
                   <span><span className="when">{d.updatedAt?.toDate?.().toLocaleString() || ''}</span>
                     <Link to={`/documents/${d.id}`}>{d.controlNo}</Link>{drnOf(d) && <span className="drn"> · DRN {drnOf(d)}</span>} — {d.title}</span>
-                  <StatusBadge status={d.status} />
+                  <StatusBadge doc={d} />
                 </li>
               ))}
               {docs.length === 0 && <li className="muted">Nothing prepared yet.</li>}

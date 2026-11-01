@@ -955,5 +955,7 @@ export const COLUMN_TYPES = [
 export const STATUSES = {
   draft: { label: 'Draft', className: 'badge-gray' },
   complete: { label: 'Complete', className: 'badge-green' },
+  // Shown (not stored): the last office marked it processed (its route is done; it is in the Archive).
+  processed: { label: 'Processed', className: 'badge-blue' },
   cancelled: { label: 'Cancelled', className: 'badge-red' },
 };

@@ -1,6 +1,9 @@
 import { STATUSES } from '../lib/defaults.js';
+import { isArchived } from '../lib/archiveFiles.js';
 
-export default function StatusBadge({ status }) {
-  const s = STATUSES[status] || { label: status, className: 'badge-gray' };
+// doc: the document (Processed once its route is done); or status alone.
+export default function StatusBadge({ status, doc }) {
+  const key = doc ? (doc.status !== 'cancelled' && isArchived(doc) ? 'processed' : doc.status) : status;
+  const s = STATUSES[key] || { label: key, className: 'badge-gray' };
   return <span className={`badge ${s.className}`}>{s.label}</span>;
 }

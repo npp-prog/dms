@@ -299,7 +299,7 @@ function DocumentPage({ docId }) {
       <div className="page-head no-print">
         <div>
           <div className="crumbs">{isExternal ? <Link to="/notifications">Documents for you</Link> : <Link to="/documents">Documents</Link>} / {docData.controlNo}</div>
-          <h1>{docData.typeName} <StatusBadge status={docData.status} /></h1>
+          <h1>{docData.typeName} <StatusBadge doc={docData} /></h1>
           <p className="muted">{docData.title} · {docData.uploaded ? 'Uploaded' : 'Prepared'} by {docData.createdByName}</p>
           {docData.copiedFrom?.id && <p className="small">Copied from <Link to={`/documents/${docData.copiedFrom.id}`}>{docData.copiedFrom.controlNo || 'another document'}</Link>.</p>}
           {docData.supports && (

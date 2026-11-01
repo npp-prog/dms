@@ -67,7 +67,7 @@ export default function Documents() {
         )}
         <Select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
           <option value="">All statuses</option>
-          {Object.entries(STATUSES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          {Object.entries(STATUSES).filter(([k]) => k !== 'processed').map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </Select>
       </div>
       {error && <div className="alert">{error}</div>}
@@ -88,7 +88,7 @@ export default function Documents() {
                   <td>{d.title}</td>
                   {isAdmin && <td className="small">{d.office || '—'}</td>}
                   <td>{d.createdByName}</td>
-                  <td><StatusBadge status={d.status} /></td>
+                  <td><StatusBadge doc={d} /></td>
                   <td className="small">{whereIs(d) || '—'}</td>
                   <td className="small">{fmt(d.updatedAt)}</td>
                 </tr>
