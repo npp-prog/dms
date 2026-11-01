@@ -1,8 +1,8 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listDocuments } from '../lib/api.js';
-import { acceptsDocument, systemFor } from '../lib/checklists.js';
+import { acceptsDocument } from '../lib/checklists.js';
 import Select from './Select.jsx';
 
 // Links from a checklist item to the supporting document: one already in DMS (e.g. the OBR
@@ -54,17 +54,13 @@ export function LinkList({ links = [], onRemove, onOpen }) {
   );
 }
 
-// Choose a document in DMS, or enter a link to another system.
+// Choose a document in DMS (only DMS documents are linked; links to other systems added before
+// stay listed).
 export function LinkEditor({ item, excludeId, onAdd, onCancel }) {
   const { user, profile, isAdmin, isHead } = useAuth();
-  // Documents from PIM (AIR, PAR, ICS, RIS, ...) open on the other-system tab with PIM chosen.
-  const fromSystem = systemFor(item);
-  const [tab, setTab] = useState(fromSystem ? 'url' : 'fts');
   const [docs, setDocs] = useState(null);
   const [q, setQ] = useState('');
-  const [ext, setExt] = useState({ system: fromSystem || 'CBO', ref: '', url: '' });
   const [error, setError] = useState('');
-  const id = useId();
 
   useEffect(() => {
     listDocuments({ uid: user.uid, office: profile.office, all: isAdmin, head: isHead })
@@ -79,55 +75,27 @@ export function LinkEditor({ item, excludeId, onAdd, onCancel }) {
     return fitting.filter((d) => words.every((w) => `${d.controlNo} ${d.typeCode} ${d.typeName} ${d.title}`.toLowerCase().includes(w))).slice(0, 30);
   }, [fitting, q]);
   const kinds = [...new Set(fitting.map((d) => d.typeCode))];
-  // Nothing in DMS of this kind (e.g. a BAC Resolution): start on the other-system tab.
-  useEffect(() => { if (docs && !fitting.length) setTab('url'); }, [docs, fitting.length]);
-
-  const addExternal = () => {
-    if (ext.url.trim() && !safeUrl(ext.url)) { setError('The link must start with http:// or https://'); return; }
-    if (!ext.url.trim() && !ext.ref.trim()) { setError('Enter the link or the reference number.'); return; }
-    onAdd({ kind: 'url', system: ext.system, ref: ext.ref.trim().toUpperCase(), url: safeUrl(ext.url) });
-  };
 
   return (
     <div className="link-editor">
-      <div className="tabs">
-        <button type="button" className={tab === 'fts' ? 'active' : ''} onClick={() => setTab('fts')}>Document in DMS</button>
-        <button type="button" className={tab === 'url' ? 'active' : ''} onClick={() => setTab('url')}>Other system (PIM, CBO, …)</button>
-      </div>
       {error && <div className="alert">{error}</div>}
-      {tab === 'fts' ? (
-        <>
-          {item && <p className="small muted">{item.label}{kinds.length ? `: showing ${kinds.join(' and ')} documents only.` : ''}</p>}
-          <input placeholder="Search control no. or payee" value={q} onChange={(e) => setQ(e.target.value)} />
-          {!docs && !error && <div className="spinner" />}
-          {docs && (
-            <div className="picker-results">
-              {shown.length === 0 && (
-                <p className="small muted" style={{ padding: '.5rem' }}>
-                  {fitting.length ? 'No match.' : `No ${item ? `"${item.label}" ` : ''}document in DMS from you or your office. If it is in another system, use the other tab.`}
-                </p>
-              )}
-              {shown.map((d) => (
-                <button type="button" key={d.id}
-                  onClick={() => onAdd({ kind: 'fts', id: d.id, controlNo: d.controlNo, typeCode: d.typeCode, title: d.title || '' })}>
-                  <span className="code">{d.controlNo}</span>
-                  <span className="t"><b>{d.typeCode}</b> · {d.title}<div className="small muted">{d.status}</div></span>
-                </button>
-              ))}
-            </div>
+      {item && <p className="small muted">{item.label}{kinds.length ? `: showing ${kinds.join(' and ')} documents only.` : ''}</p>}
+      <input placeholder="Search control no. or payee" value={q} onChange={(e) => setQ(e.target.value)} />
+      {!docs && !error && <div className="spinner" />}
+      {docs && (
+        <div className="picker-results">
+          {shown.length === 0 && (
+            <p className="small muted" style={{ padding: '.5rem' }}>
+              {fitting.length ? 'No match.' : `No ${item ? `"${item.label}" ` : ''}document in DMS from you or your office. Upload the file instead (+ Upload file).`}
+            </p>
           )}
-        </>
-      ) : (
-        <div className="fields">
-          <div className="field"><label className="field-label" htmlFor={`${id}-s`}>System</label>
-            <Select id={`${id}-s`} value={ext.system} onChange={(e) => setExt({ ...ext, system: e.target.value })}>
-              {SYSTEMS.map((s) => <option key={s}>{s}</option>)}
-            </Select></div>
-          <div className="field"><label className="field-label" htmlFor={`${id}-r`}>Reference no. (optional)</label>
-            <input id={`${id}-r`} className="caps" value={ext.ref} onChange={(e) => setExt({ ...ext, ref: e.target.value })} /></div>
-          <div className="field field-wide"><label className="field-label" htmlFor={`${id}-u`}>Link</label>
-            <input id={`${id}-u`} value={ext.url} onChange={(e) => setExt({ ...ext, url: e.target.value })} placeholder="https://…" /></div>
-          <div><button type="button" className="btn btn-primary btn-sm" onClick={addExternal}>Add link</button></div>
+          {shown.map((d) => (
+            <button type="button" key={d.id}
+              onClick={() => onAdd({ kind: 'fts', id: d.id, controlNo: d.controlNo, typeCode: d.typeCode, title: d.title || '' })}>
+              <span className="code">{d.controlNo}</span>
+              <span className="t"><b>{d.typeCode}</b> · {d.title}<div className="small muted">{d.status}</div></span>
+            </button>
+          ))}
         </div>
       )}
       <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Close</button>
