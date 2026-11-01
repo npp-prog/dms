@@ -12,7 +12,9 @@ export default function PositionsPicker({ value = [], onChange, choices = [], on
     const name = window.prompt('Name of the new position:')?.trim().replace(/\s+/g, ' ');
     if (!name) return;
     const known = choices.find((p) => p.toLowerCase() === name.toLowerCase());
-    if (!known) await onNew(name);
+    if (!known) {
+      try { await onNew(name); } catch (e) { window.alert(e.message); return; }
+    }
     if (!value.includes(known || name)) onChange([...value, known || name]);
   };
   return (

@@ -80,8 +80,11 @@ export async function runBackup({ source, drive, store, budgetMs = 20000, now = 
         let done;
         try {
           done = await backUp(d, (await store.get(`doc/${row.id}`)) || { files: {} });
-        } catch {
+        } catch (err) {
           // Its folder or record.json is gone from Drive (deleted by hand): start it afresh once.
+          // Any other failure (Google busy, a network error) stops this run; the next one goes on
+          // from this document, without uploading its files again.
+          if (err?.status !== 404 && !/not found|404/i.test(err?.message || '')) throw err;
           try { done = await backUp(d, { files: {} }); } catch (e) { missing.push(`${d.controlNo}: ${e.message}`); done = true; }
         }
         if (!done) break; // the next run goes on with this document

@@ -29,7 +29,7 @@ function InboxRow({ icon, tone = '', title, sub, n, to }) {
 }
 
 export default function Dashboard() {
-  const { user, profile, isAdmin, isHead, isRecords, setupNotice, dismissSetupNotice } = useAuth();
+  const { user, profile, isAdmin, isHead, isRecords, canManageUsers, setupNotice, dismissSetupNotice } = useAuth();
   // The Records Officer: archive backups that are due (none yet, or older than the schedule).
   const [backupsDue, setBackupsDue] = useState(0);
   useEffect(() => {
@@ -47,11 +47,11 @@ export default function Dashboard() {
     Promise.all([
       listDocumentTypes({ activeOnly: true }),
       listDocuments({ uid: user.uid, office: profile.office, all: isAdmin, head: isHead }),
-      isAdmin ? listUsers() : Promise.resolve([]),
+      canManageUsers ? listUsers() : Promise.resolve([]),
     ])
-      .then(([t, d, u]) => { setTypes(t.filter((x) => !x.uploadOnly)); setDocs(d); setLoaded(true); setPendingUsers(u.filter((x) => !x.active).length); })
+      .then(([t, d, u]) => { setTypes(t.filter((x) => !x.uploadOnly)); setDocs(d); setLoaded(true); setPendingUsers(u.filter((x) => !x.active && !x.deactivated).length); })
       .catch((e) => setError(e.message));
-  }, [user.uid, profile.office, isAdmin, isHead]);
+  }, [user.uid, profile.office, isAdmin, isHead, canManageUsers]);
 
   const mine = docs.filter((d) => d.createdBy === user.uid);
   const routed = docs.filter((d) => d.workflow).map((d) => ({ d, state: stateOf(d, profile.office, user.uid) }));
@@ -62,7 +62,7 @@ export default function Dashboard() {
   const firstName = (profile.displayName || '').split(' ')[0];
 
   const items = [
-    isAdmin && pendingUsers > 0 && <InboxRow key="u" icon="user" tone="red" title="Registrations to approve" sub="New accounts waiting for access" n={pendingUsers} to="/admin/users" />,
+    canManageUsers && pendingUsers > 0 && <InboxRow key="u" icon="user" tone="red" title="Registrations to approve" sub="New accounts waiting for access" n={pendingUsers} to="/admin/users" />,
     isAdmin && types.length === 0 && <InboxRow key="t" icon="types" tone="red" title="No document formats yet" sub="Load the starter formats or create a document type" n="!" to="/admin/types" />,
     backupsDue > 0 && <InboxRow key="b" icon="archive" tone="red" title="Archive backup due" sub="Back up the archive to the Records Office's devices" n={backupsDue} to="/archive" />,
     waiting > 0 && <InboxRow key="w" icon="inbox" tone="blue" title="Waiting in your office" sub="Documents to act on and route to the next office" n={waiting} to="/notifications" />,

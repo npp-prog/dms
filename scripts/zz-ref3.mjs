@@ -1,0 +1,22 @@
+import { initializeApp } from 'firebase/app';
+import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator, collection, doc, addDoc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { buildWorkflow, applyAction, referDocument } from '../src/lib/workflow.js';
+const app = initializeApp({ projectId: 'demo-fts', apiKey: 'demo', authDomain: 'x' });
+const auth = getAuth(app); connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+const db = getFirestore(app); connectFirestoreEmulator(db, '127.0.0.1', 8080);
+const as = async (e, p = 'user123') => { await signOut(auth).catch(() => {}); const u = (await signInWithEmailAndPassword(auth, e, p)).user; const pr = (await getDoc(doc(db, 'users', u.uid))).data(); return { uid: u.uid, email: e, displayName: pr.displayName, office: pr.office }; };
+const ENG = 'Municipal Engineering Office', ACC = 'Municipal Accounting Office', TRE = "Municipal Treasurer's Office";
+const type = { route: [{ office: '', action: 'Prepare' }, { office: ACC, action: 'Review' }, { office: TRE, action: 'Pay' }] };
+const leo = await as('leo@fts.local'); const juan = await as('user@fts.local');
+const ref = await addDoc(collection(db, 'documents'), { restricted: false, typeCode: 'RT', typeName: 'R', controlNo: 'RT-7', data: {}, status: 'complete', title: 'T', createdBy: juan.uid, createdByName: 'Juan', office: ENG, pdf: { files: [{ path: 'p', kind: 'generated' }] }, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), history: [] });
+const get = async () => ({ id: ref.id, ...(await getDoc(ref)).data() });
+await updateDoc(ref, { ...buildWorkflow(type, await get(), [ENG, ACC, TRE], juan) });
+await updateDoc(ref, { ...applyAction(await get(), 'release', juan) });
+let rosa = await as('acctg@fts.local');
+await as('npp@mgocandoniaccounting.org', 'admin123'); await updateDoc(doc(db, 'users', rosa.uid), { canRefer: true });
+rosa = await as('acctg@fts.local');
+const p = referDocument(await get(), { uid: leo.uid, displayName: 'Leo', email: 'leo@fts.local' }, 'x', rosa);
+try { await updateDoc(ref, { ...p, referred: [leo.uid] }); console.log('refer OK'); } catch (e) { console.log('MSG', e.message.replace(/\n/g, ' ').slice(0, 900)); }
+await as('npp@mgocandoniaccounting.org', 'admin123'); await updateDoc(doc(db, 'users', rosa.uid), { canRefer: false });
+process.exit(0);

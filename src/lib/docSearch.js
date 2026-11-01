@@ -7,11 +7,14 @@ const cache = new WeakMap();
 function collect(value, out) {
   if (value === null || value === undefined || value === '') return;
   if (Array.isArray(value)) { value.forEach((v) => collect(v, out)); return; }
+  // A date stamp (Firestore Timestamp): not words to search, and its numbers would only match by chance.
+  if (typeof value === 'object' && typeof value.toDate === 'function') return;
   if (typeof value === 'object') { Object.values(value).forEach((v) => collect(v, out)); return; }
-  if (typeof value === 'number') {
-    out.push(String(value), value.toLocaleString('en-US', { maximumFractionDigits: 2 }));
-    return;
-  }
+  // An amount: as typed, with commas, and with cents ("12,500.00", as printed on a voucher).
+  const amount = (n) => out.push(String(n), n.toLocaleString('en-US', { maximumFractionDigits: 2 }), n.toFixed(2),
+    n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  if (typeof value === 'number') { if (Number.isFinite(value)) amount(value); return; }
+  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) { out.push(value); amount(Number(value)); return; }
   if (typeof value === 'string' || typeof value === 'boolean') out.push(String(value));
 }
 

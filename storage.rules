@@ -51,7 +51,7 @@ service firebase.storage {
     // restricted).
     function folderGranted(d) {
       let g = profile().get('folderGrant', null);
-      return g != null && d.get('restricted', false) == false
+      return g != null && profile().role != 'payee' && d.get('restricted', false) == false
         && (g.all == true || d.get('typeCode', '') in g.types)
         && (g.office == '*'
             || (myOffice() != '' && g.office == myOffice()

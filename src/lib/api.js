@@ -1,6 +1,6 @@
 import {
   addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, getDoc, getDocs, limit, orderBy, query,
-  runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  runTransaction, serverTimestamp, setDoc, startAfter, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { deleteObject, getBytes, getDownloadURL, getMetadata, ref as storageRef, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from '../firebase.js';
@@ -242,6 +242,7 @@ export function savePrivacy(p) {
 
 // Adds a position to the list (Settings); returns the new list.
 export async function addPosition(settings, name) {
+  if (/^records officer$/i.test(String(name).trim())) throw new Error('Records Officer is a role, not a position: choose it under Role in Users.');
   const positions = [...new Set([...positionsOf(settings), name])];
   await saveSettings({ positions });
   return positions;
@@ -1164,9 +1165,10 @@ export async function setRestrictedFolders(office, restricted, user) {
   });
   // The copies of the office's folder access in the profiles (what Storage checks) follow.
   const grants = await listFolderAccess(office);
-  for (let i = 0; i < grants.length; i += 200) {
+  // 15 at a time: each copy's check reads its person's folderAccess, and a batch may read 20.
+  for (let i = 0; i < grants.length; i += 15) {
     const batch = writeBatch(db);
-    grants.slice(i, i + 200).forEach((g) => batch.update(doc(db, 'users', g.uid), { folderGrant: grantCopy(g, list) }));
+    grants.slice(i, i + 15).forEach((g) => batch.update(doc(db, 'users', g.uid), { folderGrant: grantCopy(g, list) }));
     await batch.commit();
   }
 }
@@ -1182,14 +1184,16 @@ const sameCopy = (a, b) => JSON.stringify(a || null) === JSON.stringify(b || nul
 // on signing in: a User who held the position becomes a Records Officer, and the position is
 // dropped from everyone (and from the list in Settings).
 export async function recordsPositionToRole(users, settings) {
+  // Once (Settings remembers it), and only for active users.
+  const s0 = settings || await getSettings().catch(() => null);
+  if (!s0 || s0.recordsRoleMigrated) return;
   const all = users || await listUsers();
-  for (const u of all.filter((x) => (x.positions || []).includes('Records Officer'))) {
+  for (const u of all.filter((x) => x.active && (x.positions || []).includes('Records Officer'))) {
     const patch = { positions: u.positions.filter((p) => p !== 'Records Officer') };
     if (u.role === 'user') patch.role = 'records';
     await updateDoc(doc(db, 'users', u.id || u.uid), patch).catch(() => {});
   }
-  const s = settings || await getSettings().catch(() => null);
-  if (s?.positions?.includes('Records Officer')) await saveSettings({ positions: s.positions.filter((p) => p !== 'Records Officer') }).catch(() => {});
+  await saveSettings({ recordsRoleMigrated: true, ...(s0.positions?.includes('Records Officer') ? { positions: s0.positions.filter((p) => p !== 'Records Officer') } : {}) }).catch(() => {});
 }
 
 // Administrators: bring every profile's copy up to date (access given before the copy existed, or
@@ -1341,8 +1345,21 @@ export async function listDocuments({ uid, office = '', all = false, head = fals
     ? [query(docs, where('typeCode', '==', t), where('restricted', '==', false), limit(max))]
     : [query(docs, where('office', '==', office), where('typeCode', '==', t), where('restricted', '==', false), limit(max)),
       query(docs, where('routeOffices', 'array-contains', office), where('typeCode', '==', t), where('restricted', '==', false), limit(max))]));
+  // Every document (administrators, the Records Officer): page by page, newest first, so the
+  // processed ones do not crowd out the open ones (up to 5000).
+  if (all) {
+    const out = [];
+    let last = null;
+    for (;;) {
+      const snap = await getDocs(query(docs, orderBy('updatedAt', 'desc'), ...(last ? [startAfter(last)] : []), limit(500)));
+      snap.docs.forEach((d) => out.push({ id: d.id, ...d.data() }));
+      if (snap.size < 500 || out.length >= Math.max(max, 5000)) break;
+      last = snap.docs[snap.docs.length - 1];
+    }
+    return out;
+  }
   const queries = all
-    ? [query(docs, orderBy('updatedAt', 'desc'), limit(max))]
+    ? []
     : [
       query(docs, where('createdBy', '==', uid), limit(max)),
       query(docs, where('currentOffice', '==', `person:${uid}`), limit(max)),

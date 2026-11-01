@@ -179,7 +179,9 @@ export function canAct(doc, { uid, office, isAdmin, isHead = false, positions = 
   const step = wf.steps[wf.stage];
   if (isThirdParty(step)) return Boolean(uid) && step.party?.uid === uid;
   const holder = officeOf(step, doc);
-  if (!step.routedTo) return isPreparer(doc, { uid, office, grant }) || (isHead && Boolean(office) && office === holder);
+  // At the preparer's step only while it is with their own office (as firestore.rules: an editor
+  // of folders of every office opens and edits another office's document, but its office routes it).
+  if (!step.routedTo) return (isPreparer(doc, { uid, office, grant }) && (!holder || holder === office)) || (isHead && Boolean(office) && office === holder);
   return Boolean(office) && office === holder && holdsPosition(step, positions, isHead);
 }
 

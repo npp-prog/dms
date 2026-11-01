@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { addPosition, deleteInvite, inviteKey, listInvites, listUsers, saveInvite, syncDirectory, updateUser } from '../../lib/api.js';
+import { addPosition, deleteInvite, inviteKey, listInvites, listUsers, saveInvite, setFolderAccess, syncDirectory, updateUser } from '../../lib/api.js';
 import { positionsOf } from '../../lib/defaults.js';
 import Select from '../../components/Select.jsx';
 import PositionsPicker from '../../components/PositionsPicker.jsx';
@@ -29,7 +29,7 @@ function UserRow({ u, me, isSuper, givesStaff, settings, offices, canManage, onC
         </div>
         <div className="user-side">
           <span className="small muted user-role">{ROLE_NAMES[u.role] || u.role}</span>
-          <span className={`badge ${u.active ? 'badge-green' : 'badge-yellow'}`}>{u.active ? 'Active' : 'Pending'}</span>
+          <span className={`badge ${u.active ? 'badge-green' : u.deactivated ? 'badge-gray' : 'badge-yellow'}`}>{u.active ? 'Active' : u.deactivated ? 'Deactivated' : 'Pending'}</span>
           {canManage && !u.active && <button className="btn btn-primary btn-sm" onClick={() => onChange({ active: true })}>Approve</button>}
           {editable && <button className="btn btn-ghost btn-sm" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Close' : 'Edit'}</button>}
         </div>
@@ -141,7 +141,7 @@ function InviteForm({ initial, isSuper, givesStaff, settings, offices, onNewPosi
 }
 
 export default function Users() {
-  const { user: me, isSuper, profile: myProfile, settings, setSettings } = useAuth();
+  const { user: me, isSuper, profile: myProfile, settings, setSettings, canManageSettings, refreshProfile } = useAuth();
   // The superadmin and an Admin give the IT Admin and Records Officer roles (lib/roles.js).
   const givesStaff = isSuper || myProfile?.role === 'admin';
   const newPosition = async (name) => {
@@ -165,9 +165,18 @@ export default function Users() {
   const change = async (u, patch) => {
     setError('');
     try {
-      await updateUser(u.id, patch);
+      // Deactivated (not the same as never approved, for "Pending approval"); approved again.
+      const full = { ...patch, ...(patch.active === false ? { deactivated: true } : patch.active === true ? { deactivated: false } : {}) };
+      await updateUser(u.id, full);
       // Deactivated: an invitation left for that email would let them back in.
       if (patch.active === false && u.email) { await deleteInvite(u.email).catch(() => {}); loadInvites(); }
+      // Deactivated, made a third party or moved to another office: the folder access they had
+      // (given for their old office) goes.
+      if (u.folderGrant && (patch.active === false || patch.role === 'payee' || ('office' in patch && patch.office !== (u.office || '')))) {
+        await setFolderAccess({ uid: u.id, office: u.office || '' }, { all: false, types: [] }, me).catch(() => {});
+      }
+      // Their own row (the superadmin): the app follows at once.
+      if (u.id === me.uid) await refreshProfile().catch(() => {});
       await load();
     } catch (e) { setError(e.message); }
   };
@@ -175,9 +184,9 @@ export default function Users() {
   const canManage = (u) => u.id !== me.uid && (isSuper || u.role === 'user' || u.role === 'payee' || (givesStaff && ['itadmin', 'records'].includes(u.role)));
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = (users || [])
-    .filter((u) => filter === 'all' || (filter === 'pending' ? !u.active : u.active))
+    .filter((u) => filter === 'all' || (filter === 'pending' ? !u.active && !u.deactivated : u.active))
     .filter((u) => words.every((w) => `${u.displayName} ${u.email} ${u.office || ''} ${(u.positions || []).join(' ')} ${ROLE_NAMES[u.role] || u.role}`.toLowerCase().includes(w)));
-  const pending = (users || []).filter((u) => !u.active).length;
+  const pending = (users || []).filter((u) => !u.active && !u.deactivated).length;
   // Added, not signed up yet: no account with that email.
   const emails = new Set((users || []).map((u) => inviteKey(u.email)));
   const waiting = invites.filter((i) => !emails.has(i.email))
@@ -192,7 +201,7 @@ export default function Users() {
         {!inviting && <button type="button" className="btn btn-primary btn-sm" onClick={() => setInviting({})}>+ Add user</button>}
       </div>
       {inviting && (
-        <InviteForm initial={inviting} isSuper={isSuper} givesStaff={givesStaff} settings={settings} offices={offices} onNewPosition={newPosition}
+        <InviteForm initial={inviting} isSuper={isSuper} givesStaff={givesStaff} settings={settings} offices={offices} onNewPosition={canManageSettings ? newPosition : undefined}
           onCancel={() => setInviting(null)}
           onSave={async (f) => { await saveInvite(f, me); setInviting(null); await loadInvites(); }} />
       )}
@@ -238,7 +247,7 @@ export default function Users() {
         <ul className="card user-list">
           {shown.map((u) => (
             <UserRow key={u.id} u={u} me={me} isSuper={isSuper} givesStaff={givesStaff} settings={settings} offices={offices} canManage={canManage(u)}
-              onChange={(patch) => change(u, patch)} onNewPosition={newPosition} />
+              onChange={(patch) => change(u, patch)} onNewPosition={canManageSettings ? newPosition : undefined} />
           ))}
         </ul>
       ))}

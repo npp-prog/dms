@@ -30,14 +30,16 @@ export default function Documents() {
   const offices = useMemo(() => [...new Set([...(settings.offices || []), ...(docs || []).map((d) => d.office).filter(Boolean)])].sort(), [settings.offices, docs]);
 
   const types = useMemo(() => [...new Set((docs || []).map((d) => d.typeCode))].sort(), [docs]);
-  // Processed documents are in the Archive.
-  const shown = useMemo(() => (docs || []).filter((d) => {
+  // The search and filters, processed documents included (for Download ZIP).
+  const matching = useMemo(() => (docs || []).filter((d) => {
     const q = filters.q.toLowerCase();
-    return !isArchived(d) && (!filters.status || d.status === filters.status)
+    return (!filters.status || d.status === filters.status)
       && (!filters.type || d.typeCode === filters.type)
       && (!filters.office || (filters.office === '__none' ? !d.office : d.office === filters.office))
       && matchesSearch(d, q);
   }), [docs, filters]);
+  // Processed documents are in the Archive.
+  const shown = useMemo(() => matching.filter((d) => !isArchived(d)), [matching]);
 
   return (
     <div className="page">
@@ -50,7 +52,7 @@ export default function Documents() {
           <Link to="/new" className="btn btn-primary btn-sm">+ New document</Link>
         </div>
       </div>
-      {isAdmin && docs && zipOpen && <ZipExport docs={shown} onClose={() => setZipOpen(false)} />}
+      {isAdmin && docs && zipOpen && <ZipExport docs={matching} onClose={() => setZipOpen(false)} />}
       <div className="filters">
         <input className="search" placeholder="Search by number, payee or anything in the document…" value={filters.q}
           onChange={(e) => setFilters({ ...filters, q: e.target.value })} />

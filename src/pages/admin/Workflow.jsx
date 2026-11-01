@@ -77,7 +77,7 @@ function Routes() {
 }
 
 function RouteEditor({ type, offices, actor, onSaved }) {
-  const { settings, setSettings } = useAuth();
+  const { settings, setSettings, canManageSettings } = useAuth();
   const newPosition = async (name) => {
     const positions = await addPosition(settings, name);
     setSettings((s) => ({ ...s, positions }));
@@ -233,7 +233,7 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                     <div className="field">
                       <span className="field-label">Who acts <span className="muted">(optional)</span></span>
                       <div className="chips-field">
-                        <PositionsPicker value={s.positions || []} choices={positionsOf(settings)} onNew={newPosition}
+                        <PositionsPicker value={s.positions || []} choices={positionsOf(settings)} onNew={canManageSettings ? newPosition : undefined}
                           placeholder="+ Add a position…" onChange={(positions) => set(i, { positions })} />
                       </div>
                       <span className="help">{s.positions?.length ? 'Only these positions (and the office head) sign and route it.' : 'Anyone in the office.'}</span>

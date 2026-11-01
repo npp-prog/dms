@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Icon from '../components/Icon.jsx';
-import { pdfText } from '../lib/pdfjs.js';
+import { loadPdfjs, pdfText } from '../lib/pdfjs.js';
 import { addPdfVersion, createUploadedDocument, deleteDocument, getDocument, listDocumentTypes, setDocumentStatus, startWorkflow } from '../lib/api.js';
 import Select from '../components/Select.jsx';
 import { verifyUrl } from '../lib/qr.js';
@@ -60,20 +60,23 @@ export default function UploadDocument() {
       const pdf = file.type === 'application/pdf' ? new Uint8Array(await file.arrayBuffer()) : await imageToPdf(file);
       if (file.type === 'application/pdf' && !/^%PDF-/.test(new TextDecoder('latin1').decode(pdf.subarray(0, 5)))) throw new Error('This file is not a PDF.');
       setBusy('Saving…');
-      // A draft until its file is stored: if the upload fails, the draft is removed again.
+      // What the upload needs, loaded before the document is created (a tab left open across a new
+      // deploy fails here, with nothing created, and reloads).
+      await Promise.all([loadPdfjs(), import('pdf-lib'), import('../lib/signing.js'), import('../lib/qr.js')]);
       const contentText = file.type === 'application/pdf' ? await pdfText(pdf) : '';
+      // A draft until its file is stored: if anything below fails, the draft is removed again.
       const created = await createUploadedDocument(type, { ...form, title: form.title.trim(), fileName: file.name, contentText, copiedFrom }, actor);
-      // The QR code of its public check page on every page (lib/qrStamp.js: also on a signed PDF,
-      // in an update after its signatures, where the PDF allows it).
-      setBusy('Adding the QR code…');
-      const { bytes: stamped } = await withDmsQr(pdf, verifyUrl(created.id), ['Scan to verify', created.controlNo]);
       try {
+        // The QR code of its public check page on every page (lib/qrStamp.js: also on a signed PDF,
+        // in an update after its signatures, where the PDF allows it).
+        setBusy('Adding the QR code…');
+        const { bytes: stamped } = await withDmsQr(pdf, verifyUrl(created.id), ['Scan to verify', created.controlNo]);
         await addPdfVersion(created.id, stamped, actor, { kind: 'uploaded', onProgress: (x) => setBusy(`Uploading… ${Math.round(x * 100)}%`) });
+        await setDocumentStatus(created.id, 'complete', actor, (await getDocument(created.id))?.history || [], {}, file.name);
       } catch (err) {
         await deleteDocument(created.id).catch(() => {});
         throw err;
       }
-      await setDocumentStatus(created.id, 'complete', actor, (await getDocument(created.id))?.history || [], {}, file.name);
       // It follows its route (Administration > Workflow) at once, like a document converted to PDF.
       if ((type.route || type.processing || []).length) await startWorkflow(created.id, type, actor, settings.offices || []);
       navigate(`/documents/${created.id}`, { replace: true });

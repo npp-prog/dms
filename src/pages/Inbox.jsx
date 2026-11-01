@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listForwarded, listInbox, listReferred } from '../lib/api.js';
 import { HIDDEN_EVENTS, officeOf } from '../lib/workflow.js';
@@ -55,6 +55,8 @@ const since = (ts) => (ts?.toDate ? ts.toDate().toLocaleString('en-PH', { dateSt
 // Documents waiting in the user's office along their workflow. Admins can see every office.
 export default function Inbox() {
   const { user, profile, isAdmin, isHead, isExternal, settings } = useAuth();
+  // A word from the page the user came from (a document they just routed on).
+  const notice = useLocation().state?.notice || '';
   const [docs, setDocs] = useState(null);
   const [error, setError] = useState('');
   // Documents someone forwarded to this user.
@@ -96,6 +98,7 @@ export default function Inbox() {
           </Select>
         )}
       </div>
+      {notice && <div className="alert alert-ok">{notice}</div>}
       <Updates uid={user.uid} external={isExternal} />
       {circulars.length > 0 && (
         <>

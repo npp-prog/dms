@@ -203,6 +203,7 @@ function DocumentPage({ docId }) {
   const [draft, setDraft] = useState(null);
 
   const assigning = useRef(new Set());
+  const docRef = useRef(null); // the document as last opened (this docId)
   const load = async () => {
     try {
       let d = await getDocument(docId);
@@ -223,21 +224,30 @@ function DocumentPage({ docId }) {
         }
       }
       setDocData(d);
+      docRef.current = d;
       ensureCheck(docId, d).catch(() => {}); // only those who may act on it can write it
       setDraft(d.data || {});
       setType(await getTypeForDocument(d));
     } catch (e) {
+      // Opened a moment ago, no longer readable: the user routed it on (or returned it), so it has
+      // left their office. Not an error: back to their Notifications, with a word on where it went.
+      if (e.code === 'permission-denied' && docRef.current) {
+        navigate('/notifications', { replace: true, state: { notice: `${docRef.current.controlNo || 'The document'} has left your office; it is no longer yours to open.` } });
+        return;
+      }
       setError(e.code === 'permission-denied'
         ? 'You do not have access to this document. Users see only the documents of their own office.'
         : e.message);
     }
   };
-  useEffect(() => { load(); }, [docId]);
+  useEffect(() => { docRef.current = null; load(); }, [docId]);
 
   if (error) return <div className="page"><div className="alert">{error}</div></div>;
   if (!docData) return <div className="page"><div className="spinner" /></div>;
 
   const editable = docData.status !== 'cancelled';
+  // Processed (its route is done, it is in the Archive): the preparer no longer changes it.
+  const notDone = docData.workflow?.state !== 'done';
   const isOwner = isPreparer(docData, { uid: user.uid, office: profile.office, grant: folderGrant });
   const wf = docData.workflow;
   // Once the document has left the preparer's office, only the offices on its route move it.
@@ -316,7 +326,7 @@ function DocumentPage({ docId }) {
               onClick={async () => {
                 if (uploaded) { navigate(`/upload?copy=${docId}`); return; }
                 setBusy(true); setActionError('');
-                try { navigate(`/documents/${await copyDocument({ ...docData, id: docId }, actor, signatoriesFrom(settings))}/edit`); } catch (e) { if (!staleReload(e)) setActionError(e.message); setBusy(false); }
+                try { navigate(`/documents/${await copyDocument({ ...docData, id: docId }, actor, signatoriesFrom(settings))}/edit`, { state: { copied: true } }); } catch (e) { if (!staleReload(e)) setActionError(e.message); setBusy(false); }
               }}>Copy as new draft</button>
           )}
           {canCancel && (
@@ -377,8 +387,8 @@ function DocumentPage({ docId }) {
           {/* Supplemental documents: between the PDF and the workflow. */}
           {type && !isExternal && (
             <SupplementsCard doc={{ ...docData, id: docId }} actor={actor} busy={busy}
-              canAdd={editable && (isOwner || isAdmin || canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }))}
-              canRemove={editable && (isOwner || isAdmin)}
+              canAdd={editable && ((isOwner && notDone) || isAdmin || canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }))}
+              canRemove={editable && ((isOwner && notDone) || isAdmin)}
               onOpen={openFile}
               onSave={(list, note) => run(() => saveSupplements(docId, list, actor, note))} />
           )}
@@ -443,7 +453,7 @@ function DocumentPage({ docId }) {
               <div className="card-head">
                 <h3>Checklist{docData.transaction ? ` ${docData.transaction.code}` : ''}</h3>
                 <div className="row gap">
-                  {editable && docData.transaction && (isAdmin || isOwner) && (
+                  {editable && docData.transaction && (isAdmin || (isOwner && editableByPreparer(docData))) && (
                     <Link className="btn btn-sm btn-ghost" to={`/documents/${docId}/edit?change=checklist`}
                       title="Picked the wrong checklist, or the requirements changed? Choose another type of transaction.">Change checklist</Link>
                   )}
@@ -458,7 +468,7 @@ function DocumentPage({ docId }) {
                     <li key={c.id}><span>{isChecked(v) ? '☑' : v === 'NA' ? 'N/A' : '☐'}</span> {c.label.split('\n')[0]}
                       <ItemLinks item={c} n={ci + 1} links={docData.links?.[c.id] || []} docId={docId} parent={{ ...docData, id: docId }} actor={actor}
                         onOpen={(l, key) => (l.kind === 'fts' ? openLinked(l, key) : openFile(l, key))}
-                        canEdit={editable && (isAdmin || isOwner)}
+                        canEdit={editable && (isAdmin || (isOwner && notDone))}
                         onChange={(list, note) => run(async () => saveDocumentLinks(docId, {
                           links: { ...(docData.links || {}), [c.id]: list },
                           checklist: list.length > (docData.links?.[c.id] || []).length && !isChecked(v)
@@ -475,7 +485,7 @@ function DocumentPage({ docId }) {
                 </>
               )}
               <ExtraItems docData={docData} docId={docId} actor={actor} start={activeChecklist.items.length + (docData.additionalDocs || []).length}
-                canEdit={editable && (isAdmin || isOwner)} busy={busy} run={run}
+                canEdit={editable && (isAdmin || (isOwner && notDone))} busy={busy} run={run}
                 onOpen={(l, key) => (l.kind === 'fts' ? openLinked(l, key) : openFile(l, key))} />
             </section>
           )}

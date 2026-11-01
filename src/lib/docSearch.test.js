@@ -21,6 +21,9 @@ test('search finds words anywhere in the document', () => {
 test('amounts match with or without commas', () => {
   assert.ok(matchesSearch(dv, '12,500'));
   assert.ok(matchesSearch(dv, '12500'));
+  assert.ok(matchesSearch(dv, '12,500.00'));
+  assert.ok(matchesSearch({ data: { amount: '12500.5' } }, '12,500.50'));
+  assert.ok(!matchesSearch({ data: { at: { seconds: 1730000000, nanoseconds: 5, toDate: () => new Date() } } }, '1730000000'));
 });
 
 test('an uploaded PDF is found by its text', () => {

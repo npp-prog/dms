@@ -8,11 +8,19 @@ export const isStaleChunkError = (e) => /dynamically imported module|Importing a
   .test(String(e?.message || e || ''));
 
 // Reload, but not again within a minute (the site itself may be down).
+// Where the browser blocks storage, the tab's own name keeps the time across the reload.
+const readLast = () => {
+  try { return Number(sessionStorage.getItem(KEY) || 0); } catch { /* storage blocked */ }
+  const m = String(window.name || '').match(/dms-reloaded-at:(\d+)/);
+  return m ? Number(m[1]) : 0;
+};
+const writeLast = (t) => {
+  try { sessionStorage.setItem(KEY, String(t)); return; } catch { /* storage blocked */ }
+  window.name = `${String(window.name || '').replace(/dms-reloaded-at:\d+/, '')}dms-reloaded-at:${t}`;
+};
 export function reloadForNewVersion() {
-  let last = 0;
-  try { last = Number(sessionStorage.getItem(KEY) || 0); } catch { /* storage blocked */ }
-  if (Date.now() - last < 60000) return false;
-  try { sessionStorage.setItem(KEY, String(Date.now())); } catch { /* storage blocked */ }
+  if (Date.now() - readLast() < 60000) return false;
+  writeLast(Date.now());
   window.location.reload();
   return true;
 }

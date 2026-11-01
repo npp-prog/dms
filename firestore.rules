@@ -398,7 +398,8 @@ service cloud.firestore {
       function folderGranted() {
         let g = /databases/$(database)/documents/folderAccess/$(request.auth.uid);
         let r = /databases/$(database)/documents/folderRules/$(myOffice());
-        return exists(g)
+        // Not a third party (their access ends when their role changes).
+        return profile().role != 'payee' && exists(g)
           && (get(g).data.all == true || resource.data.get('typeCode', '') in get(g).data.types)
           && resource.data.get('restricted', false) == false
           && (get(g).data.office == '*'
@@ -432,7 +433,7 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.get('office', '') == myOffice()
         && request.resource.data.get('restricted', true) == false
-        && !request.resource.data.keys().hasAny(['workflow', 'currentOffice', 'atPreparer', 'routeOffices', 'sharedWith', 'archive', 'reviews', 'access', 'editors']);
+        && !request.resource.data.keys().hasAny(['workflow', 'currentOffice', 'atPreparer', 'routeOffices', 'sharedWith', 'archive', 'reviews', 'access', 'editors', 'pdf', 'refNos', 'referred']);
       // The preparer moves the route only one step on (release), back (return) or cancels it; and
       // marks it processed only from its last step.
       function preparerRouteOk() {
@@ -463,6 +464,21 @@ service cloud.firestore {
           || (appendedList(w0.get('events', []), w1.get('events', []))
               && (w1.get('steps', []) == w0.get('steps', []) || resource.data.get('routeOffices', []).size() <= 1));
       }
+      // After any change to the route, the document is where its step says (as lib/workflow.js
+      // placement): with the office of its current step (the preparer's office at a step routed to
+      // no one), the chosen third party, or the person it is referred to; with no one once done or
+      // cancelled. So no one moves the stage on while keeping the document.
+      function placedRight() {
+        let w = request.resource.data.get('workflow', {});
+        let at = request.resource.data.get('currentOffice', '');
+        let st = w.steps[w.stage];
+        return !('workflow' in request.resource.data)
+          || (w.state != 'in-progress' && at == '')
+          || (w.state == 'in-progress' && w.get('referral', null) != null && at == 'person:' + w.referral.get('uid', '-'))
+          || (w.state == 'in-progress' && w.get('referral', null) == null
+              && at == (st.get('office', '') == '@third-party' ? 'person:' + st.get('party', {}).get('uid', '')
+                        : (st.get('routedTo', '') != '' ? st.routedTo : request.resource.data.get('office', ''))));
+      }
       // The office holding it (or the person it is with) moves it one step on or back, or closes it
       // at its last step; never further, never back to an earlier office in one go.
       function routeMoveOk() {
@@ -476,6 +492,19 @@ service cloud.firestore {
         && unchanged(['createdBy', 'createdAt', 'typeId', 'controlNo', 'typeSnapshot', 'office'])
         && referralAllowed()
         && (isAdmin()
+            // (First: route moves are the most frequent update, and every rule expression evaluated,
+            // also of the branches that fail, counts toward Firestore's limit of 1000.)
+            // The office holding a routed document receives, releases or returns it, and signs its PDF.
+            // (Its office head too, also at the preparer's step.) On receiving, it may assign a
+            // reference no.: only the field (and date) its own route step assigns change.
+            || ((heldByMyOffice() || (isHead() && holder() == myOffice()))
+                && holdsStepPosition()
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['workflow', 'currentOffice', 'routeOffices', 'atPreparer', 'pdf', 'updatedAt', 'history', 'data', 'refNos', 'stepFiles', 'sharedWith', 'forwards', 'supplements', 'referred'])
+                && request.resource.data.get('referred', []).hasAll(resource.data.get('referred', []))
+                && appended('history') && pdfAppended() && routeRecordKept() && routeMoveOk() && placedRight()
+                && request.resource.data.get('data', {}).diff(resource.data.get('data', {})).affectedKeys().hasOnly(assignedKeys())
+                && request.resource.data.get('refNos', {}).diff(resource.data.get('refNos', {})).affectedKeys().hasOnly(assignedKeys()))
             // The Records Officer files a processed document in the Archive (where it is kept).
             || (isRecords() && resource.data.get('workflow', {}).get('state', '') == 'done' && appended('history')
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archive', 'updatedAt', 'history']))
@@ -494,7 +523,7 @@ service cloud.firestore {
             || (referredToMe()
                 && request.resource.data.diff(resource.data).affectedKeys()
                      .hasOnly(['workflow', 'currentOffice', 'routeOffices', 'atPreparer', 'pdf', 'updatedAt', 'history', 'supplements'])
-                && appended('history') && pdfAppended() && routeRecordKept() && routeMoveOk())
+                && appended('history') && pdfAppended() && routeRecordKept() && routeMoveOk() && placedRight())
             // The preparer (or an editor) edits the document; its route only while it is with their
             // office (or before it is routed).
             // Not once processed (it is in the Archive), and never the archive entry, reviews or access.
@@ -505,18 +534,7 @@ service cloud.firestore {
                 && (workflowUntouched()
                     || ((!('workflow' in resource.data)
                         || (resource.data.workflow.state == 'in-progress' && (holder() == '' || holder() == myOffice())))
-                      && preparerRouteOk())))
-            // The office holding a routed document receives, releases or returns it, and signs its PDF.
-            // (Its office head too, also at the preparer's step.) On receiving, it may assign a
-            // reference no.: only the field (and date) its own route step assigns change.
-            || ((heldByMyOffice() || (isHead() && holder() == myOffice()))
-                && holdsStepPosition()
-                && request.resource.data.diff(resource.data).affectedKeys()
-                     .hasOnly(['workflow', 'currentOffice', 'routeOffices', 'atPreparer', 'pdf', 'updatedAt', 'history', 'data', 'refNos', 'stepFiles', 'sharedWith', 'forwards', 'supplements', 'referred'])
-                && request.resource.data.get('referred', []).hasAll(resource.data.get('referred', []))
-                && appended('history') && pdfAppended() && routeRecordKept() && routeMoveOk()
-                && request.resource.data.get('data', {}).diff(resource.data.get('data', {})).affectedKeys().hasOnly(assignedKeys())
-                && request.resource.data.get('refNos', {}).diff(resource.data.get('refNos', {})).affectedKeys().hasOnly(assignedKeys())));
+                      && preparerRouteOk() && placedRight()))));
       // Only the superadmin deletes any document (administrators cannot). The preparer (or an
       // editor) deletes a draft: one never completed, or one routed and returned to their step and
       // saved as a draft again. Not while it is complete or out on its route.
@@ -534,7 +552,9 @@ service cloud.firestore {
       function headOf(o) {
         return (isOfficeHead() && myOffice() == o) || isRecords();
       }
-      allow read: if isActive() && (request.auth.uid == uid || isAdmin() || headOf(resource.data.office));
+      // Office heads also see who has access to the folders of every office (to show it, not change it).
+      allow read: if isActive() && (request.auth.uid == uid || isAdmin() || headOf(resource.data.office)
+        || (isOfficeHead() && resource.data.office == '*'));
       // office '*' (folders of every office, for anyone): administrators and the Records Officer only.
       allow create, update: if (isAdmin() || headOf(request.resource.data.office))
         && (resource == null || isAdmin() || headOf(resource.data.office))
@@ -592,7 +612,10 @@ service cloud.firestore {
         && request.resource.data.docId is string
         && docAdded().pdf.files[docAdded().pdf.files.size() - 1].sha256 == hash
         && request.resource.data.controlNo == docAdded().controlNo
-        && request.resource.data.version == docAdded().pdf.files.size();
+        && request.resource.data.version == docAdded().pdf.files.size()
+        // What it says is what the document and the file just added say.
+        && request.resource.data.get('typeName', '') == docAdded().get('typeName', '')
+        && request.resource.data.get('kind', '') == docAdded().pdf.files[docAdded().pdf.files.size() - 1].get('kind', '');
       allow update, delete: if false;
     }
 

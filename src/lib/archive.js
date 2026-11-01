@@ -1,5 +1,5 @@
 import {
-  addDoc, collection, doc, getDoc, getDocs, limit, orderBy, query, runTransaction, serverTimestamp, setDoc, where,
+  addDoc, collection, doc, documentId, getDoc, getDocs, limit, orderBy, query, runTransaction, serverTimestamp, setDoc, startAfter, where,
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { getFileBytes, getPdfBytes } from './api.js';
@@ -13,9 +13,20 @@ export { filesOf };
 
 export { isArchived, processedAt } from './archiveFiles.js';
 
-export async function listArchive(max = 2000) {
-  const snap = await getDocs(query(collection(db, 'documents'), where('workflow.state', '==', 'done'), limit(max)));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => processedAt(b).localeCompare(processedAt(a)));
+// Every processed document (the Records Officer and administrators), a page of 500 at a time:
+// the archive grows past what one query returns, and none may be left out of a backup.
+export async function listArchive(page = 500) {
+  const all = [];
+  let last = null;
+  for (;;) {
+    const q = query(collection(db, 'documents'), where('workflow.state', '==', 'done'), orderBy(documentId()),
+      ...(last ? [startAfter(last)] : []), limit(page));
+    const snap = await getDocs(q);
+    snap.docs.forEach((d) => all.push({ id: d.id, ...d.data() }));
+    if (snap.size < page) break;
+    last = snap.docs[snap.docs.length - 1];
+  }
+  return all.sort((a, b) => processedAt(b).localeCompare(processedAt(a)));
 }
 
 // Where the paper is filed (e.g. a cabinet, box or shelf).

@@ -47,7 +47,9 @@ export async function driveClient(refreshToken, fetchImpl = fetch) {
     const r = await fetchImpl(url, { ...init, headers: { authorization: `Bearer ${token}`, ...(init.headers || {}) } });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      throw new Error(`Google Drive: ${j.error?.message || r.status}`);
+      const e = new Error(`Google Drive: ${j.error?.message || r.status}`);
+      e.status = r.status;
+      throw e;
     }
     return r;
   };

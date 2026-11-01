@@ -49,7 +49,9 @@ export default function Pending({ error }) {
           </>
         ) : (
           <>
-            <p className="pending-text">Hi {profile?.displayName}. Your account has been created. An administrator must approve it before you can use DMS.</p>
+            <p className="pending-text">{profile?.deactivated
+              ? <>Hi {profile?.displayName}. Your DMS account was deactivated by an administrator. Ask them if you need access again.</>
+              : <>Hi {profile?.displayName}. Your account has been created. An administrator must approve it before you can use DMS.</>}</p>
             <ol className="pending-steps">
               {steps.map(([t, d], i) => (
                 <li key={t} className={i === 0 ? 'done' : i === 1 ? 'now' : ''}>

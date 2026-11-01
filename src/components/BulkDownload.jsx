@@ -62,7 +62,7 @@ export default function BulkDownload({ docData, type, settings }) {
             } });
           } else if (link.kind === 'file') {
             // Uploaded to the item: named like the rest, keeping its own extension.
-            const ext = (link.name.match(/\.([a-z0-9]{1,5})$/i)?.[1] || (link.type === 'application/pdf' ? 'pdf' : 'jpg')).toLowerCase();
+            const ext = (String(link.name || "").match(/\.([a-z0-9]{1,5})$/i)?.[1] || (link.type === 'application/pdf' ? 'pdf' : 'jpg')).toLowerCase();
             jobs.push({ label: link.name, run: async () => ({
               file: name(fileBase({ ...base, number: i + 1, type: itemTypeCode(item), ref: controlRef(docData.controlNo) }), ext),
               blob: new Blob([await getFileBytes(link.path)], { type: link.type }),
@@ -85,7 +85,7 @@ export default function BulkDownload({ docData, type, settings }) {
 
       // Files uploaded at workflow steps (e.g. the DV signed by the payee in Box E).
       for (const f of docData.stepFiles || []) {
-        const ext = (f.name.match(/\.([a-z0-9]{1,5})$/i)?.[1] || (f.type === 'application/pdf' ? 'pdf' : 'jpg')).toLowerCase();
+        const ext = (String(f.name || "").match(/\.([a-z0-9]{1,5})$/i)?.[1] || (f.type === 'application/pdf' ? 'pdf' : 'jpg')).toLowerCase();
         jobs.push({ label: f.name, run: async () => ({
           file: name(fileBase({ ...base, number: ownItemNo(type, docData), type: cleanPart(f.label, 24), ref: controlRef(docData.controlNo) }), ext),
           blob: new Blob([await getFileBytes(f.path)], { type: f.type }),

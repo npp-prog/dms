@@ -8,6 +8,7 @@ import {
   processedAt, saveArchiveSettings, saveBackup, toBackUp,
 } from '../lib/archive.js';
 import { drnOf } from '../lib/naming.js';
+import { localDay } from '../lib/archiveFiles.js';
 import Select from '../components/Select.jsx';
 
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-PH', { dateStyle: 'medium' }) : '');
@@ -30,12 +31,14 @@ export default function Archive() {
 
   const types = useMemo(() => [...new Set((docs || []).map((d) => d.typeCode))].sort(), [docs]);
   const offices = useMemo(() => [...new Set((docs || []).map((d) => d.office).filter(Boolean))].sort(), [docs]);
-  const years = useMemo(() => [...new Set((docs || []).map((d) => processedAt(d).slice(0, 4)).filter(Boolean))].sort().reverse(), [docs]);
+  // The year it was processed, in Philippine time (as the backups file it).
+  const yearOf = (d) => (processedAt(d) ? localDay(processedAt(d)).slice(0, 4) : '');
+  const years = useMemo(() => [...new Set((docs || []).map(yearOf).filter(Boolean))].sort().reverse(), [docs]);
   const shown = useMemo(() => (docs || []).filter((d) => {
     const q = filters.q.toLowerCase();
     return (!filters.type || d.typeCode === filters.type)
       && (!filters.office || d.office === filters.office)
-      && (!filters.year || processedAt(d).startsWith(filters.year))
+      && (!filters.year || yearOf(d) === filters.year)
       && matchesSearch(d, q);
   }), [docs, filters]);
 

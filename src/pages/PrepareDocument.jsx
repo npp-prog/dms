@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   createDocument, getDocument, getDocumentType, getTypeForDocument, listDocumentTypes, updateDocument,
 } from '../lib/api.js';
 import { buildSteps, computeFields, initialData, missingFields, byOffice } from '../lib/forms.js';
+import { editableByPreparer } from '../lib/workflow.js';
 import { carryOver, effectiveChecklist, missingRequired } from '../lib/checklists.js';
 import ChecklistStep from '../components/ChecklistStep.jsx';
 import ChecklistSheet from '../components/ChecklistSheet.jsx';
@@ -67,6 +68,7 @@ function Wizard({ typeId, docId }) {
   // ?change=checklist: opened from the document page to change the checklist.
   const [params] = useSearchParams();
   const changeChecklist = params.get('change') === 'checklist';
+  const copied = Boolean(useLocation().state?.copied);
   const { actor, settings, isAdmin, profile } = useAuth();
   const [type, setType] = useState(null);
   const [existing, setExisting] = useState(null);
@@ -88,7 +90,9 @@ function Wizard({ typeId, docId }) {
         if (docId) {
           const d = await getDocument(docId);
           if (!d) throw new Error('Document not found.');
-          if (d.status === 'cancelled' && !isAdmin) throw new Error('This document was cancelled and can no longer be edited.');
+          if (d.status === 'cancelled') throw new Error('This document was cancelled and can no longer be edited.');
+          // On its route (not back at the preparer's step) or processed: only an administrator edits it.
+          if (!isAdmin && !editableByPreparer(d)) throw new Error('This document is on its route or processed: it can be edited only when it is returned to your office.');
           const t = await getTypeForDocument(d);
           if (!t) throw new Error('The document type of this document no longer exists.');
           setExisting(d);
@@ -159,7 +163,8 @@ function Wizard({ typeId, docId }) {
       else id = await createDocument(type, payload, actor);
       // Editing (opened from the document page): return there. New document: replace the
       // wizard in the history, so Back from the document does not reopen the wizard.
-      if (existing && (window.history.state?.idx ?? 0) > 0) navigate(-1);
+      // A copy just made (Copy as new draft): to the new document, not back to the original.
+      if (existing && !copied && (window.history.state?.idx ?? 0) > 0) navigate(-1);
       else navigate(`/documents/${id}`, { replace: true });
     } catch (e) {
       setError(e.message);
