@@ -159,6 +159,8 @@ function DocumentPage({ docId }) {
   const [actionError, setActionError] = useState('');
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState('document');
+  // The checklist card shows the items ticked as attached; the others (N/A, not ticked) on request.
+  const [showAllItems, setShowAllItems] = useState(false);
   // An uploaded supporting document shown in the main area.
   const [fileView, setFileView] = useState(null);
   // A linked document from DMS shown in the page, from its own (signed) PDF, so its signatures
@@ -469,6 +471,8 @@ function DocumentPage({ docId }) {
               <ul className="checklist-view">
                 {activeChecklist.items.map((c, ci) => {
                   const v = docData.checklist?.[c.id];
+                  // Not ticked as attached (N/A or left blank), with nothing linked: hidden, to keep the card short.
+                  if (!showAllItems && !isChecked(v) && !(docData.links?.[c.id] || []).length) return null;
                   return (
                     <li key={c.id}><span>{isChecked(v) ? '☑' : v === 'NA' ? 'N/A' : '☐'}</span> {c.label.split('\n')[0]}
                       <ItemLinks item={c} n={ci + 1} links={docData.links?.[c.id] || []} docId={docId} parent={{ ...docData, id: docId }} actor={actor}
@@ -485,6 +489,14 @@ function DocumentPage({ docId }) {
                   );
                 })}
               </ul>
+              {(() => {
+                const hidden = activeChecklist.items.filter((c) => !isChecked(docData.checklist?.[c.id]) && !(docData.links?.[c.id] || []).length).length;
+                return hidden > 0 && (
+                  <button type="button" className="link small checklist-more" onClick={() => setShowAllItems((x) => !x)}>
+                    {showAllItems ? 'Hide the items not attached' : `Show the ${hidden} item${hidden === 1 ? '' : 's'} not attached (N/A or not ticked)`}
+                  </button>
+                );
+              })()}
               {(docData.additionalDocs || []).length > 0 && (
                 <>
                   <h4 style={{ marginTop: '.9rem' }}>Additional documents</h4>
