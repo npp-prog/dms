@@ -5,7 +5,7 @@ import {
   signInWithRedirect, signOut, updateProfile,
 } from 'firebase/auth';
 import { auth } from '../firebase.js';
-import { ensureUserProfile, getFolderAccess, getSettings, listUsers, setupSite, syncDirectory, syncDirectoryEntry, syncFolderGrants, updateUser } from '../lib/api.js';
+import { ensureUserProfile, getFolderAccess, getSettings, listUsers, setupSite, syncDirectory, syncDirectoryEntry, syncFolderGrants, recordsPositionToRole, updateUser } from '../lib/api.js';
 import { isAdminRole, managesSettings, managesUsers } from '../lib/roles.js';
 
 const AuthContext = createContext(null);
@@ -44,7 +44,8 @@ export function AuthProvider({ children }) {
       setFolderGrant(p.role !== 'payee' ? await getFolderAccess(firebaseUser.uid).catch(() => null) : null);
       syncDirectoryEntry(firebaseUser.uid, p).catch(() => {});
       if (isAdminRole(p.role)) {
-        listUsers().then((users) => Promise.all([syncDirectory(users), syncFolderGrants(users)])).catch(() => {});
+        listUsers().then((users) => Promise.all([syncDirectory(users), syncFolderGrants(users),
+          ['admin', 'superadmin'].includes(p.role) ? recordsPositionToRole(users) : null])).catch(() => {});
       }
     }
     return p;
@@ -90,8 +91,8 @@ export function AuthProvider({ children }) {
     isSuper: profile?.active && profile.role === 'superadmin',
     // The office head sees every document of the office (Users > Office head).
     isHead: Boolean(profile?.active && profile.office && profile.head),
-    // The Records Officer (a position, Users) sees and downloads every document.
-    isRecords: Boolean(profile?.active && (profile.role === 'records' || (profile.positions || []).includes('Records Officer'))),
+    // The Records Officer (a role, Users) keeps the records and the archive.
+    isRecords: Boolean(profile?.active && profile.role === 'records'),
     // A supplier or payee (not LGU personnel): only the documents referred to them.
     isExternal: Boolean(profile?.active && profile.role === 'payee'),
     // May refer a document they hold to any active user outside its route (Users > May route to

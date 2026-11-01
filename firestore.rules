@@ -33,6 +33,13 @@ service cloud.firestore {
     function managesUsers() {
       return isActive() && profile().role in ['admin', 'superadmin', 'itadmin'];
     }
+    // An Admin gives the IT Admin and Records Officer roles (the superadmin gives every role).
+    function givesStaffRoles() {
+      return isActive() && profile().role == 'admin';
+    }
+    function rolesIManage() {
+      return givesStaffRoles() ? ['user', 'payee', 'itadmin', 'records'] : ['user', 'payee'];
+    }
     // Settings: the superadmin and Admin; not IT Admin nor the Records Officer.
     function managesSettings() {
       return isActive() && profile().role in ['admin', 'superadmin'];
@@ -40,9 +47,9 @@ service cloud.firestore {
     function isSuper() {
       return isActive() && profile().role == 'superadmin';
     }
-    // The Records Officer (a position, Users) sees every document, to keep and download the records.
+    // The Records Officer (a role, Users) keeps the records and the archive.
     function isRecords() {
-      return isActive() && (profile().role == 'records' || 'Records Officer' in profile().get('positions', []));
+      return isActive() && profile().role == 'records';
     }
     function isOwnerEmail() {
       return signedIn()
@@ -222,8 +229,10 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['email', 'displayName', 'office', 'role', 'positions', 'head', 'canRefer', 'by', 'byName', 'at'])
         && request.resource.data.email == email
         && request.resource.data.positions is list && request.resource.data.head is bool && request.resource.data.canRefer is bool
-        // administrators only by the superadmin; a third party has no office
+        // Admin only by the superadmin; IT Admin and Records Officer by the superadmin or an Admin;
+        // a third party has no office
         && (request.resource.data.role == 'user' || (isSuper() && request.resource.data.role in ['admin', 'itadmin', 'records'])
+            || (givesStaffRoles() && request.resource.data.role in ['itadmin', 'records'])
             || (request.resource.data.role == 'payee' && request.resource.data.office == '' && request.resource.data.head == false
                 && request.resource.data.positions.size() == 0 && request.resource.data.canRefer == false));
       allow delete: if managesUsers();
@@ -273,7 +282,7 @@ service cloud.firestore {
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.email == request.auth.token.email
         && ((
-          // Only what registration writes: no positions (e.g. Records Officer) or routing rights.
+          // Only what registration writes: no positions or routing rights.
           request.resource.data.keys().hasOnly(['email', 'displayName', 'office', 'requestedOffice', 'role', 'active', 'createdAt'])
           // The office is assigned by an admin, never chosen by the user.
           && request.resource.data.get('office', '') == ''
@@ -293,9 +302,10 @@ service cloud.firestore {
         // (The copy of their folder access only as folderAccess says: grantCopyOk.)
         (isSuper() && (request.auth.uid != uid || unchanged(['role', 'active']))
             && (unchanged(['folderGrant']) || grantCopyOk()))
-        // Admin and IT Admin approve/deactivate and edit regular users only.
+        // Admin and IT Admin approve/deactivate and edit regular users; an Admin also IT Admins and
+        // Records Officers, and gives those roles (never Admin or superadmin).
         || (managesUsers() && request.auth.uid != uid
-            && resource.data.role in ['user', 'payee'] && request.resource.data.role in ['user', 'payee']
+            && resource.data.role in rolesIManage() && request.resource.data.role in rolesIManage()
             && (unchanged(['folderGrant']) || grantCopyOk()))
         // Anyone may edit their own name, position (job title), ID no. and profile picture (not
         // their office, office head, workflow positions or routing to any person: they decide what

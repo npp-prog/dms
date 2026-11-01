@@ -37,7 +37,7 @@ export async function userFromRequest(req) {
     return null;
   }
 }
-export const keepsArchive = (p) => ['admin', 'superadmin', 'itadmin', 'records'].includes(p?.role) || (p?.positions || []).includes('Records Officer');
+export const keepsArchive = (p) => ['admin', 'superadmin', 'itadmin', 'records'].includes(p?.role);
 
 // Acting as a user from their Firebase refresh token (kept server-side): reads documents and files.
 export async function firebaseAs(refreshToken, fetchImpl = fetch) {

@@ -9,7 +9,7 @@ import { ROLE_NAMES } from '../../lib/roles.js';
 
 
 // One person: name, office and what they may do at a glance; Edit opens their settings below.
-function UserRow({ u, me, isSuper, settings, offices, canManage, onChange, onNewPosition }) {
+function UserRow({ u, me, isSuper, givesStaff, settings, offices, canManage, onChange, onNewPosition }) {
   const [open, setOpen] = useState(false);
   const editable = canManage || (isSuper && u.id === me.uid);
   const tags = [u.head && 'Office head', ...(u.positions || []), u.canRefer && 'Routes to any person'].filter(Boolean);
@@ -49,8 +49,8 @@ function UserRow({ u, me, isSuper, settings, offices, canManage, onChange, onNew
                 <option value="user">User</option>
                 <option value="payee">Third Party</option>
                 {isSuper && <option value="admin">Admin</option>}
-                {isSuper && <option value="itadmin">IT Admin</option>}
-                {isSuper && <option value="records">Records Officer</option>}
+                {givesStaff && <option value="itadmin">IT Admin</option>}
+                {givesStaff && <option value="records">Records Officer</option>}
                 {isSuper && <option value="superadmin">Superadmin</option>}
               </Select>
             ) : <span className="small">{ROLE_NAMES[u.role] || u.role}</span>}
@@ -87,7 +87,7 @@ function UserRow({ u, me, isSuper, settings, offices, canManage, onChange, onNew
 
 // + Add user: a person added by email before they sign up; their first sign-in with that email
 // (Google, or email and password once verified) gives them this office, role and positions.
-function InviteForm({ initial, isSuper, settings, offices, onNewPosition, onSave, onCancel }) {
+function InviteForm({ initial, isSuper, givesStaff, settings, offices, onNewPosition, onSave, onCancel }) {
   const [f, setF] = useState({ email: '', displayName: '', role: 'user', office: '', positions: [], head: false, canRefer: false, ...initial });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -112,8 +112,8 @@ function InviteForm({ initial, isSuper, settings, offices, onNewPosition, onSave
             <option value="user">User</option>
             <option value="payee">Third Party</option>
             {isSuper && <option value="admin">Admin</option>}
-            {isSuper && <option value="itadmin">IT Admin</option>}
-            {isSuper && <option value="records">Records Officer</option>}
+            {givesStaff && <option value="itadmin">IT Admin</option>}
+            {givesStaff && <option value="records">Records Officer</option>}
           </Select></label>
         <label className="field"><span className="field-label">Office</span>
           <Select value={f.office} disabled={payee} onChange={(e) => set({ office: e.target.value, ...(e.target.value ? {} : { head: false }) })}>
@@ -141,7 +141,9 @@ function InviteForm({ initial, isSuper, settings, offices, onNewPosition, onSave
 }
 
 export default function Users() {
-  const { user: me, isSuper, settings, setSettings } = useAuth();
+  const { user: me, isSuper, profile: myProfile, settings, setSettings } = useAuth();
+  // The superadmin and an Admin give the IT Admin and Records Officer roles (lib/roles.js).
+  const givesStaff = isSuper || myProfile?.role === 'admin';
   const newPosition = async (name) => {
     const positions = await addPosition(settings, name);
     setSettings((s) => ({ ...s, positions }));
@@ -170,7 +172,7 @@ export default function Users() {
     } catch (e) { setError(e.message); }
   };
 
-  const canManage = (u) => u.id !== me.uid && (isSuper || u.role === 'user' || u.role === 'payee');
+  const canManage = (u) => u.id !== me.uid && (isSuper || u.role === 'user' || u.role === 'payee' || (givesStaff && ['itadmin', 'records'].includes(u.role)));
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = (users || [])
     .filter((u) => filter === 'all' || (filter === 'pending' ? !u.active : u.active))
@@ -190,7 +192,7 @@ export default function Users() {
         {!inviting && <button type="button" className="btn btn-primary btn-sm" onClick={() => setInviting({})}>+ Add user</button>}
       </div>
       {inviting && (
-        <InviteForm initial={inviting} isSuper={isSuper} settings={settings} offices={offices} onNewPosition={newPosition}
+        <InviteForm initial={inviting} isSuper={isSuper} givesStaff={givesStaff} settings={settings} offices={offices} onNewPosition={newPosition}
           onCancel={() => setInviting(null)}
           onSave={async (f) => { await saveInvite(f, me); setInviting(null); await loadInvites(); }} />
       )}
@@ -235,7 +237,7 @@ export default function Users() {
       {users && (shown.length === 0 ? <p className="muted">No user matches.</p> : (
         <ul className="card user-list">
           {shown.map((u) => (
-            <UserRow key={u.id} u={u} me={me} isSuper={isSuper} settings={settings} offices={offices} canManage={canManage(u)}
+            <UserRow key={u.id} u={u} me={me} isSuper={isSuper} givesStaff={givesStaff} settings={settings} offices={offices} canManage={canManage(u)}
               onChange={(patch) => change(u, patch)} onNewPosition={newPosition} />
           ))}
         </ul>

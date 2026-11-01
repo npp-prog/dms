@@ -14,5 +14,5 @@ export const isAdminRole = (role) => ADMIN_ROLES.includes(role);
 export const managesUsers = (role) => USER_MANAGER_ROLES.includes(role);
 // Settings: the superadmin and Admin.
 export const managesSettings = (role) => ['superadmin', 'admin'].includes(role);
-// Only the superadmin gives these.
+// The superadmin gives every role; an Admin gives IT Admin and Records Officer.
 export const ELEVATED_ROLES = ['admin', 'itadmin', 'records'];

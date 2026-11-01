@@ -879,13 +879,14 @@ export const FORMAT_KEYS = ['template', 'fields', 'steps', 'processing', 'paperS
 // Admins add more in Settings, Users or Workflow.
 export const DEFAULT_POSITIONS = [
   'Encoder', 'Reviewer', 'Bookkeeper', 'Cashier', 'Disbursing Officer', 'Inspection Officer', 'Acceptance Officer',
-  'Property Custodian', 'Records Officer', 'Signatory',
+  'Property Custodian', 'Signatory',
 ];
 // Funds of the LGU (the Fund field of every form, Upload). Admins add more in Settings.
 export const DEFAULT_FUNDS = ['General Fund', 'Special Education Fund', 'Trust Fund'];
 export const fundsOf = (settings) => (settings?.funds?.length ? settings.funds : DEFAULT_FUNDS);
 
-export const positionsOf = (settings) => (settings?.positions?.length ? settings.positions : DEFAULT_POSITIONS);
+// Records Officer is a role (Users → Role), no longer a position.
+export const positionsOf = (settings) => (settings?.positions?.length ? settings.positions : DEFAULT_POSITIONS).filter((p) => p !== 'Records Officer');
 
 export const DEFAULT_SETTINGS = {
   checklistLibraryVersion: CHECKLIST_LIBRARY_VERSION,

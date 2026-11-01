@@ -1178,6 +1178,20 @@ const grantCopy = (g, blocked = []) => ({
 });
 const sameCopy = (a, b) => JSON.stringify(a || null) === JSON.stringify(b || null);
 
+// Records Officer was a position under the office; it is a role now. The superadmin or an Admin,
+// on signing in: a User who held the position becomes a Records Officer, and the position is
+// dropped from everyone (and from the list in Settings).
+export async function recordsPositionToRole(users, settings) {
+  const all = users || await listUsers();
+  for (const u of all.filter((x) => (x.positions || []).includes('Records Officer'))) {
+    const patch = { positions: u.positions.filter((p) => p !== 'Records Officer') };
+    if (u.role === 'user') patch.role = 'records';
+    await updateDoc(doc(db, 'users', u.id || u.uid), patch).catch(() => {});
+  }
+  const s = settings || await getSettings().catch(() => null);
+  if (s?.positions?.includes('Records Officer')) await saveSettings({ positions: s.positions.filter((p) => p !== 'Records Officer') }).catch(() => {});
+}
+
 // Administrators: bring every profile's copy up to date (access given before the copy existed, or
 // changed since).
 export async function syncFolderGrants(users) {
