@@ -5,7 +5,7 @@ import {
   signInWithRedirect, signOut, updateProfile,
 } from 'firebase/auth';
 import { auth } from '../firebase.js';
-import { ensureUserProfile, getFolderAccess, getSettings, setupSite, syncDirectory, syncDirectoryEntry, updateUser } from '../lib/api.js';
+import { ensureUserProfile, getFolderAccess, getSettings, listUsers, setupSite, syncDirectory, syncDirectoryEntry, syncFolderGrants, updateUser } from '../lib/api.js';
 
 const AuthContext = createContext(null);
 
@@ -42,7 +42,9 @@ export function AuthProvider({ children }) {
       setSettings(await getSettings().catch(() => ({})));
       setFolderGrant(p.role !== 'payee' ? await getFolderAccess(firebaseUser.uid).catch(() => null) : null);
       syncDirectoryEntry(firebaseUser.uid, p).catch(() => {});
-      if (['admin', 'superadmin'].includes(p.role)) syncDirectory().catch(() => {});
+      if (['admin', 'superadmin'].includes(p.role)) {
+        listUsers().then((users) => Promise.all([syncDirectory(users), syncFolderGrants(users)])).catch(() => {});
+      }
     }
     return p;
   }, []);

@@ -244,6 +244,20 @@ service cloud.firestore {
         return d.role == i.role && d.get('office', '') == i.office && d.get('head', false) == i.head
           && d.get('positions', []) == i.positions && d.get('canRefer', false) == i.canRefer && d.active == true;
       }
+      // folderGrant: a copy of folderAccess/{uid} (plus blocked: the folders the office restricted),
+      // so that Storage, which may look up only two documents, checks folder access from the
+      // profile. Written with folderAccess, by whoever may give it; never by the user themselves.
+      function grantCopyOk() {
+        let fa = /databases/$(database)/documents/folderAccess/$(uid);
+        let g = request.resource.data.get('folderGrant', null);
+        return (isAdmin() || isRecords() || (isOfficeHead() && resource.data.get('office', '') == myOffice()))
+          && (existsAfter(fa)
+            ? (g != null && g.keys().hasOnly(['office', 'all', 'types', 'edit', 'blocked'])
+               && g.office == getAfter(fa).data.office && g.all == getAfter(fa).data.all
+               && g.types == getAfter(fa).data.types && g.edit == getAfter(fa).data.get('edit', false)
+               && g.blocked is list)
+            : g == null);
+      }
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
 
       allow create: if signedIn() && request.auth.uid == uid
@@ -266,19 +280,24 @@ service cloud.firestore {
 
       allow update: if
         // Superadmin manages everyone (but cannot lock themselves out).
-        (isSuper() && (request.auth.uid != uid || unchanged(['role', 'active'])))
+        // (The copy of their folder access only as folderAccess says: grantCopyOk.)
+        (isSuper() && (request.auth.uid != uid || unchanged(['role', 'active']))
+            && (unchanged(['folderGrant']) || grantCopyOk()))
         // Admin may approve/deactivate and edit regular users only.
         || (isAdmin() && request.auth.uid != uid
-            && resource.data.role in ['user', 'payee'] && request.resource.data.role in ['user', 'payee'])
+            && resource.data.role in ['user', 'payee'] && request.resource.data.role in ['user', 'payee']
+            && (unchanged(['folderGrant']) || grantCopyOk()))
         // Anyone may edit their own name, position (job title), ID no. and profile picture (not
         // their office, office head, workflow positions or routing to any person: they decide what
         // they can see and do).
-        || (request.auth.uid == uid && unchanged(['role', 'active', 'email', 'office', 'head', 'canRefer', 'positions'])
+        || (request.auth.uid == uid && unchanged(['role', 'active', 'email', 'office', 'head', 'canRefer', 'positions', 'folderGrant'])
             && ownDetailsOk(request.resource.data))
+        // The copy of their folder access (see grantCopyOk), and nothing else.
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['folderGrant']) && grantCopyOk())
         // Added in advance: a pending account (registered before verifying its email, or before the
         // administrator added it) takes what the invitation says once the email is verified.
         || (request.auth.uid == uid && resource.data.active == false && invited()
-            && unchanged(['email', 'createdAt']) && asInvited(request.resource.data))
+            && unchanged(['email', 'createdAt', 'folderGrant']) && asInvited(request.resource.data))
         // The owner becomes superadmin once their email is verified.
         || (request.auth.uid == uid && isOwnerEmail()
             && request.resource.data.role == 'superadmin' && request.resource.data.active == true

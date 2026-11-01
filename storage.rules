@@ -45,25 +45,33 @@ service firebase.storage {
     }
     // The office head gave this user access to the document's folder (document type), or all;
     // not to a restricted document or folder (as in firestore.rules).
-    // office '*': an administrator gave them these folders of every office.
+    // office '*': an administrator gave them these folders of every office. Storage rules may look
+    // up only two Firestore documents (the profile and the document), so this reads the copy of the
+    // user's folder access kept in their profile (folderGrant; blocked: the folders their office
+    // restricted).
     function folderGranted(d) {
-      let g = /databases/(default)/documents/folderAccess/$(request.auth.uid);
-      let r = /databases/(default)/documents/folderRules/$(myOffice());
-      return d.get('restricted', false) == false
-        && firestore.exists(g)
-        && (firestore.get(g).data.all == true || d.get('typeCode', '') in firestore.get(g).data.types)
-        && (firestore.get(g).data.office == '*'
-            || (myOffice() != '' && firestore.get(g).data.office == myOffice()
+      let g = profile().get('folderGrant', null);
+      return g != null && d.get('restricted', false) == false
+        && (g.all == true || d.get('typeCode', '') in g.types)
+        && (g.office == '*'
+            || (myOffice() != '' && g.office == myOffice()
                 && (d.get('office', '') == myOffice() || myOffice() in d.get('routeOffices', []))
-                && !(firestore.exists(r) && d.get('typeCode', '') in firestore.get(r).data.get('restricted', []))));
+                && !(d.get('typeCode', '') in g.get('blocked', []))));
     }
     // An editor (given by the office head, or by an administrator for every office): adds files as
     // the preparer does.
     function isEditor(d) {
-      let g = /databases/(default)/documents/folderAccess/$(request.auth.uid);
       return (myOffice() != '' && d.get('office', '') == myOffice() && request.auth.uid in d.get('editors', []))
-        || (folderGranted(d) && firestore.get(g).data.get('edit', false) == true
-            && (firestore.get(g).data.office == '*' || d.get('office', '') == myOffice()));
+        || (folderGranted(d) && profile().folderGrant.get('edit', false) == true
+            && (profile().folderGrant.office == '*' || d.get('office', '') == myOffice()));
+    }
+    // The current PDF, when it is public (as its public record says: lib/publicRecord.js), for any
+    // signed-in user, without a third lookup.
+    function publicCurrent(d, path) {
+      return d.get('status', '') != 'cancelled' && d.get('workflow', {}).get('state', '') != 'cancelled'
+        && d.get('typeSnapshot', {}).get('publicPdf', d.get('typeCode', '') != 'PAYROLL') != false
+        && d.get('pdf', {}).get('files', []).size() > 0
+        && d.pdf.files[d.pdf.files.size() - 1].path == path;
     }
     function canRead(d) {
       return isAdmin() || isRecords() || d.createdBy == request.auth.uid || heldByMyOffice(d) || referredToMe(d) || referredByMyOffice(d) || request.auth.uid in d.get('sharedWith', []) || request.auth.uid in d.get('referred', [])
@@ -134,8 +142,10 @@ service firebase.storage {
     match /documents/{docId}/attachments/{itemId}/{file} {
       // A supporting document's file (metadata dmsDoc: its id): also anyone, signed in or not, once
       // its public record (what its QR code opens) names it.
-      allow read: if (isActive() && canRead(docOf(docId)))
-        || (resource.metadata != null && resource.metadata.get('dmsDoc', '') != ''
+      // (Signed in: the profile and the document; not signed in: the public record only. Storage may
+      // look up two documents.)
+      allow read: if (request.auth != null && isActive() && canRead(docOf(docId)))
+        || (request.auth == null && resource.metadata != null && resource.metadata.get('dmsDoc', '') != ''
             && firestore.get(/databases/(default)/documents/checks/$(resource.metadata.dmsDoc)).data.get('pdf', '') == 'documents/' + docId + '/attachments/' + itemId + '/' + file);
       allow create: if resource == null && isActive() && canAdd(docOf(docId))
         && request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp)')
@@ -146,8 +156,12 @@ service firebase.storage {
     match /documents/{docId}/{file} {
       // Anyone, signed in or not, may open the document's current PDF: the one its public record
       // (checks/{docId}, what the QR code opens) names. Earlier versions stay private.
-      allow read: if (isActive() && canRead(docOf(docId)))
-        || firestore.get(/databases/(default)/documents/checks/$(docId)).data.get('pdf', '') == 'documents/' + docId + '/' + file;
+      // (Signed in: the profile and the document; not signed in: the public record only. Storage may
+      // look up two documents.)
+      allow read: if (request.auth != null && isActive()
+                      && (canRead(docOf(docId)) || publicCurrent(docOf(docId), 'documents/' + docId + '/' + file)))
+        || (request.auth == null
+            && firestore.get(/databases/(default)/documents/checks/$(docId)).data.get('pdf', '') == 'documents/' + docId + '/' + file);
       // resource == null: a new file only, never over an existing version.
       allow create: if resource == null && isActive() && canAdd(docOf(docId))
         && file.matches('[0-9]+-(generated|signed|esigned|uploaded|stamped|restored)\\.pdf')

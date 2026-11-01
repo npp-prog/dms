@@ -1157,10 +1157,45 @@ export async function getFolderRules(office) {
   return { restricted: [], ...(s.exists() ? s.data() : {}) };
 }
 
-export function setRestrictedFolders(office, restricted, user) {
-  return setDoc(doc(db, 'folderRules', office), {
-    restricted: [...new Set(restricted)].sort(), by: user.uid, byName: user.displayName || user.email || '', at: new Date().toISOString(),
+export async function setRestrictedFolders(office, restricted, user) {
+  const list = [...new Set(restricted)].sort();
+  await setDoc(doc(db, 'folderRules', office), {
+    restricted: list, by: user.uid, byName: user.displayName || user.email || '', at: new Date().toISOString(),
   });
+  // The copies of the office's folder access in the profiles (what Storage checks) follow.
+  const grants = await listFolderAccess(office);
+  for (let i = 0; i < grants.length; i += 200) {
+    const batch = writeBatch(db);
+    grants.slice(i, i + 200).forEach((g) => batch.update(doc(db, 'users', g.uid), { folderGrant: grantCopy(g, list) }));
+    await batch.commit();
+  }
+}
+
+// folderGrant in the profile: a copy of folderAccess/{uid}, with the folders the office restricted
+// (blocked), so that Storage rules (which may look up only two documents) can check folder access.
+const grantCopy = (g, blocked = []) => ({
+  office: g.office, all: Boolean(g.all), types: g.types || [], edit: Boolean(g.edit), blocked: g.office === EVERY_OFFICE ? [] : blocked,
+});
+const sameCopy = (a, b) => JSON.stringify(a || null) === JSON.stringify(b || null);
+
+// Administrators: bring every profile's copy up to date (access given before the copy existed, or
+// changed since).
+export async function syncFolderGrants(users) {
+  const all = users || await listUsers();
+  const grants = Object.fromEntries((await getDocs(collection(db, 'folderAccess'))).docs.map((d) => [d.id, d.data()]));
+  const rules = {};
+  for (const o of new Set(Object.values(grants).map((g) => g.office).filter((o) => o && o !== EVERY_OFFICE))) rules[o] = (await getFolderRules(o).catch(() => ({ restricted: [] }))).restricted;
+  const writes = [];
+  for (const u of all) {
+    const uid = u.id || u.uid;
+    const want = grants[uid] ? grantCopy(grants[uid], rules[grants[uid].office] || []) : null;
+    if (!sameCopy(u.folderGrant, want)) writes.push((b) => b.update(doc(db, 'users', uid), { folderGrant: want || deleteField() }));
+  }
+  for (let i = 0; i < writes.length; i += 15) {
+    const batch = writeBatch(db);
+    writes.slice(i, i + 15).forEach((w) => w(batch));
+    await batch.commit().catch(() => {});
+  }
 }
 
 // To folders (document types) of the office's documents, or all of them: folderAccess/{uid}.
@@ -1180,11 +1215,22 @@ export async function listFolderAccess(office) {
 export const EVERY_OFFICE = '*';
 export async function setFolderAccess(person, { all = false, types = [], edit = false, everyOffice = false }, user) {
   const ref = doc(db, 'folderAccess', person.uid);
-  if (!all && !types.length) return deleteDoc(ref);
-  return setDoc(ref, {
+  const profileRef = doc(db, 'users', person.uid);
+  const batch = writeBatch(db);
+  if (!all && !types.length) {
+    batch.delete(ref);
+    batch.update(profileRef, { folderGrant: deleteField() });
+    return batch.commit();
+  }
+  const g = {
     office: everyOffice ? EVERY_OFFICE : person.office || '', all, types: all ? [] : [...new Set(types)].sort(), edit: Boolean(edit), name: person.displayName || person.email || '',
     by: user.uid, byName: user.displayName || user.email || '', at: new Date().toISOString(),
-  });
+  };
+  const blocked = g.office === EVERY_OFFICE ? [] : (await getFolderRules(g.office).catch(() => ({ restricted: [] }))).restricted;
+  batch.set(ref, g);
+  // Its copy in the profile, which Storage checks (grantCopy).
+  batch.update(profileRef, { folderGrant: grantCopy(g, blocked) });
+  return batch.commit();
 }
 
 // A reviewer's comments on a draft sent to them for review.
