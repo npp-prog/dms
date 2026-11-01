@@ -1,15 +1,27 @@
 import { useState } from 'react';
-import { LinkList } from './DocLinks.jsx';
+import { LinkEditor, LinkList } from './DocLinks.jsx';
 import { UPLOAD_TYPES, uploadSupporting } from '../lib/supporting.js';
 
-// Supplemental documents: files that go with the document but are not on its checklist. Each is
-// also a DMS document of its own (All Documents), and shows as a tab after the PDF.
+// Supplemental documents: what goes with the document but is not on its checklist: a file uploaded
+// (a DMS document of its own, in All Documents) or a document already in DMS, linked. Each shows as
+// a tab after the PDF.
 export default function SupplementsCard({ doc, actor, canAdd, canRemove, busy, onSave, onOpen }) {
   const list = doc.supplements || [];
   const [label, setLabel] = useState('');
   const [step, setStep] = useState('');
   const [error, setError] = useState('');
+  const [linking, setLinking] = useState(false);
   if (!canAdd && !list.length) return null;
+
+  // A document already in DMS: linked (it keeps its own control no. and route).
+  const link = async (l) => {
+    setLinking(false); setError('');
+    if (list.some((x) => x.kind === 'fts' && x.id === l.id)) { setError(`${l.controlNo} is already a supplemental document.`); return; }
+    try {
+      await onSave([...list, { ...l, label: label.trim() || `${l.typeCode} ${l.controlNo}` }], `linked ${l.controlNo}`);
+      setLabel('');
+    } catch (e) { setError(e.message); }
+  };
 
   const add = async (file) => {
     if (!file) return;
@@ -30,11 +42,11 @@ export default function SupplementsCard({ doc, actor, canAdd, canRemove, busy, o
   return (
     <section className="card supplements-card">
       <div className="card-head"><h3>Supplemental documents</h3>{list.length > 0 && <span className="small muted">{list.length}</span>}</div>
-      {list.length === 0 && <p className="small muted">Files that go with this document but are not on its checklist. Each is saved in All Documents
-        with its own control number, and opens as a tab after the PDF.</p>}
+      {list.length === 0 && <p className="small muted">What goes with this document but is not on its checklist: upload a file (saved in All Documents
+        with its own control number) or link a document already in DMS. Each opens as a tab after the PDF.</p>}
       <LinkList links={list.map((l) => ({ ...l, name: l.label || l.name }))}
         onOpen={(l, i) => onOpen(list[i], `supp:${i}`)}
-        onRemove={canRemove ? (i) => window.confirm('Remove it from this document? It stays in All Documents.') && onSave(list.filter((_, j) => j !== i), `removed ${list[i].dms?.controlNo || list[i].name}`) : undefined} />
+        onRemove={canRemove ? (i) => window.confirm('Remove it from this document? It stays in All Documents.') && onSave(list.filter((_, j) => j !== i), `removed ${list[i].dms?.controlNo || list[i].controlNo || list[i].name}`) : undefined} />
       {error && <div className="alert small">{error}</div>}
       {canAdd && (
         <div className="supp-add">
@@ -45,7 +57,11 @@ export default function SupplementsCard({ doc, actor, canAdd, canRemove, busy, o
               <input type="file" hidden accept={UPLOAD_TYPES.join(',')} disabled={busy} onChange={(e) => { add(e.target.files[0]); e.target.value = ''; }} />
             </label>
           )}
+          {!step && <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setLinking((x) => !x)}>+ Link DMS document</button>}
         </div>
+      )}
+      {canAdd && linking && (
+        <LinkEditor excludeId={doc.id} onAdd={link} onCancel={() => setLinking(false)} />
       )}
     </section>
   );

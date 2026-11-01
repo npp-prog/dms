@@ -391,7 +391,7 @@ function DocumentPage({ docId }) {
             <SupplementsCard doc={{ ...docData, id: docId }} actor={actor} busy={busy}
               canAdd={editable && ((isOwner && notDone) || isAdmin || canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }))}
               canRemove={editable && ((isOwner && notDone) || isAdmin)}
-              onOpen={openFile}
+              onOpen={(l, key) => (l.kind === 'fts' ? openLinked(l, key) : openFile(l, key))}
               onSave={(list, note) => run(() => saveSupplements(docId, list, actor, note))} />
           )}
           {/* Optional initial review of the draft by anyone, before it is converted to PDF. */}
@@ -519,9 +519,9 @@ function DocumentPage({ docId }) {
               <div className="tabs view-toggle no-print">
                 {pdfView && <button className={view === 'pdf' ? 'active' : ''} onClick={() => setView('pdf')}>{hasSignature ? 'Signed PDF' : 'PDF'}</button>}
                 {(isExternal ? [] : docData.supplements || []).map((l, i) => (
-                  <button key={`supp:${i}`} title={`${l.label || 'Supplemental document'}: ${l.dms?.controlNo || l.name}`}
-                    className={view === 'file' && linkKey === `supp:${i}` ? 'active' : ''}
-                    onClick={() => openFile(l, `supp:${i}`)}>{l.label && l.label !== 'Supplemental document' ? l.label : `Supplemental ${i + 1}`}</button>
+                  <button key={`supp:${i}`} title={`${l.label || 'Supplemental document'}: ${l.dms?.controlNo || l.controlNo || l.name}`}
+                    className={(view === 'file' || view === 'linked') && linkKey === `supp:${i}` ? 'active' : ''}
+                    onClick={() => (l.kind === 'fts' ? openLinked(l, `supp:${i}`) : openFile(l, `supp:${i}`))}>{l.label && l.label !== 'Supplemental document' ? l.label : `Supplemental ${i + 1}`}</button>
                 ))}
                 {/* Files uploaded at a route step (e.g. the DV signed by the payee in Box E). */}
                 {(isExternal ? [] : docData.stepFiles || []).map((l, i) => {

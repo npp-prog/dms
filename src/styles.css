@@ -1084,8 +1084,8 @@ input[type=file]::file-selector-button:hover { border-color: var(--gold); backgr
 .type-choose .type-acts .btn-primary { color: #fff; }
 .type-actions .btn { min-height: 28px; padding: .18rem .65rem; font-size: .8rem; border-radius: 7px; }
 .type-actions .btn-primary, .type-actions .btn-gold { color: #fff; }
-.supp-add { display: flex; gap: .45rem; align-items: center; margin-top: .5rem; }
-.supp-add input { flex: 1; min-width: 0; }
+.supp-add { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-top: .5rem; }
+.supp-add input { flex: 1 1 180px; min-width: 0; }
 .supp-add label.btn { cursor: pointer; flex: none; }
 .view-toggle button { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
