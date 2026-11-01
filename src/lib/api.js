@@ -5,7 +5,7 @@ import {
 import { deleteObject, getBytes, getDownloadURL, getMetadata, ref as storageRef, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from '../firebase.js';
 import { isOwnerEmail } from './owner.js';
-import { counterFor, DEFAULT_REF_PATTERN, formatControlNo, refNumber } from './naming.js';
+import { controlNumber, DEFAULT_REF_PATTERN, refNumber } from './naming.js';
 import { CHECKLIST_LIBRARY_VERSION, DEFAULT_SETTINGS, FORMAT_KEYS, STARTER_TYPES, positionsOf } from './defaults.js';
 import { checkRecord, pdfIsPublic } from './publicRecord.js';
 import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing } from './workflow.js';
@@ -226,9 +226,12 @@ export function deleteNote(uid, id) {
 
 // ---------- Settings ----------
 
+// The settings as last read or saved (the numbering of new documents uses them).
+let settingsCache = null;
 export async function getSettings() {
   const snap = await getDoc(doc(db, 'meta', 'settings'));
-  return snap.exists() ? snap.data() : {};
+  settingsCache = snap.exists() ? snap.data() : {};
+  return settingsCache;
 }
 
 // The Data Protection Officer's contact for the privacy notice (meta/privacy: public).
@@ -249,6 +252,7 @@ export async function addPosition(settings, name) {
 }
 
 export function saveSettings(settings) {
+  settingsCache = { ...(settingsCache || {}), ...settings };
   return setDoc(doc(db, 'meta', 'settings'), { ...settings, updatedAt: serverTimestamp() }, { merge: true });
 }
 
@@ -447,16 +451,18 @@ export async function setupSite(user) {
 // 2026 continues the counter used before (counters/FTS: the FTS-/DMS-###### numbers), so no
 // number repeats; each later year starts at 1 (counters/DMS-2027, ...).
 
+// As set in Settings → Numbering (lib/naming.js controlNumber).
 async function nextControlNo() {
-  const year = new Date().getFullYear();
-  const ref = doc(db, 'counters', counterFor(year));
+  const settings = settingsCache || await getSettings().catch(() => ({}));
+  const { counterId, format } = controlNumber(settings);
+  const ref = doc(db, 'counters', counterId);
   const value = await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     const next = snap.exists() ? snap.data().value + 1 : 1;
     tx.set(ref, { value: next });
     return next;
   });
-  return formatControlNo(year, value);
+  return format(value);
 }
 
 // A document that already exists as a file (scanned, or made outside DMS): it gets a control

@@ -323,11 +323,12 @@ Fields can be **computed**: in a table column or a field, the formula combines o
 
 ### Settings and users
 
-**Settings** (superadmin only) holds:
+**Settings** (the superadmin and Admin) holds:
 
 - the LGU name, address and seal;
 - the **signatories**: Mayor, Accountant, Budget Officer, Treasurer and Secretary to the Sanggunian. These are printed where the official forms pre-print a name. Each document keeps the signatories that were set when it was prepared.
 - the **office letterheads**: for each office, the title printed under the LGU (the Office of the Mayor's is *Office of the Mayor*), its email address and its contact no. A form prints the letterhead of the office it is from: the Travel Order always the Office of the Mayor's; other forms the office of the document unless **Document Types → Letterhead** names one. An email or contact no. left blank is not printed.
+- **Numbering**: the **DMS number** every document gets when saved — its prefix (DMS), how many digits its series has, and when it **restarts at 1**: every year (*DMS-2026-000001*, the default), every month (*DMS-2026-11-000001*) or never (*DMS-000001*). A change applies to new documents; documents keep their number. Below it, **Reference numbers (DRN)** lists every number a route assigns, for every document type (the DV's Disbursement No., the Travel Order No., …): who assigns it, its **format** and when it **restarts at 1** (every day, month or year, or never), with what it looks like. A new document type whose route assigns a number appears there by itself. The series restarts whenever the date in the format changes, so choosing *Every year* takes the month out of the format, *Every month* puts it in. In a format, `{YYYY}`/`{YY}` is the year, `{MM}` the month, `{DD}` the day, `{FUND}` the fund's code (each fund its own series) and `{####}` the series. The same format can also be changed on the step in Administration → Workflow.
 
 ![Settings](images/22-admin-settings.png)
 

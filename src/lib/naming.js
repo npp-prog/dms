@@ -38,6 +38,27 @@ export function cleanPart(text, max = 40) {
 export const counterFor = (year) => (year <= 2026 ? 'FTS' : `DMS-${year}`);
 export const formatControlNo = (year, value) => `DMS-${year}-${String(value).padStart(6, '0')}`;
 
+// The DMS control number as set in Settings (Numbering): its prefix, how many digits the series
+// has, and when the series restarts: every year (DMS-2026-000001), every month (DMS-2026-11-0001) or
+// never (DMS-000001). Every year with the prefix DMS continues the counters used so far.
+export const CONTROL_RESTARTS = { year: 'Every year', month: 'Every month', never: 'Never' };
+export function controlNoSettings(settings = {}) {
+  const c = settings?.controlNo || {};
+  const prefix = String(c.prefix || 'DMS').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) || 'DMS';
+  const digits = Math.min(8, Math.max(3, Number(c.digits) || 6));
+  const reset = CONTROL_RESTARTS[c.reset] ? c.reset : 'year';
+  return { prefix, digits, reset };
+}
+export function controlNumber(settings = {}, date = new Date()) {
+  const { prefix, digits, reset } = controlNoSettings(settings);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const pad = (n) => String(n).padStart(digits, '0');
+  if (reset === 'never') return { counterId: `${prefix}-ALL`, format: (n) => `${prefix}-${pad(n)}` };
+  if (reset === 'month') return { counterId: `${prefix}-${y}-${m}`, format: (n) => `${prefix}-${y}-${m}-${pad(n)}` };
+  return { counterId: prefix === 'DMS' ? counterFor(y) : `${prefix}-${y}`, format: (n) => `${prefix}-${y}-${pad(n)}` };
+}
+
 export const controlRef = (controlNo) => cleanPart(String(controlNo || '').replace(/-/g, ''), 24);
 
 export function fileBase({ fund, subject, number, type, ref }) {
@@ -85,6 +106,38 @@ export function refNumber(pattern, { fund = '', date = new Date() } = {}) {
     counterId: `REF_${prefix.replace(/[^A-Za-z0-9#]+/g, '_').replace('#', 'N')}`.slice(0, 120),
     format: (n) => prefix.replace('#', String(n).padStart(width, '0')),
   };
+}
+
+// When a reference number's series restarts: whenever its date part changes, so it follows the
+// date in its pattern ({DD}: every day, {MM}: every month, {YYYY}/{YY}: every year, none: never).
+export const REF_RESTARTS = { day: 'Every day', month: 'Every month', year: 'Every year', never: 'Never' };
+export function refRestart(pattern) {
+  const p = String(pattern || DEFAULT_REF_PATTERN);
+  if (/\{DD\}/.test(p)) return 'day';
+  if (/\{MM\}/.test(p)) return 'month';
+  if (/\{YYYY\}|\{YY\}/.test(p)) return 'year';
+  return 'never';
+}
+// The pattern changed so that it restarts as chosen: the date parts it needs are added (after the
+// year), those it must not have are taken out, with their separator.
+export function withRestart(pattern, restart) {
+  let p = String(pattern || DEFAULT_REF_PATTERN);
+  const drop = (tok) => { p = p.replace(new RegExp(`[-/.]?\\{${tok}\\}`, 'g'), '').replace(new RegExp(`^\\{${tok}\\}[-/.]?`), ''); };
+  const hasYear = () => /\{YYYY\}|\{YY\}/.test(p);
+  const addAfter = (after, tok) => {
+    const m = p.match(after);
+    p = m ? p.replace(m[0], `${m[0]}-{${tok}}`) : p.replace(/(\{#+\})/, `{${tok}}-$1`);
+  };
+  if (restart === 'never') { ['DD', 'MM', 'YYYY', 'YY'].forEach(drop); }
+  if (restart === 'year') { ['DD', 'MM'].forEach(drop); if (!hasYear()) addAfter(/\{FUND\}/, 'YYYY'); }
+  if (restart === 'month' || restart === 'day') {
+    drop('DD');
+    if (!hasYear()) addAfter(/\{FUND\}/, 'YYYY');
+    if (!/\{MM\}/.test(p)) addAfter(/\{YYYY\}|\{YY\}/, 'MM');
+    if (restart === 'day') addAfter(/\{MM\}/, 'DD');
+  }
+  if (!/\{#+\}/.test(p)) p = `${p}-{####}`;
+  return p.replace(/^[-/.]+|[-/.]+$/g, '').replace(/([-/.]){2,}/g, '$1');
 }
 
 // The Document Reference No. (DRN): the number(s) assigned along the route, e.g. the DV No.
