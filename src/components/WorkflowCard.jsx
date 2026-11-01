@@ -269,7 +269,7 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
               {unsigned && (
                 <div className="alert-info small">This step requires a signature. Sign the PDF under <b>PDF and digital signatures</b>, then route it.</div>
               )}
-              <div className="row gap wrap">
+              <div className="wf-buttons">
                 {actions.includes('release') && <button className="btn btn-primary" disabled={busy || unsigned || blocked || (wf.stage === 0 && wf.choose)} onClick={() => act('release')}>Route to {nameOf(next)}</button>}
                 {actions.includes('complete') && <button className="btn btn-primary" disabled={busy || unsigned || blocked} onClick={() => act('complete')}>{ACTION_LABELS.complete}</button>}
                 {actions.includes('return') && <button className="btn btn-ghost" disabled={busy} onClick={() => setReturning(true)}>Return to {nameOf(prev)}</button>}

@@ -780,6 +780,9 @@ details summary { cursor: pointer; font-weight: 600; margin-top: .8rem; }
 .wf-now { color: var(--primary); font-weight: 600; }
 .wf-returned { color: var(--bad); }
 .wf-actions { border-top: 1px solid var(--line); padding-top: .8rem; margin-top: .2rem; }
+/* The route actions: one under the other, all the same width and height. */
+.wf-buttons { display: grid; grid-template-columns: 1fr; gap: .5rem; }
+.wf-buttons .btn { width: 100%; min-height: 44px; justify-content: center; text-align: center; white-space: normal; line-height: 1.25; padding-top: .55rem; padding-bottom: .55rem; }
 
 /* PDF and digital signatures */
 .sig-list { list-style: none; margin: .3rem 0 .8rem; padding: 0; }
