@@ -98,16 +98,34 @@ Phase 4 adds `kind: 'reminder'`: deadline reminders, with a **fixed id** per ite
 notification (a second create of the same id is an update, refused).
 
 ### Deadline reminders: how they are sent
-There is no trusted backend with database access yet (the Netlify Functions act as the signed-in
-user). So reminders are sent by the browser of whoever opens DMS, once a day per person and device
-(`lib/work.js sendDeadlineReminders`): for the items assigned to them and the items of boards they
-manage, a reminder to each assignee when the item is due tomorrow, due today, or overdue (once per due
-date). Fixed ids make it idempotent across devices and people. **Limitation:** if nobody on a board
-opens DMS that day, its reminders wait until someone does. **Proposed trusted version (needs manual
-configuration):** a Netlify Scheduled Function (daily, 7:00 Manila) using a Firebase service account
-(`FIREBASE_SERVICE_ACCOUNT` in Netlify, Firebase Admin SDK) to run the same plan for all boards and
-write the same fixed-id notifications; no extra billing beyond Firestore reads. Not enabled until
-that credential is added.
+Two senders, the same plan (`src/lib/reports.js reminderPlan`) and the same fixed ids, so each
+reminder is created once whichever runs first:
+1. **Scheduled (trusted):** `netlify/functions/work-reminders.mjs`, every day at 7:00 Manila
+   (`0 23 * * *` UTC). With a Google service account (`netlify/lib/serviceAccount.mjs`) it reads the
+   work items due from 60 days ago to tomorrow (one range on `dueDate`, no extra index), their boards
+   (skipping boards with reminders off or archived) and the assignees (active accounts only); it
+   *creates* each reminder (`documentId` = the fixed id; an existing one gives 409 and is left alone)
+   with `from: 'dms'`, `fromName: 'DMS reminders'`, and emails it (`netlify/lib/mailer.mjs`). Each one
+   handled is logged in Netlify Blobs (`reminders-sent`), so a reminder someone deleted is not created
+   again. Without the service account it does nothing.
+2. **Browser (fallback):** `src/lib/work.js sendDeadlineReminders`, once a day per person and device,
+   for their own items and the boards they manage.
+
+**Setting up the scheduled sender (an administrator, once):**
+1. Google Cloud console (console.cloud.google.com), the DMS's Firebase project → **IAM & Admin →
+   Service Accounts → Create service account**, e.g. `dms-reminders`; role **Cloud Datastore User**
+   only (Firestore read/write; no Storage, no Auth, no other roles).
+2. Open the account → **Keys → Add key → Create new key → JSON**. A file downloads. (If key creation
+   is blocked, an organization policy `iam.disableServiceAccountKeyCreation` must allow it for this project.)
+3. Netlify → Site configuration → **Environment variables** (scope: Functions; mark as secret):
+   `GOOGLE_SA_EMAIL` = the file's `client_email`; `GOOGLE_SA_PRIVATE_KEY` = its `private_key`,
+   everything from `-----BEGIN PRIVATE KEY-----` to `-----END PRIVATE KEY-----`.
+4. **Deploys → Trigger deploy**, then Logs → Functions → `work-reminders` → **Run now** to test: the
+   log shows `work reminders {"items":…,"created":…}`.
+5. Delete the downloaded key file (or keep it in a safe place). To revoke, delete the key in Google
+   Cloud and the two variables in Netlify.
+The key never goes into the code, Firestore or the browser. Cost: the Firestore reads and writes of
+one daily query (no new billing plan).
 
 ### Reports and exports (Phase 4)
 Reports (`/reports`) are computed in the browser (`lib/reports.js`) from the boards (first 40, each
@@ -203,5 +221,5 @@ index), which is a separate, billed decision.
 1. Merge to `main` (Netlify builds and deploys as before; new routes work on refresh through the
    existing SPA redirect).
 2. Publish `firestore.rules` in the Firebase console (Firestore → Rules). Storage rules are unchanged by Phase 1.
-3. No new environment variables, indexes, functions or billing. (Phase 4's optional trusted reminder
-   sender would need a Firebase service account in Netlify: see "Deadline reminders" above.)
+3. No new indexes or billing. Optional: the scheduled reminder sender needs `GOOGLE_SA_EMAIL` and
+   `GOOGLE_SA_PRIVATE_KEY` in Netlify (see "Deadline reminders" above); email needs the existing SMTP settings.

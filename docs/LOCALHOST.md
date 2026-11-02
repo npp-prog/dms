@@ -326,7 +326,7 @@ On a document's page, the **Work items and projects** card also lists the projec
   - **Projects**: each project's status, physical progress (as last reported), milestones done and overdue, open risks and issues, approved budget and days to the target date.
   - The Dashboard's **Work overview** shows the work per office (each opens its report) and the progress of ongoing projects.
 - **Export CSV** (on a board, and on each report) saves what is listed, with the filters, as a spreadsheet file. A board's manager chooses in **Settings** who may export its items: **managers and members** (the usual), **managers only**, or **everyone on the board**. Projects are exported by their managers and members. Items from boards that do not let you export are left out (the report says how many). An export never names a linked document: it gives only how many are linked.
-- **Deadline reminders**: the people assigned to a work item are reminded the day before it is due, on the due date, and once when it is overdue (in Notifications, as **Reminder**, and by email when email is set up). Reminders are sent when someone on the board opens DMS that day (the person assigned, or a board manager); each is sent only once. A manager can switch them off for a board in **Settings** (*Send deadline reminders*).
+- **Deadline reminders**: the people assigned to a work item are reminded the day before it is due, on the due date, and once when it is overdue (in Notifications, as **Reminder**, from *DMS reminders*, and by email when email is set up). Once an administrator has set up the reminder sender, they go out every morning at 7:00; otherwise when someone on the board opens DMS that day. Each is sent only once. A manager can switch them off for a board in **Settings** (*Send deadline reminders*).
 - **Saved views**: on a board, set the search, status, sort, *Assigned to me* and the view (Table, Kanban or Calendar), then **Save view** and name it; choose it later under **Saved views…**. Your views are yours; a board manager can tick **Share with everyone on the board**. **Manage saved views** deletes one.
 - **Board columns**: in a board's **Settings**, **+ Add a column** of your own: text, number, amount (₱), date, dropdown (type its choices separated by commas), checkbox, person on the board, or office. They show in the table after the standard columns, in each work item (members fill them in), in its activity, and in exports. A column's type is fixed once saved; renaming it keeps its values; **Hide** removes it from view and keeps its values (**Show again** brings it back).
 
@@ -366,6 +366,13 @@ Fields can be **computed**: in a table column or a field, the formula combines o
 ### Work management settings
 
 Work management (boards, projects, reports) needs the latest `firestore.rules` published in the Firebase console (Firestore → Rules) after each update. Administrators see every board and project, and may export from every board. Reports read at most 40 boards (each up to 500 work items) and 100 projects.
+
+**Daily deadline reminders (7:00 a.m.)** need a Google service account, set up once:
+1. In the Google Cloud console, the DMS's Firebase project: **IAM & Admin → Service Accounts → Create service account** (for example *dms-reminders*), with the role **Cloud Datastore User** only.
+2. Open it → **Keys → Add key → Create new key → JSON**; a file downloads.
+3. In Netlify → Site configuration → **Environment variables** (scope Functions, secret): **GOOGLE_SA_EMAIL** = the file's *client_email*, **GOOGLE_SA_PRIVATE_KEY** = its *private_key* (from `-----BEGIN PRIVATE KEY-----` to `-----END PRIVATE KEY-----`).
+4. **Deploys → Trigger deploy**; then Logs → Functions → **work-reminders → Run now** to test.
+5. Delete the downloaded file. Without these settings, reminders are still sent, but only when someone on the board opens DMS that day.
 
 ### Settings and users
 

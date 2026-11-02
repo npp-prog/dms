@@ -63,7 +63,7 @@ relate board, item for the project, both calendars, document page, dashboard).
 | Project summaries (status, physical progress, milestones, open issues, approved budget, days left) | Done |
 | Dashboard: work overview (workload by office, project progress), linked to the reports | Done |
 | CSV export: boards (with filters) and reports; who may export set per board; documents only counted; formula-safe | Done |
-| Deadline reminders (day before, due date, once overdue): notifications + email, fixed ids (sent once), per-board switch | Done — browser-sent; trusted scheduled sender needs a service account (not configured) |
+| Deadline reminders (day before, due date, once overdue): notifications + email, fixed ids (sent once), per-board switch | Done — scheduled daily sender (7:00) once its service account is set in Netlify; browser sender as fallback |
 | Saved views per board (own; shared by managers) | Done — **publish firestore.rules** |
 | Configurable columns (text, number, amount, date, dropdown, checkbox, person, office), stable ids, hide/show | Done — **publish firestore.rules** |
 
@@ -75,7 +75,7 @@ browser run (columns on a board and in an item, activity for a column change, sh
 CSV download, the three reports, dashboard overview, reminders received by the assignee).
 
 ## Not yet
-- A trusted scheduled backend for reminders and audit records (needs a Firebase service account in Netlify).
+- Trusted audit records written by a backend (activity entries are still written by the browser).
 - Paging for very large boards; weighted milestone progress; a "related record" column type.
 
 ## Known limitations (Phases 1–4)
@@ -85,6 +85,6 @@ CSV download, the three reports, dashboard overview, reminders received by the a
 - Removing a person from a board does not unassign them from its items (they keep seeing those items as assignees).
 - Kanban moves by drag and drop with a mouse; on a phone or by keyboard, open the item and change its status there.
 - Notifications for assignments and mentions are sent by the browser (like the DMS's other notices), not a backend.
-- Reminders are sent when someone on the board opens DMS that day (assignee or board manager); a reminder the person deleted may be sent again for the same overdue item.
+- Until `GOOGLE_SA_EMAIL` and `GOOGLE_SA_PRIVATE_KEY` are set in Netlify, reminders are sent only when someone on the board opens DMS that day; the browser sender may re-send an overdue reminder the person deleted (the scheduled sender does not).
 - Reports read at most 40 boards (each up to 500 items) and 100 projects; exports are built in the browser.
 - Projects: physical progress is manual (no weighted milestones yet); a project lists work items only from related boards the user is on; the project list loads at most 200 projects.

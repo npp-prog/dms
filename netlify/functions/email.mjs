@@ -1,7 +1,7 @@
-import nodemailer from 'nodemailer';
 import { getStore } from '@netlify/blobs';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { firebaseConfig } from '../../src/firebase-config.js';
+import { mailConfigured, sendGroups } from '../lib/mailer.mjs';
 
 // Emails DMS notifications (users/{uid}/notifications). The browser that just wrote them sends
 // their ids with the signed-in user's Firebase ID token; this function reads each one with that
@@ -29,11 +29,10 @@ async function read(path, token) {
   return r.ok ? (await r.json()).fields || {} : null;
 }
 
-const escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export default async (req) => {
   if (req.method !== 'POST') return json(405, { error: 'Use POST.' });
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return json(200, { sent: 0, reason: 'Email is not set up (SMTP_USER and SMTP_PASS in Netlify).' });
+  if (!mailConfigured()) return json(200, { sent: 0, reason: 'Email is not set up (SMTP_USER and SMTP_PASS in Netlify).' });
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
   let uid;
   try {
@@ -64,33 +63,6 @@ export default async (req) => {
   if (!groups.size) return json(200, { sent: 0 });
   await Promise.all(sending.map((k) => sentStore.set(k, '1')));
 
-  const port = Number(process.env.SMTP_PORT || 465);
-  const mail = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com', port, secure: port === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
-  const from = process.env.EMAIL_FROM || `DMS <${process.env.SMTP_USER}>`;
-  const site = (process.env.URL || '').replace(/\/$/, '');
-  const LABEL = { document: 'Your document', circular: 'Circular', community: 'Community' };
-  let sent = 0;
-  for (const g of groups.values()) {
-    const url = site && g.link.startsWith('/') ? `${site}${g.link}` : '';
-    const subject = `DMS · ${LABEL[g.kind] || 'Update'}: ${g.text.slice(0, 90)}${g.text.length > 90 ? '…' : ''}`;
-    const text = `${g.text}\n\n${g.fromName ? `From ${g.fromName}\n` : ''}${url ? `Open it in DMS: ${url}\n` : ''}\nDocument Management System, Municipal Government of Candoni`;
-    const html = `<p style="font:15px/1.5 Arial,sans-serif">${escape(g.text)}</p>
-      ${g.fromName ? `<p style="font:13px Arial,sans-serif;color:#555">From ${escape(g.fromName)}</p>` : ''}
-      ${url ? `<p><a href="${escape(url)}" style="font:14px Arial,sans-serif;background:#2f5f7a;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none">Open in DMS</a></p>` : ''}
-      <p style="font:12px Arial,sans-serif;color:#888">Document Management System, Municipal Government of Candoni</p>`;
-    // One recipient: To; several: Bcc, in groups of 50 (so nobody sees the others' addresses).
-    const lists = g.to.length === 1 ? [g.to] : Array.from({ length: Math.ceil(g.to.length / 50) }, (_, i) => g.to.slice(i * 50, i * 50 + 50));
-    for (const list of lists) {
-      try {
-        await mail.sendMail(list.length === 1 ? { from, to: list[0], subject, text, html } : { from, to: from, bcc: list, subject, text, html });
-        sent += list.length;
-      } catch (e) {
-        console.error('email failed', e.message);
-      }
-    }
-  }
+  const sent = await sendGroups([...groups.values()]);
   return json(200, { sent });
 };
