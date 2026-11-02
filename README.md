@@ -125,7 +125,7 @@ Form CSS classes (same as the PMS-IMS printed forms): `ph` header with `l1` / `l
 ## Data model (Firestore)
 
 ```
-users/{uid}           email, displayName, office (assigned by an admin), requestedOffice, role, active
+users/{uid}           email, displayName, office (the office they act for), head, offices[{office, head}] (all given by an admin), requestedOffice, role, active
 documentTypes/{id}    code, name, category, description, active, version,
                       paperSize (A4 | Folio | Letter | Legal), orientation, steps[], fields[],
                       checklistSource (own | disbursement | liquidation), checklist[],

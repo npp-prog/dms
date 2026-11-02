@@ -310,14 +310,19 @@ service cloud.firestore {
         // Anyone may edit their own name, position (job title), ID no. and profile picture (not
         // their office, office head, workflow positions or routing to any person: they decide what
         // they can see and do).
-        || (request.auth.uid == uid && unchanged(['role', 'active', 'email', 'office', 'head', 'canRefer', 'positions', 'folderGrant'])
+        || (request.auth.uid == uid && unchanged(['role', 'active', 'email', 'office', 'head', 'offices', 'canRefer', 'positions', 'folderGrant'])
             && ownDetailsOk(request.resource.data))
+        // Switching the office they act for: only to one of the offices an administrator gave them
+        // (offices: [{office, head}]), with its office-head setting; nothing else changes.
+        || (request.auth.uid == uid && resource.data.active == true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['office', 'head'])
+            && {'office': request.resource.data.get('office', ''), 'head': request.resource.data.get('head', false)} in resource.data.get('offices', []))
         // The copy of their folder access (see grantCopyOk), and nothing else.
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['folderGrant']) && grantCopyOk())
         // Added in advance: a pending account (registered before verifying its email, or before the
         // administrator added it) takes what the invitation says once the email is verified.
         || (request.auth.uid == uid && resource.data.active == false && invited()
-            && unchanged(['email', 'createdAt', 'folderGrant']) && asInvited(request.resource.data))
+            && unchanged(['email', 'createdAt', 'folderGrant', 'offices']) && asInvited(request.resource.data))
         // The owner becomes superadmin once their email is verified.
         || (request.auth.uid == uid && isOwnerEmail()
             && request.resource.data.role == 'superadmin' && request.resource.data.active == true

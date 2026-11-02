@@ -82,6 +82,7 @@ CSV download, the three reports, dashboard overview, reminders received by the a
 | Board Templates in Administration (administrators edit the templates; new boards copy their groups) | Done |
 | Board card color (head of the office, managers, admins) | Done — **publish firestore.rules** |
 | Office heads manage their office's boards (settings, people, work items) | Done — **publish firestore.rules** |
+| A user can have more than one office (Users → Other offices); switches the office they act for at the top | Done — **publish firestore.rules** |
 | Archive and restore boards and projects (managers, admins, head of the office); archived = read-only, out of lists, reports, reminders | Done — **publish firestore.rules** |
 
 ## Not yet

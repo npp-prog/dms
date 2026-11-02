@@ -119,6 +119,11 @@ export const directoryEntry = (p) => ({
   position: p.position || '', idNo: p.idNo || '', photo: p.photo || '',
 });
 
+// Switching the office the user acts for (one of their offices: lib/offices.js).
+export async function switchOffice(uid, entry) {
+  await updateDoc(doc(db, 'users', uid), { office: String(entry.office), head: Boolean(entry.head) });
+}
+
 export async function syncDirectoryEntry(uid, profile) {
   if (!profile?.active) return;
   const entry = directoryEntry(profile);

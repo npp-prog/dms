@@ -84,6 +84,8 @@ A new person can click **Create an account**. An administrator then approves the
 
 Open **My Profile** (left menu, or click your picture at the top right). Under **Details**, set your **Name**, your **Position** (job title or designation) and your **ID No.** (employee ID number), then click **Save details**. Your name and position show with you across DMS: at the top of the Dashboard, in Users, in Messages and when someone searches for a person to send or refer a document to (they can also search by position or ID No.). The documents you prepare keep your name and position, and print the position under your name (*Prepared by*; templates use `{{preparedByPosition}}` and `{{preparedByIdNo}}`).
 
+**More than one office.** If an administrator gave you more than one office, the box at the top of the screen shows the office you are acting for (with *(head)* where you are its office head). Choose another to switch: DMS opens the Dashboard for that office, and your documents to act on, Tracking, folders, office-head rights and the documents you prepare follow the office you chose, until you switch again.
+
 **Profile picture.** If you sign in with Google, DMS uses your Google picture until you change it. Otherwise, or to change it, click **Upload picture** (or **Change picture**) and choose a JPG, PNG or WebP: DMS crops the middle into a square and saves it. **Remove** takes it off, and your initials show instead. Everyone in DMS sees your picture next to your name.
 
 Your office, role, Office head and the positions that decide which workflow steps you act on (**Acts as**) are set by an administrator in Users, not here.
@@ -380,6 +382,8 @@ Work management (boards, projects, reports) needs the latest `firestore.rules` p
 5. Delete the downloaded file. Without these settings, reminders are still sent, but only when someone on the board opens DMS that day.
 
 ### Settings and users
+
+**A person with more than one office** (for example, staff who is also OIC of another office): in **Users**, open the person (**Edit**), keep their **Office**, and under **Other offices** choose **Add another office…**; tick **Office head** for an office they head there, or × to remove one. They act for one office at a time and switch at the top of their screen (only among the offices given here; they cannot add one themselves). The **Office head** box below is for the office they are acting for now. Folder access given for one office applies while they act for that office.
 
 **Settings** (the superadmin and Admin) holds:
 

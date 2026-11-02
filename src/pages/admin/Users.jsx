@@ -1,3 +1,4 @@
+import { OFFICE_LIMIT, officesPatch, otherOffices } from '../../lib/offices.js';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { addPosition, deleteInvite, inviteKey, listInvites, listUsers, saveInvite, setFolderAccess, syncDirectory, updateUser } from '../../lib/api.js';
@@ -13,6 +14,7 @@ function UserRow({ u, me, isSuper, givesStaff, settings, offices, canManage, onC
   const [open, setOpen] = useState(false);
   const editable = canManage || (isSuper && u.id === me.uid);
   const tags = [u.head && 'Office head', ...(u.positions || []), u.canRefer && 'Routes to any person'].filter(Boolean);
+  const others = otherOffices(u);
   return (
     <li className={`user-row${open ? ' open' : ''}`}>
       <div className="user-main">
@@ -24,6 +26,7 @@ function UserRow({ u, me, isSuper, givesStaff, settings, offices, canManage, onC
         </div>
         <div className="user-office">
           <span className="small">{u.office || (u.role === 'payee' ? 'Not LGU personnel' : 'No office')}</span>
+          {others.length > 0 && <span className="xs muted">Also: {others.map((e) => `${e.office}${e.head ? ' (head)' : ''}`).join(', ')}</span>}
           {u.requestedOffice && u.requestedOffice !== u.office && <span className="xs muted">Asked for: {u.requestedOffice}</span>}
           {tags.length > 0 && <span className="user-tags">{tags.map((t) => <span key={t} className="chip">{t}</span>)}</span>}
         </div>
@@ -42,6 +45,30 @@ function UserRow({ u, me, isSuper, givesStaff, settings, offices, canManage, onC
               {[...new Set([...offices, ...(u.office ? [u.office] : [])])].map((o) => <option key={o}>{o}</option>)}
             </Select>
           </label>
+          {u.office && u.role !== 'payee' && (
+            <div className="field field-wide"><span className="field-label">Other offices</span>
+              {others.length > 0 && (
+                <ul className="user-offices">
+                  {others.map((e) => (
+                    <li key={e.office}>
+                      <span className="small">{e.office}</span>
+                      <label className="check small"><input type="checkbox" checked={e.head}
+                        onChange={(ev) => onChange({}, others.map((x) => (x.office === e.office ? { ...x, head: ev.target.checked } : x)))} /> Office head</label>
+                      <button type="button" className="btn-icon" title={`Remove ${e.office}`} aria-label={`Remove ${e.office}`}
+                        onClick={() => onChange({}, others.filter((x) => x.office !== e.office))}>×</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {others.length < OFFICE_LIMIT - 1 && (
+                <Select value="" aria-label="Add another office" onChange={(ev) => ev.target.value && onChange({}, [...others, { office: ev.target.value, head: false }])}>
+                  <option value="">Add another office…</option>
+                  {offices.filter((o) => o !== u.office && !others.some((x) => x.office === o)).map((o) => <option key={o}>{o}</option>)}
+                </Select>
+              )}
+              <span className="xs muted">They act for one office at a time and switch at the top of the screen; documents, folders and office-head rights follow the office they chose.</span>
+            </div>
+          )}
           <label className="field"><span className="field-label">Role</span>
             {canManage ? (
               // Third Party: not LGU personnel; only signs the documents referred to them.
@@ -64,7 +91,7 @@ function UserRow({ u, me, isSuper, givesStaff, settings, offices, canManage, onC
             {u.office && (
               <label className="check small">
                 <input type="checkbox" checked={Boolean(u.head)} onChange={(e) => onChange({ head: e.target.checked })} />
-                Office head <span className="muted">(sees all documents of the office)</span>
+                Office head{others.length > 0 ? ` of ${u.office}` : ''} <span className="muted">(sees all documents of the office)</span>
               </label>
             )}
             {u.role === 'user' && canManage && (
@@ -162,17 +189,22 @@ export default function Users() {
   const load = () => listUsers().then((u) => { syncDirectory(u).catch(() => {}); return u; }).then((u) => setUsers(u.sort((a, b) => Number(a.active) - Number(b.active) || (a.displayName || '').localeCompare(b.displayName || '')))).catch((e) => setError(e.message));
   useEffect(() => { load(); }, []);
 
-  const change = async (u, patch) => {
+  // others: the other offices as edited (Other offices), when they change.
+  const change = async (u, patch, others) => {
     setError('');
     try {
+      // The offices list follows any change of office, office head, role or other offices.
+      const officeChange = others || 'office' in patch || 'head' in patch || 'role' in patch;
+      const withOffices = officeChange ? officesPatch(u, patch, others) : patch;
       // Deactivated (not the same as never approved, for "Pending approval"); approved again.
-      const full = { ...patch, ...(patch.active === false ? { deactivated: true } : patch.active === true ? { deactivated: false } : {}) };
+      const full = { ...withOffices, ...(patch.active === false ? { deactivated: true } : patch.active === true ? { deactivated: false } : {}) };
       await updateUser(u.id, full);
       // Deactivated: an invitation left for that email would let them back in.
       if (patch.active === false && u.email) { await deleteInvite(u.email).catch(() => {}); loadInvites(); }
       // Deactivated, made a third party or moved to another office: the folder access they had
       // (given for their old office) goes.
-      if (u.folderGrant && (patch.active === false || patch.role === 'payee' || ('office' in patch && patch.office !== (u.office || '')))) {
+      if (u.folderGrant && (patch.active === false || patch.role === 'payee' || ('office' in patch && patch.office !== (u.office || '')
+          && !(full.offices || []).some((e) => e.office === (u.office || ''))))) {
         await setFolderAccess({ uid: u.id, office: u.office || '' }, { all: false, types: [] }, me).catch(() => {});
       }
       // Their own row (the superadmin): the app follows at once.
@@ -247,7 +279,7 @@ export default function Users() {
         <ul className="card user-list">
           {shown.map((u) => (
             <UserRow key={u.id} u={u} me={me} isSuper={isSuper} givesStaff={givesStaff} settings={settings} offices={offices} canManage={canManage(u)}
-              onChange={(patch) => change(u, patch)} onNewPosition={canManageSettings ? newPosition : undefined} />
+              onChange={(patch, others) => change(u, patch, others)} onNewPosition={canManageSettings ? newPosition : undefined} />
           ))}
         </ul>
       ))}

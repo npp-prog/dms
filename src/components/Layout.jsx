@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Outlet, useLocation, Link } from 'react-router-dom';
+import { NavLink, Navigate, Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import UpdateBar from './UpdateBar.jsx';
 import Icon, { Avatar } from './Icon.jsx';
@@ -9,6 +9,32 @@ import { isUnread, listInbox, watchConversations } from '../lib/api.js';
 import { listCirculars, toReceive, watchCommunities, watchNotifications } from '../lib/social.js';
 import { watchIdle } from '../lib/idle.js';
 import { ROLE_NAMES } from '../lib/roles.js';
+import { officesOf } from '../lib/offices.js';
+import { switchOffice } from '../lib/api.js';
+import Select from './Select.jsx';
+
+// The office the user acts for, when they have more than one (Users → Other offices): switching
+// sets their profile's office (and office head) to it; the whole app follows.
+function OfficeSwitch() {
+  const { user, profile, refreshProfile } = useAuth();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const list = officesOf(profile);
+  if (list.length < 2) return null;
+  const choose = async (office) => {
+    const e = list.find((x) => x.office === office);
+    if (!e || office === profile.office) return;
+    setBusy(true);
+    try { await switchOffice(user.uid, e); await refreshProfile(); navigate('/'); } catch (err) { window.alert(err.code === 'permission-denied' ? 'You may not act for that office. Ask an administrator.' : err.message); } finally { setBusy(false); }
+  };
+  return (
+    <span className="office-switch" title="The office you are acting for">
+      <Select value={profile.office || ''} disabled={busy} aria-label="Acting for office" onChange={(ev) => choose(ev.target.value)}>
+        {list.map((e) => <option key={e.office} value={e.office}>{e.office}{e.head ? ' (head)' : ''}</option>)}
+      </Select>
+    </span>
+  );
+}
 
 
 // A supplier or payee may open only these: the documents referred to them, Messages, and their
@@ -137,6 +163,7 @@ export default function Layout() {
           </button>
           <span className="top-title">{title}</span>
           <div className="spacer" />
+          {!isExternal && <OfficeSwitch />}
           <Link to="/profile" className="pill-btn hide-sm" title="My Profile">{ROLE_NAMES[profile?.role] || profile?.role}</Link>
           <button className="pill-btn" title="Log out" onClick={logout}>
             <Icon name="logout" /><span className="lo-txt">Log out</span>
