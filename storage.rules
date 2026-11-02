@@ -131,10 +131,10 @@ service firebase.storage {
       }
       // Its members only (as its messages).
       allow read: if isActive() && request.auth.uid in community().members;
-      // Documents and pictures only (no programs or scripts passed around).
+      // Documents and pictures only (no programs, scripts or archives such as ZIP passed around).
       allow create: if resource == null && isActive() && request.auth.uid in community().members
         && request.resource.size < 25 * 1024 * 1024
-        && request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp|gif)|text/(plain|csv)|application/(msword|vnd\\.ms-excel|vnd\\.ms-powerpoint|vnd\\.openxmlformats-officedocument\\..+|vnd\\.oasis\\.opendocument\\..+|zip)');
+        && request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp|gif)|text/(plain|csv)|application/(msword|vnd\\.ms-excel|vnd\\.ms-powerpoint|vnd\\.openxmlformats-officedocument\\..+|vnd\\.oasis\\.opendocument\\..+)');
       allow update, delete: if false;
     }
 
