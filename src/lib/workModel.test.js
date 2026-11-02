@@ -119,3 +119,15 @@ test('who may delete a board: creator, administrator, head of its office', async
   assert.equal(canDeleteBoard(b, 'h', { isHead: false, office: 'Accounting' }), false);
   assert.equal(canDeleteBoard({ ...b, office: '' }, 'h', { isHead: true, office: '' }), false);
 });
+
+test('who may archive a board or project: managers, creator, administrator, head of its office', async () => {
+  const { canArchive } = await import('./workModel.js');
+  const x = { ownerUid: 'o', managers: ['o', 'm'], members: ['e'], office: 'Accounting' };
+  assert.equal(canArchive(x, 'o'), true);
+  assert.equal(canArchive(x, 'm'), true);
+  assert.equal(canArchive(x, 'e'), false);
+  assert.equal(canArchive(x, 'z', { isAdmin: true }), true);
+  assert.equal(canArchive(x, 'h', { isHead: true, office: 'Accounting' }), true);
+  assert.equal(canArchive(x, 'h', { isHead: true, office: 'Treasury' }), false);
+  assert.equal(canArchive({ ...x, office: '' }, 'h', { isHead: true, office: '' }), false);
+});

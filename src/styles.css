@@ -1645,3 +1645,4 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .wk-reports .wk-table td.small { white-space: normal; }
 .wk-report-bar .grow { flex: 1; }
 @media (max-width: 560px) { .landing-brand b { font-size: .95rem; line-height: 1.2; } }
+.alert-warn { background: #fff7e6; border-color: #f5d9a8; border-left-color: #d08a00; color: #7a4b00; }

@@ -22,7 +22,7 @@ const nameOf = (user) => user.displayName || user.email || '';
 // ---- Boards ----
 // The boards the user can see (admins: all), newest first. Bounded.
 // headOf: the office of an office head, whose boards (board.office) they also see.
-export async function listBoards(user, { all = false, headOf = '' } = {}) {
+export async function listBoards(user, { all = false, headOf = '', archived = false } = {}) {
   const q = all
     ? query(collection(db, 'boards'), limit(200))
     : query(collection(db, 'boards'), where('access', 'array-contains', user.uid), limit(200));
@@ -30,7 +30,7 @@ export async function listBoards(user, { all = false, headOf = '' } = {}) {
   if (!all && headOf) snaps.push(await getDocs(query(collection(db, 'boards'), where('office', '==', headOf), limit(200))).catch(() => ({ docs: [] })));
   const docs = new Map(snaps.flatMap((s) => s.docs).map((d) => [d.id, d]));
   return [...docs.values()].map((d) => ({ id: d.id, ...d.data() }))
-    .filter((b) => !b.archived)
+    .filter((b) => (archived === 'all' ? true : Boolean(b.archived) === archived))
     .sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 }
 
@@ -69,6 +69,13 @@ export async function updateBoard(id, patch) {
   if (patch.columns) next.columns = cleanColumns(patch.columns);
   if (patch.managers || patch.members || patch.viewers) next.access = accessOf(patch);
   await updateDoc(doc(db, 'boards', id), next);
+}
+
+// Archives a board (read-only, out of lists, reports and reminders) or restores it.
+export async function archiveBoard(id, archived, user) {
+  await updateDoc(doc(db, 'boards', id), {
+    archived: Boolean(archived), archivedAt: archived ? new Date().toISOString() : '', archivedBy: archived ? user.uid : '', updatedAt: serverTimestamp(),
+  });
 }
 
 // Deletes a board and its work items (its creator, an administrator, or the head of its office).
@@ -306,9 +313,9 @@ export async function deleteView(boardId, viewId) {
 const REMIND_KEY = (uid) => `dms-reminders-${uid}`;
 export async function sendDeadlineReminders(user, today) {
   try { if (localStorage.getItem(REMIND_KEY(user.uid)) === today) return 0; } catch { /* no storage: run */ }
-  const boards = await listBoards(user);
+  const boards = await listBoards(user, { archived: 'all' });
   const byId = Object.fromEntries(boards.map((b) => [b.id, b]));
-  const managed = boards.filter((b) => boardRole(b, user.uid) === 'manager').slice(0, 20);
+  const managed = boards.filter((b) => !b.archived && boardRole(b, user.uid) === 'manager').slice(0, 20);
   const lists = await Promise.all([listMyItems(user.uid), ...managed.map((b) => listBoardItems(b.id).catch(() => []))]);
   const items = [...new Map(lists.flat().map((i) => [i.id, i])).values()];
   const at = new Date().toISOString();

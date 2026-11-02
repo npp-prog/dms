@@ -10,11 +10,15 @@ import { accessOf, cleanMilestones, cleanProject } from './workModel.js';
 
 const nameOf = (user) => user.displayName || user.email || '';
 
-export async function listProjects(user, { all = false } = {}) {
+// headOf: an office head's office (they also see its projects). archived: false (default), true or 'all'.
+export async function listProjects(user, { all = false, headOf = '', archived = false } = {}) {
   const q = all ? query(collection(db, 'projects'), limit(200))
     : query(collection(db, 'projects'), where('access', 'array-contains', user.uid), limit(200));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  const snaps = [await getDocs(q)];
+  if (!all && headOf) snaps.push(await getDocs(query(collection(db, 'projects'), where('office', '==', headOf), limit(200))).catch(() => ({ docs: [] })));
+  const docs = new Map(snaps.flatMap((s) => s.docs).map((d) => [d.id, d]));
+  return [...docs.values()].map((d) => ({ id: d.id, ...d.data() }))
+    .filter((p) => (archived === 'all' ? true : Boolean(p.archived) === archived))
     .sort((a, b) => String(a.code).localeCompare(String(b.code)));
 }
 
@@ -48,6 +52,13 @@ export async function updateProject(id, patch) {
   if (patch.managers || patch.members || patch.viewers) next.access = accessOf(patch);
   if (patch.milestones) next.milestones = cleanMilestones(patch.milestones);
   await updateDoc(doc(db, 'projects', id), next);
+}
+
+// Archives a project (read-only, out of lists and reports) or restores it.
+export async function archiveProject(id, archived, user) {
+  await updateDoc(doc(db, 'projects', id), {
+    archived: Boolean(archived), archivedAt: archived ? new Date().toISOString() : '', archivedBy: archived ? user.uid : '', updatedAt: serverTimestamp(),
+  });
 }
 
 // A progress update: the physical progress (0–100 %) and why, kept for good; the project shows the latest.

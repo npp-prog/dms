@@ -155,7 +155,7 @@ export function reminderPlan(items, today, boardsById = {}) {
   const out = [];
   for (const i of items) {
     if (!isOpen(i) || !i.dueDate || !(i.assignees || []).length) continue;
-    if (boardsById[i.boardId]?.reminders === false) continue;
+    if (boardsById[i.boardId]?.reminders === false || boardsById[i.boardId]?.archived) continue;
     const kind = i.dueDate === tomorrow ? 'soon' : i.dueDate === today ? 'today' : i.dueDate < today ? 'overdue' : '';
     if (!kind) continue;
     out.push({ item: i, kind, to: [...new Set(i.assignees)], id: `rem${REMINDER_KINDS[kind]}${i.dueDate.replace(/-/g, '')}${i.id}`.slice(0, 40) });

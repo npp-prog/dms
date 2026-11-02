@@ -57,6 +57,11 @@ columns[{id, label, type, options[], hidden}], exportBy, reminders` (the last th
 - **Office heads** (`users.head`) see the boards whose `office` is theirs (and their items, read
   only) and may delete them; deleting a board deletes its work items (`lib/work.js deleteBoard`). Who may
   delete a board: its creator (`ownerUid`), an administrator, or the head of its office.
+- **Archive** (`archived`, `archivedAt`, `archivedBy`, on boards and projects): managers, administrators and
+  the head of the office archive or restore (a head may change only these fields). Archived means read-only
+  in the rules (`editsBoard`/`editsProject` are false; an assignee's status change and new comments are
+  refused too) and left out of lists, reports, the Dashboard and reminders (both senders). Office heads also
+  see their office's projects (`headsProjectOffice`).
 - **groups** have stable ids (`g1`, `g2`, …): renaming a group never moves its items.
 - **columns** (Phase 4): the board's own columns, at most 20. `id` (`f…`, random) never changes:
   renaming keeps values; "removing" hides (`hidden: true`) and keeps them. Types: text, number,

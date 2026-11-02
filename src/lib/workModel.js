@@ -288,3 +288,8 @@ export function fieldText(column, value, names = {}) {
 // office the board belongs to (the rules check the same).
 export const canDeleteBoard = (board, uid, { isAdmin = false, isHead = false, office = '' } = {}) =>
   Boolean(board && uid && (isAdmin || board.ownerUid === uid || (isHead && office && board.office === office)));
+
+// Who may archive or restore a board or a project: its managers (and creator), an administrator,
+// or the head of its office (board.office, project.office). The rules check the same.
+export const canArchive = (x, uid, { isAdmin = false, isHead = false, office = '' } = {}) =>
+  Boolean(x && uid && (isAdmin || x.ownerUid === uid || (x.managers || []).includes(uid) || (isHead && office && x.office === office)));

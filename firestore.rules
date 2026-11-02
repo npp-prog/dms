@@ -676,15 +676,23 @@ service cloud.firestore {
     function seesBoard(b) {
       return isAdmin() || request.auth.uid in b.get('access', []) || headsBoardOffice(b);
     }
+    // (An archived board is read-only: no work items are added or edited until it is restored.)
     function editsBoard(b) {
-      return isAdmin() || request.auth.uid in b.get('managers', []) || request.auth.uid in b.get('members', []);
+      return !b.get('archived', false) && (isAdmin() || request.auth.uid in b.get('managers', []) || request.auth.uid in b.get('members', []));
+    }
+    // Archiving or restoring: only the archive fields change.
+    function onlyArchiving() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'archivedAt', 'archivedBy', 'updatedAt'])
+        && request.resource.data.archived is bool && request.resource.data.get('archivedBy', '') in ['', request.auth.uid];
     }
     function managesBoard(b) {
       return isAdmin() || request.auth.uid in b.get('managers', []) || b.get('ownerUid', '') == request.auth.uid;
     }
     function boardShapeOk(d) {
       return d.keys().hasOnly(['name', 'description', 'template', 'office', 'ownerUid', 'ownerName', 'managers', 'members',
-          'viewers', 'access', 'names', 'groups', 'archived', 'createdAt', 'updatedAt', 'columns', 'exportBy', 'reminders'])
+          'viewers', 'access', 'names', 'groups', 'archived', 'createdAt', 'updatedAt', 'columns', 'exportBy', 'reminders',
+          'archivedAt', 'archivedBy'])
+        && d.get('archived', false) is bool
         && d.get('columns', []) is list && d.get('columns', []).size() <= 20
         && d.get('exportBy', 'members') in ['members', 'managers', 'everyone']
         && d.get('reminders', true) is bool
@@ -699,7 +707,9 @@ service cloud.firestore {
       allow create: if isStaff() && boardShapeOk(request.resource.data)
         && request.resource.data.ownerUid == request.auth.uid
         && request.auth.uid in request.resource.data.managers;
-      allow update: if isStaff() && managesBoard(resource.data) && boardShapeOk(request.resource.data)
+      // Its managers; the head of its office may archive or restore it.
+      allow update: if isStaff() && (managesBoard(resource.data) || (headsBoardOffice(resource.data) && onlyArchiving()))
+        && boardShapeOk(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
       allow delete: if isStaff() && (isAdmin() || resource.data.ownerUid == request.auth.uid || headsBoardOffice(resource.data));
@@ -754,7 +764,7 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && itemShapeOk(request.resource.data, boardOf(resource.data.boardId))
         && (editsBoard(boardOf(resource.data.boardId))
-            || (request.auth.uid in resource.data.assignees
+            || (request.auth.uid in resource.data.assignees && !boardOf(resource.data.boardId).get('archived', false)
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedOn', 'checklist', 'updatedAt', 'updatedBy'])));
       // (Its creator, the board's managers, and whoever may delete the board: its items go with it.)
       allow delete: if isStaff() && (resource.data.createdBy == request.auth.uid || managesBoard(boardOf(resource.data.boardId))
@@ -786,7 +796,7 @@ service cloud.firestore {
           return request.auth.uid in citem().assignees || citem().createdBy == request.auth.uid || seesBoard(boardOf(citem().boardId));
         }
         allow read: if isStaff() && seesItem();
-        allow create: if isStaff() && seesItem()
+        allow create: if isStaff() && seesItem() && !boardOf(citem().boardId).get('archived', false)
           && request.resource.data.keys().hasOnly(['text', 'mentions', 'by', 'byName', 'at'])
           && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time
           && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
@@ -800,11 +810,16 @@ service cloud.firestore {
     // Managers change the project's details, people and approved budget; members keep its
     // milestones, links, status and progress (with an explanation); viewers read. Seeing a project
     // opens none of the DMS documents it links (ids only).
-    function seesProject(p) {
-      return isAdmin() || request.auth.uid in p.get('access', []);
+    // The head of a project's implementing office sees it and may archive or restore it.
+    function headsProjectOffice(p) {
+      return p.get('office', '') != '' && isOfficeHead() && p.get('office', '') == myOffice();
     }
+    function seesProject(p) {
+      return isAdmin() || request.auth.uid in p.get('access', []) || headsProjectOffice(p);
+    }
+    // (An archived project is read-only until it is restored.)
     function editsProject(p) {
-      return isAdmin() || request.auth.uid in p.get('managers', []) || request.auth.uid in p.get('members', []);
+      return !p.get('archived', false) && (isAdmin() || request.auth.uid in p.get('managers', []) || request.auth.uid in p.get('members', []));
     }
     function managesProject(p) {
       return isAdmin() || request.auth.uid in p.get('managers', []) || p.get('ownerUid', '') == request.auth.uid;
@@ -812,7 +827,9 @@ service cloud.firestore {
     function projectShapeOk(d) {
       return d.keys().hasOnly(['code', 'name', 'description', 'office', 'startDate', 'targetDate', 'status', 'fundingSource',
           'approvedBudget', 'ownerUid', 'ownerName', 'managers', 'members', 'viewers', 'access', 'names', 'milestones',
-          'docRefs', 'boardIds', 'physicalProgress', 'progressNote', 'progressAt', 'createdAt', 'updatedAt'])
+          'docRefs', 'boardIds', 'physicalProgress', 'progressNote', 'progressAt', 'createdAt', 'updatedAt',
+          'archived', 'archivedAt', 'archivedBy'])
+        && d.get('archived', false) is bool
         && d.code is string && d.code.size() > 0 && d.code.size() <= 30
         && d.name is string && d.name.size() > 0 && d.name.size() <= 160
         && d.status in ['planning', 'ongoing', 'on_hold', 'completed', 'cancelled']
@@ -836,7 +853,8 @@ service cloud.firestore {
         && (request.resource.data.physicalProgress == resource.data.physicalProgress
             || (request.resource.data.progressNote is string && request.resource.data.progressNote.size() >= 5
                 && request.resource.data.progressNote != resource.data.progressNote))
-        && (managesProject(resource.data)
+        && ((managesProject(resource.data) && (!resource.data.get('archived', false) || onlyArchiving()))
+            || (headsProjectOffice(resource.data) && onlyArchiving())
             || (editsProject(resource.data)
                 && request.resource.data.diff(resource.data).affectedKeys()
                      .hasOnly(['milestones', 'docRefs', 'boardIds', 'status', 'physicalProgress', 'progressNote', 'progressAt', 'updatedAt'])));

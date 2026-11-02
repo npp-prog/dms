@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
-  addIssue, addProgressUpdate, createProject, getProject, listIssues, listProgressUpdates, listProjectItems, listProjects, setIssueStatus, updateProject,
+  addIssue, addProgressUpdate, archiveProject, createProject, getProject, listIssues, listProgressUpdates, listProjectItems, listProjects, setIssueStatus, updateProject,
 } from '../lib/projects.js';
 import { listBoards } from '../lib/work.js';
 import {
-  ISSUE_TYPES, PROJECT_STATUSES, SEVERITIES, boardRole, newCheckId, overdueMilestones, peso, projectStatusOf,
+  ISSUE_TYPES, PROJECT_STATUSES, SEVERITIES, boardRole, canArchive, newCheckId, overdueMilestones, peso, projectStatusOf,
 } from '../lib/workModel.js';
 import { localDay } from '../lib/archiveFiles.js';
 import Select from '../components/Select.jsx';
@@ -28,23 +28,31 @@ const StatusPill = ({ id }) => { const s = projectStatusOf(id); return <span cla
 const Bar = ({ value }) => <span className="wk-bar" title={`${value}% physical progress`}><span style={{ width: `${value}%` }} /></span>;
 
 function ProjectList() {
-  const { actor, isAdmin, settings, profile } = useAuth();
+  const { actor, isAdmin, isHead, settings, profile } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState(null);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
-  useEffect(() => { listProjects(actor, { all: isAdmin }).then(setProjects).catch((e) => setError(e.message)); }, [actor.uid, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [showArchived, setShowArchived] = useState(false);
+  // Office heads also see their office's projects. Archived projects: on request.
+  useEffect(() => {
+    setProjects(null);
+    listProjects(actor, { all: isAdmin, headOf: isHead ? profile.office : '', archived: showArchived }).then(setProjects).catch((e) => setError(e.message));
+  }, [actor.uid, isAdmin, isHead, profile.office, showArchived]); // eslint-disable-line react-hooks/exhaustive-deps
   const today = localDay();
   return (
     <div className="page">
       <div className="page-head">
         <div><h1>Projects</h1></div>
-        {!creating && <button type="button" className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>+ New project</button>}
+        <div className="row gap">
+          <button type="button" className={`btn btn-sm${showArchived ? ' btn-primary' : ' btn-ghost'}`} aria-pressed={showArchived} onClick={() => setShowArchived((x) => !x)}>{showArchived ? 'Back to projects' : 'Archived projects'}</button>
+          {!creating && !showArchived && <button type="button" className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>+ New project</button>}
+        </div>
       </div>
       {creating && <ProjectForm offices={settings.offices || []} office={profile.office} onCancel={() => setCreating(false)} onCreated={(id) => navigate(`/projects/${id}`)} />}
       {error && <div className="alert">{error}</div>}
       {!projects && !error && <div className="spinner" />}
-      {projects && projects.length === 0 && !creating && <p className="muted">No projects yet.</p>}
+      {projects && projects.length === 0 && !creating && <p className="muted">{showArchived ? 'No archived projects.' : 'No projects yet.'}</p>}
       {projects && projects.length > 0 && (
         <div className="table-card">
           <table className="data-table wk-table">
@@ -147,7 +155,7 @@ function ProjectForm({ offices, office, project, onCancel, onCreated, onSaved })
 const TABS = ['Overview', 'Milestones', 'Risks & issues', 'Work items', 'Documents', 'Calendar'];
 
 function Project({ projectId }) {
-  const { actor, isAdmin, settings } = useAuth();
+  const { actor, isAdmin, isHead, profile, settings } = useAuth();
   const [p, setP] = useState(undefined);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('Overview');
@@ -172,8 +180,15 @@ function Project({ projectId }) {
 
   if (p === undefined) return <div className="page"><div className="spinner" /></div>;
   if (!p) return <div className="page"><div className="alert">{error || 'This project does not exist.'}</div><Link to="/projects">Back to Projects</Link></div>;
-  const role = boardRole(p, actor.uid, isAdmin);
+  // An archived project is read-only until it is restored.
+  const role = p.archived ? 'viewer' : boardRole(p, actor.uid, isAdmin);
   const canEdit = role === 'manager' || role === 'member';
+  const archivable = canArchive(p, actor.uid, { isAdmin, isHead, office: profile.office });
+  const toggleArchive = async () => {
+    if (!p.archived && !window.confirm(`Archive the project "${p.code} ${p.name}"? It becomes read-only and leaves the project list, reports and the Dashboard. It can be restored at any time.`)) return;
+    setError('');
+    try { await archiveProject(p.id, !p.archived, actor); await load(); } catch (e) { setError(e.code === 'permission-denied' ? 'You may not archive this project.' : e.message); }
+  };
   const save = async (patch) => { setError(''); try { await updateProject(p.id, patch); await load(); } catch (e) { setError(e.code === 'permission-denied' ? 'You may not change this.' : e.message); } };
 
   const calEntries = [
@@ -192,8 +207,12 @@ function Project({ projectId }) {
           <div className="crumbs"><Link to="/projects">Projects</Link> / {p.code}</div>
           <h1>{p.name} <StatusPill id={p.status} /></h1>
         </div>
-        {role === 'manager' && !editing && <button type="button" className="btn btn-sm" onClick={() => setEditing(true)}>Edit details</button>}
+        <div className="row gap">
+          {role === 'manager' && !editing && <button type="button" className="btn btn-sm" onClick={() => setEditing(true)}>Edit details</button>}
+          {archivable && <button type="button" className="btn btn-sm" onClick={toggleArchive}>{p.archived ? 'Restore' : 'Archive'}</button>}
+        </div>
       </div>
+      {p.archived && <div className="alert alert-warn">This project is archived{p.archivedAt ? ` (${String(p.archivedAt).slice(0, 10)})` : ''}: it is read-only, and is left out of the project list, reports and the Dashboard.{archivable ? ' Restore it to work on it again.' : ''}</div>}
       {editing && <ProjectForm project={p} offices={settings.offices || []} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
       {error && <div className="alert">{error}</div>}
       <div className="tabs view-toggle wk-ptabs">

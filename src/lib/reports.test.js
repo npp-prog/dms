@@ -135,3 +135,8 @@ test('configurable columns and their values', () => {
   assert.equal(fieldText(cols[2], true), 'Yes');
   assert.deepEqual(cleanItem({ title: 'x', fields: { fa1: 1 } }).fields, { fa1: 1 });
 });
+
+test('no reminders for archived boards', () => {
+  const plan = reminderPlan([{ id: 'aaaaaaaaaaaaaaaaaaa9', status: 'in_progress', assignees: ['u1'], dueDate: '2026-11-03', boardId: 'arch' }], '2026-11-02', { arch: { archived: true } });
+  assert.equal(plan.length, 0);
+});

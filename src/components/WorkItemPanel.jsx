@@ -13,7 +13,7 @@ const when = (t) => (t?.toDate ? t.toDate().toLocaleString('en-PH', { timeZone: 
 
 // A work item's details: everything about it, editable by the board's members (an assignee who is
 // not one changes its status only; a viewer reads). item: null for a new one (groupId in draft).
-export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, onClose }) {
+export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, onClose, locked = false }) {
   const { actor, settings, profile, isAdmin } = useAuth();
   // Projects the user is on, for "Related project".
   const [projects, setProjects] = useState([]);
@@ -21,8 +21,9 @@ export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, 
   const isNew = !item;
   const assignedToMe = Boolean(item && (item.assignees || []).includes(actor.uid));
   const canEdit = role === 'manager' || role === 'member';
-  const statusOnly = !canEdit && assignedToMe;
-  const canDelete = Boolean(item) && (role === 'manager' || item.createdBy === actor.uid);
+  // locked: an archived board or project (read-only for everyone).
+  const statusOnly = !locked && !canEdit && assignedToMe;
+  const canDelete = !locked && Boolean(item) && (role === 'manager' || item.createdBy === actor.uid);
   const [f, setF] = useState(() => ({
     title: '', description: '', groupId: board.groups?.[0]?.id || 'g1', status: 'not_started', priority: 'medium',
     assignees: [], office: board.office || profile.office || '', startDate: '', dueDate: '', tags: [], docRefs: [], checklist: [], parentId: '', projectId: '', fields: {},
@@ -117,7 +118,7 @@ export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, 
           <Select value={f.projectId} onChange={set('projectId')} disabled={ro}>
             <option value="">—</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
-            {f.projectId && !projects.some((p) => p.id === f.projectId) && <option value={f.projectId}>A project you are not on</option>}
+            {f.projectId && !projects.some((p) => p.id === f.projectId) && <option value={f.projectId}>An archived project, or one you are not on</option>}
           </Select></label>
         <label className="field"><span className="field-label">Start date</span>
           <input type="date" value={f.startDate} onChange={set('startDate')} disabled={ro} /></label>
@@ -226,6 +227,7 @@ export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, 
               {comments.map((c) => <li key={c.id}><b>{c.byName}</b> <span className="xs muted">{when(c.at)}</span><div className="wk-comment-text">{c.text}</div></li>)}
             </ul>
           )}
+          {!locked && (<>
           <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} aria-label="Write a comment" />
           <div className="row gap wrap">
             <Select value="" aria-label="Mention someone" onChange={(e) => e.target.value && setComment(`${comment}${comment && !comment.endsWith(' ') ? ' ' : ''}@${e.target.value} `)}>
@@ -235,6 +237,7 @@ export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, 
             <button type="button" className="btn btn-primary btn-sm" disabled={busy || !comment.trim()} onClick={sendComment}>Comment</button>
           </div>
           <span className="xs muted">People you mention (@Name) are notified. Comments cannot be edited or deleted.</span>
+          </>)}
         </div>
       )}
 

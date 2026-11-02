@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { createBoard, deleteBoard, deleteView, getBoard, listBoardItems, listBoards, listViews, saveItem, saveView, setItemStatus, updateBoard } from '../lib/work.js';
-import { BOARD_TEMPLATES, COLUMN_LIMIT, COLUMN_TYPES, SORTS, WORK_STATUSES, boardRole, canDeleteBoard, checklistProgress, dueState, fieldText, newColumnId, nextGroupId, templateOf } from '../lib/workModel.js';
+import { archiveBoard, createBoard, deleteBoard, deleteView, getBoard, listBoardItems, listBoards, listViews, saveItem, saveView, setItemStatus, updateBoard } from '../lib/work.js';
+import { BOARD_TEMPLATES, COLUMN_LIMIT, COLUMN_TYPES, SORTS, WORK_STATUSES, boardRole, canArchive, canDeleteBoard, checklistProgress, dueState, fieldText, newColumnId, nextGroupId, templateOf } from '../lib/workModel.js';
 import { EXPORT_CHOICES, canExportBoard, csvName, itemCsvColumns, toCsv } from '../lib/reports.js';
 import { downloadCsv } from '../lib/download.js';
 import { listProjects } from '../lib/projects.js';
@@ -31,27 +31,34 @@ function BoardList() {
   const [boards, setBoards] = useState(null);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
-  // Office heads also see their office's boards.
-  useEffect(() => { listBoards(actor, { all: isAdmin, headOf: isHead ? profile.office : '' }).then(setBoards).catch((e) => setError(e.message)); }, [actor.uid, isAdmin, isHead, profile.office]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [showArchived, setShowArchived] = useState(false);
+  // Office heads also see their office's boards. Archived boards: on request.
+  useEffect(() => {
+    setBoards(null);
+    listBoards(actor, { all: isAdmin, headOf: isHead ? profile.office : '', archived: showArchived }).then(setBoards).catch((e) => setError(e.message));
+  }, [actor.uid, isAdmin, isHead, profile.office, showArchived]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="page">
       <div className="page-head">
         <div><h1>Boards</h1></div>
-        {!creating && <button type="button" className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>+ New board</button>}
+        <div className="row gap">
+          <button type="button" className={`btn btn-sm${showArchived ? ' btn-primary' : ' btn-ghost'}`} aria-pressed={showArchived} onClick={() => setShowArchived((x) => !x)}>{showArchived ? 'Back to boards' : 'Archived boards'}</button>
+          {!creating && !showArchived && <button type="button" className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>+ New board</button>}
+        </div>
       </div>
       {creating && <NewBoard offices={settings.offices || []} office={profile.office} onCancel={() => setCreating(false)}
         onCreated={(id) => navigate(`/boards/${id}`)} actor={actor} />}
       {error && <div className="alert">{error}</div>}
       {!boards && !error && <div className="spinner" />}
-      {boards && boards.length === 0 && !creating && <p className="muted">No boards yet. Create one for your office's tasks, transactions or projects.</p>}
+      {boards && boards.length === 0 && !creating && <p className="muted">{showArchived ? 'No archived boards.' : "No boards yet. Create one for your office's tasks, transactions or projects."}</p>}
       {boards && boards.length > 0 && (
         <div className="wk-board-tiles">
           {boards.map((b) => (
             <Link key={b.id} to={`/boards/${b.id}`} className="wk-board-tile">
               <b>{b.name}</b>
               <span className="small muted">{templateOf(b.template).name}{b.office ? ` · ${b.office}` : ''}</span>
-              <span className="xs muted">{(b.access || []).length} people · {(b.groups || []).length} groups</span>
+              <span className="xs muted">{(b.access || []).length} people · {(b.groups || []).length} groups{b.archived ? ` · archived ${String(b.archivedAt || '').slice(0, 10)}` : ''}</span>
             </Link>
           ))}
         </div>
@@ -196,7 +203,7 @@ function Board({ boardId, itemId }) {
   // A status change from the Kanban board: the same rules as the item panel (members; an assignee
   // for their own item). It is the task's status only: no document is approved or routed.
   const moveTo = async (item, status) => {
-    if (item.status === status) return;
+    if (item.status === status || board.archived) return;
     const r = boardRole(board, actor.uid, isAdmin);
     try {
       if (r === 'manager' || r === 'member') await saveItem(board, item, { status }, actor);
@@ -206,7 +213,8 @@ function Board({ boardId, itemId }) {
     } catch (e) { setError(e.code === 'permission-denied' ? 'You may not change this work item.' : e.message); }
   };
 
-  const role = boardRole(board, actor.uid, isAdmin);
+  // An archived board is read-only for everyone (its people only read it) until it is restored.
+  const role = board?.archived ? (boardRole(board, actor.uid, isAdmin) ? 'viewer' : '') : boardRole(board, actor.uid, isAdmin);
   const shown = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     return (items || [])
@@ -221,6 +229,11 @@ function Board({ boardId, itemId }) {
   const canEdit = role === 'manager' || role === 'member';
   const cols = (board.columns || []).filter((c) => !c.hidden);
   const deletable = canDeleteBoard(board, actor.uid, { isAdmin, isHead, office: profile.office });
+  const archivable = canArchive(board, actor.uid, { isAdmin, isHead, office: profile.office });
+  const toggleArchive = async () => {
+    if (!board.archived && !window.confirm(`Archive the board "${board.name}"? It becomes read-only and leaves the board list, reports and reminders. It can be restored at any time.`)) return;
+    try { await archiveBoard(board.id, !board.archived, actor); await load(); } catch (e) { setError(e.code === 'permission-denied' ? 'You may not archive this board.' : e.message); }
+  };
   const removeBoard = async () => {
     const n = (items || []).length;
     if (!window.confirm(`Delete the board "${board.name}"${n ? ` and its ${n} work item${n === 1 ? '' : 's'}` : ''}? This cannot be undone. The DMS documents they link are not affected.`)) return;
@@ -240,9 +253,11 @@ function Board({ boardId, itemId }) {
             <button type="button" className={view === 'calendar' ? 'active' : ''} aria-pressed={view === 'calendar'} onClick={() => chooseView('calendar')}>Calendar</button>
           </span>
           {role === 'manager' && <button type="button" className={`btn btn-sm${settingsOpen ? ' btn-primary' : ''}`} onClick={() => setSettingsOpen((x) => !x)}>Settings</button>}
+          {archivable && <button type="button" className="btn btn-sm" onClick={toggleArchive}>{board.archived ? 'Restore' : 'Archive'}</button>}
           {deletable && <button type="button" className="btn btn-danger btn-sm" onClick={removeBoard}>Delete board</button>}
         </div>
       </div>
+      {board.archived && <div className="alert alert-warn">This board is archived{board.archivedAt ? ` (${String(board.archivedAt).slice(0, 10)})` : ''}: it is read-only, and is left out of the board list, reports and reminders.{archivable ? ' Restore it to work on it again.' : ''}</div>}
       {settingsOpen && <BoardSettings board={board} onSaved={() => { setSettingsOpen(false); load(); }} />}
       <div className="filters wk-filters">
         {views.length > 0 && (
@@ -296,7 +311,7 @@ function Board({ boardId, itemId }) {
                 <div className="wk-col-head"><WorkStatus id={st.id} /><span className="xs muted">{cards.length}</span></div>
                 {cards.map((i) => {
                   const ds = dueState(i, today);
-                  const movable = canEdit || (i.assignees || []).includes(actor.uid);
+                  const movable = !board.archived && (canEdit || (i.assignees || []).includes(actor.uid));
                   const cp = checklistProgress(i.checklist);
                   const subs = items.filter((x) => x.parentId === i.id);
                   return (
@@ -372,7 +387,7 @@ function Board({ boardId, itemId }) {
       {open && (
         <>
           <div className="wk-backdrop" onClick={closePanel} />
-          <WorkItemPanel key={open.item?.id || 'new'} board={board} item={open.item || null} draft={open.draft} role={role}
+          <WorkItemPanel key={open.item?.id || 'new'} board={board} locked={Boolean(board.archived)} item={open.item || null} draft={open.draft} role={role}
             onClose={closePanel} onSaved={() => { closePanel(); load(); }} />
         </>
       )}
