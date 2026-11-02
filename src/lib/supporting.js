@@ -6,14 +6,20 @@ import { verifyUrl } from './qr.js';
 import { withDmsQr } from './qrStamp.js';
 import { imageToPdf } from './imagePdf.js';
 import { controlRef, fileBase } from './naming.js';
+import { sniffUpload } from './sniff.js';
 
 export const UPLOAD_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+// For the file picker: the types and their extensions (phones may ignore one or the other).
+export const UPLOAD_ACCEPT = [...UPLOAD_TYPES, '.pdf', '.jpg', '.jpeg', '.png', '.webp'].join(',');
+
+export { sniffUpload } from './sniff.js';
 
 // Returns the link to keep on the parent ({ kind: 'file', path, name, ..., dms: { id, controlNo } }).
 export async function uploadSupporting({ parent, slot, label, code = '', number = 0, file, actor, onStep = () => {} }) {
-  if (!UPLOAD_TYPES.includes(file.type)) throw new Error('Upload a PDF or a picture (JPG or PNG).');
+  const kind = await sniffUpload(file);
+  if (!kind) throw new Error(`${file.name}: upload a PDF or a picture (JPG, PNG or WebP), not a ZIP or another kind of file.`);
   onStep('Preparing the PDF…');
-  let pdf = file.type === 'application/pdf' ? new Uint8Array(await file.arrayBuffer()) : await imageToPdf(file);
+  let pdf = kind === 'application/pdf' ? new Uint8Array(await file.arrayBuffer()) : await imageToPdf(new File([file], file.name, { type: kind }));
   const typeCode = /^[A-Z]{2,8}$/.test(code) ? code : '';
   const created = await createSupportingDocument(parent, { label }, { typeCode, fileName: file.name }, actor);
   try {

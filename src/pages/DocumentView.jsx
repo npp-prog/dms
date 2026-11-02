@@ -20,7 +20,7 @@ import PdfCard from '../components/PdfCard.jsx';
 import SendPanel from '../components/SendPanel.jsx';
 import AccessCard from '../components/AccessCard.jsx';
 import { pdfFileName } from '../components/printables.jsx';
-import { uploadSupporting } from '../lib/supporting.js';
+import { UPLOAD_ACCEPT, uploadSupporting } from '../lib/supporting.js';
 import PdfViewer from '../components/PdfViewer.jsx';
 import { verifyUrl } from '../lib/qr.js';
 import { hasDmsQr, withDmsQr } from '../lib/qrStamp.js';
@@ -122,7 +122,7 @@ function ItemLinks({ item, n, links, canEdit, canAdd = canEdit, docId, parent, a
             {upload ? <span className="small muted">{upload}</span> : (
               <label className="link small">
                 + Upload file
-                <input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => { add(e.target.files[0]); e.target.value = ''; }} />
+                <input type="file" hidden accept={UPLOAD_ACCEPT} onChange={(e) => { add(e.target.files[0]); e.target.value = ''; }} />
               </label>
             )}
           </div>

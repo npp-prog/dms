@@ -170,7 +170,7 @@ function NewCircular({ offices, me, onCancel, onSent }) {
           <label className="check"><input type="radio" checked={source === 'dms'} onChange={() => setSource('dms')} /> A document already in DMS</label>
           {source === 'upload' ? (
             <>
-              <input id="cc-file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => setFile(e.target.files?.[0] || null)} required aria-label="File (PDF or picture)" />
+              <input id="cc-file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp" onChange={(e) => setFile(e.target.files?.[0] || null)} required aria-label="File (PDF or picture)" />
               <div className="help">The signed letter, memo or order, scanned or as issued (PDF or picture). Up to 25 MB.</div>
             </>
           ) : (

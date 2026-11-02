@@ -10,12 +10,13 @@ import { withDmsQr } from '../lib/qrStamp.js';
 import { imageToPdf } from '../lib/imagePdf.js';
 import { fundsOf } from '../lib/defaults.js';
 import { staleReload } from '../lib/freshness.js';
+import { sniffUpload } from '../lib/sniff.js';
 
 // A document that is not prepared in DMS but already exists as a file: a scanned OBR, a letter,
 // a PDF made in another system. It gets a DMS control number, its file becomes its PDF (a photo
 // or scan is turned into one), and it follows the route of its type like a prepared document.
 const OTHER = { id: '', code: 'DOC', name: 'Other document', fields: [], steps: [], processing: [], template: '' };
-const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp';
+const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp';
 const size = (n) => (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 export default function UploadDocument() {
@@ -53,17 +54,18 @@ export default function UploadDocument() {
     setError('');
     try {
       if (!file) throw new Error('Choose the file to upload.');
-      if (!ACCEPT.split(',').includes(file.type)) throw new Error('Upload a PDF, or a photo or scan (JPG or PNG).');
+      // What the file really is, from its first bytes (a phone may let a ZIP or another file through).
+      const kind = await sniffUpload(file);
+      if (!kind) throw new Error(`${file.name}: upload a PDF, or a photo or scan (JPG or PNG), not a ZIP or another kind of file.`);
       if (file.size > 25 * 1024 * 1024) throw new Error('The file is larger than 25 MB.');
       if (!form.title.trim()) throw new Error('Type the payee or subject.');
       setBusy('Preparing the PDF…');
-      const pdf = file.type === 'application/pdf' ? new Uint8Array(await file.arrayBuffer()) : await imageToPdf(file);
-      if (file.type === 'application/pdf' && !/^%PDF-/.test(new TextDecoder('latin1').decode(pdf.subarray(0, 5)))) throw new Error('This file is not a PDF.');
+      const pdf = kind === 'application/pdf' ? new Uint8Array(await file.arrayBuffer()) : await imageToPdf(new File([file], file.name, { type: kind }));
       setBusy('Saving…');
       // What the upload needs, loaded before the document is created (a tab left open across a new
       // deploy fails here, with nothing created, and reloads).
       await Promise.all([loadPdfjs(), import('pdf-lib'), import('../lib/signing.js'), import('../lib/qr.js')]);
-      const contentText = file.type === 'application/pdf' ? await pdfText(pdf) : '';
+      const contentText = kind === 'application/pdf' ? await pdfText(pdf) : '';
       // A draft until its file is stored: if anything below fails, the draft is removed again.
       const created = await createUploadedDocument(type, { ...form, title: form.title.trim(), fileName: file.name, contentText, copiedFrom }, actor);
       try {

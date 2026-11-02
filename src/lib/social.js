@@ -4,6 +4,7 @@ import {
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytesResumable } from 'firebase/storage';
 import { auth, db, storage } from '../firebase.js';
+import { sniffUpload } from './sniff.js';
 
 const nameOf = (u) => u?.displayName || u?.email || '';
 const safeName = (name) => String(name || '').replace(/[^\w.\- ()]+/g, '_').slice(-80) || 'file';
@@ -83,8 +84,15 @@ export const CIRCULAR_KINDS = ['Letter', 'Memorandum', 'Executive Order', 'Offic
 // uploaded file: its current PDF is copied into the circular, so every office it is for opens it.
 export async function sendCircular({ title, kind, note, file: upFile, fromDoc = null, toOffices, all }, me, people = []) {
   if (!String(title).trim()) throw new Error('Type the title or subject.');
-  const file = fromDoc ? fromDoc.file : upFile;
+  let file = fromDoc ? fromDoc.file : upFile;
   if (!file) throw new Error(fromDoc === null ? 'Choose the file of the circular (PDF or picture), or a document in DMS.' : 'That document has no PDF yet.');
+  // An uploaded file: what it really is, from its first bytes (not a ZIP or other file named or
+  // typed as a PDF).
+  if (!fromDoc) {
+    const kind = await sniffUpload(file);
+    if (!kind) throw new Error(`${file.name}: upload a PDF or a picture (JPG, PNG or WebP), not a ZIP or another kind of file.`);
+    file = new File([file], file.name, { type: kind });
+  }
   if (!/^(application\/pdf|image\/(jpeg|png|webp))$/.test(file.type)) throw new Error('Upload a PDF or a picture (JPG or PNG).');
   if (file.size > 25 * 1024 * 1024) throw new Error('The file is larger than 25 MB.');
   if (!toOffices.length) throw new Error('Choose the office or offices it is for.');

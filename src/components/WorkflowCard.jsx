@@ -116,7 +116,7 @@ function StepTasks({ doc, step, busy, onFill, onUpload, onOpenFile, children }) 
           {files.map((f, i) => <div key={i} className="small"><button type="button" className="link" onClick={() => onOpenFile(f)}>{f.name}</button> · {f.by}</div>)}
           <label className="btn btn-ghost btn-sm">
             {files.length ? 'Upload another' : 'Upload'}
-            <input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => { onUpload(e.target.files[0]); e.target.value = ''; }} />
+            <input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp" onChange={(e) => { onUpload(e.target.files[0]); e.target.value = ''; }} />
           </label>
         </div>
       )}

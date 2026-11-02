@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LinkEditor, LinkList } from './DocLinks.jsx';
 import { linkLocked } from '../lib/workflow.js';
-import { UPLOAD_TYPES, uploadSupporting } from '../lib/supporting.js';
+import { UPLOAD_ACCEPT, uploadSupporting } from '../lib/supporting.js';
 
 // Supplemental documents: what goes with the document but is not on its checklist: a file uploaded
 // (a DMS document of its own, in All Documents) or a document already in DMS, linked. Each shows as
@@ -56,7 +56,7 @@ export default function SupplementsCard({ doc, actor, canAdd, canRemove, busy, o
           {step ? <span className="small muted">{step}</span> : (
             <label className={`btn btn-ghost btn-sm${busy ? ' disabled' : ''}`}>
               + Upload
-              <input type="file" hidden accept={UPLOAD_TYPES.join(',')} disabled={busy} onChange={(e) => { add(e.target.files[0]); e.target.value = ''; }} />
+              <input type="file" hidden accept={UPLOAD_ACCEPT} disabled={busy} onChange={(e) => { add(e.target.files[0]); e.target.value = ''; }} />
             </label>
           )}
           {!step && <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setLinking((x) => !x)}>+ Link DMS document</button>}
