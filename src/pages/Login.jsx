@@ -21,7 +21,7 @@ export function LandingBar({ children }) {
     <header className="landing-bar">
       <a className="landing-brand" href="/" title="Home">
         <img src="/municipal-seal.png" alt="Municipal seal" />
-        <span><b>DMS</b><span>Municipal Government of Candoni</span></span>
+        <span><b>DMS Document Management System</b><span>Municipal Government of Candoni</span></span>
       </a>
       {children || <a className="landing-link" href="/verify">Verify a document</a>}
     </header>

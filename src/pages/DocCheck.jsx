@@ -180,7 +180,7 @@ export default function DocCheck({ standalone = false }) {
     <div className="verify-shell">
       <header className="verify-top">
         <img className="seal" src="/municipal-seal.png" alt="" />
-        <div><b>DMS</b><span>Document Management System · Municipal Government of Candoni</span></div>
+        <div><b>DMS Document Management System</b><span>Municipal Government of Candoni</span></div>
         <div className="spacer" />
         <Link className="btn btn-ghost btn-sm" to="/">Sign in</Link>
       </header>

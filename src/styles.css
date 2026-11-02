@@ -276,7 +276,7 @@ button.badge { cursor: pointer; }
 .side-hidden .side { display: none; }
 .side-brand { display: flex; align-items: center; gap: .65rem; padding: .1rem .45rem 1.1rem; text-decoration: none; color: var(--ink); }
 .side-brand .seal { width: 34px; height: 34px; flex: none; }
-.side-brand b { display: block; font-size: 1.32rem; font-weight: 700; letter-spacing: -.035em; line-height: 1.05; }
+.side-brand b { display: block; font-size: 1.02rem; font-weight: 700; letter-spacing: -.035em; line-height: 1.15; }
 .side-brand small { display: block; color: var(--muted); font-size: .7rem; line-height: 1.25; margin-top: 2px; }
 .side .group { color: #737373; font-size: .9rem; padding: 1.15rem .6rem .35rem; font-weight: 500; }
 .side a:not(.side-brand) { display: flex; align-items: center; gap: .7rem; color: #262626; text-decoration: none; padding: .45rem .6rem; min-height: 40px; border-radius: 10px; font-size: .98rem; margin-bottom: 1px; font-weight: 400; position: relative; transition: background .12s; }
@@ -1645,3 +1645,4 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .wk-board .wk-table th.num, .wk-board .wk-table td.num { text-align: right; }
 .wk-reports .wk-table td.small { white-space: normal; }
 .wk-report-bar .grow { flex: 1; }
+@media (max-width: 560px) { .landing-brand b { font-size: .95rem; line-height: 1.2; } }

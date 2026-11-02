@@ -113,7 +113,7 @@ export default function Layout() {
       <nav className="side" aria-label="Main">
         <Link to="/" className="side-brand">
           <img className="seal" src="/municipal-seal.png" alt="" />
-          <span><b>DMS</b><small>{settings.lguName || 'Municipal Government of Candoni'}</small></span>
+          <span><b>DMS Document Management System</b><small>{settings.lguName || 'Municipal Government of Candoni'}</small></span>
         </Link>
         {groups.map((g, gi) => (
           <div key={gi}>
