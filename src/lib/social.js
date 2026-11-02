@@ -90,7 +90,7 @@ export async function sendCircular({ title, kind, note, file: upFile, fromDoc = 
   // typed as a PDF).
   if (!fromDoc) {
     const kind = await sniffUpload(file);
-    if (!kind) throw new Error(`${file.name}: upload a PDF or a picture (JPG, PNG or WebP), not a ZIP or another kind of file.`);
+    if (!kind || kind === 'application/zip') throw new Error(`${file.name}: a circular is a PDF or a picture (JPG, PNG or WebP).`);
     file = new File([file], file.name, { type: kind });
   }
   if (!/^(application\/pdf|image\/(jpeg|png|webp))$/.test(file.type)) throw new Error('Upload a PDF or a picture (JPG or PNG).');

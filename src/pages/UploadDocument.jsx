@@ -56,7 +56,9 @@ export default function UploadDocument() {
       if (!file) throw new Error('Choose the file to upload.');
       // What the file really is, from its first bytes (a phone may let a ZIP or another file through).
       const kind = await sniffUpload(file);
-      if (!kind) throw new Error(`${file.name}: upload a PDF, or a photo or scan (JPG or PNG), not a ZIP or another kind of file.`);
+      // (A ZIP goes with a document, on a checklist item or as a supplemental document, not here:
+      // a document uploaded here is a PDF, with its QR code.)
+      if (!kind || kind === 'application/zip') throw new Error(`${file.name}: upload a PDF, or a photo or scan (JPG or PNG). A ZIP file can be added to a document's checklist item or as a supplemental document.`);
       if (file.size > 25 * 1024 * 1024) throw new Error('The file is larger than 25 MB.');
       if (!form.title.trim()) throw new Error('Type the payee or subject.');
       setBusy('Preparing the PDF…');

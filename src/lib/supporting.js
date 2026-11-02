@@ -10,14 +10,24 @@ import { sniffUpload } from './sniff.js';
 
 export const UPLOAD_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 // For the file picker: the types and their extensions (phones may ignore one or the other).
-export const UPLOAD_ACCEPT = [...UPLOAD_TYPES, '.pdf', '.jpg', '.jpeg', '.png', '.webp'].join(',');
+export const UPLOAD_ACCEPT = [...UPLOAD_TYPES, 'application/zip', 'application/x-zip-compressed', '.pdf', '.jpg', '.jpeg', '.png', '.webp', '.zip'].join(',');
 
 export { sniffUpload } from './sniff.js';
 
 // Returns the link to keep on the parent ({ kind: 'file', path, name, ..., dms: { id, controlNo } }).
 export async function uploadSupporting({ parent, slot, label, code = '', number = 0, file, actor, onStep = () => {} }) {
   const kind = await sniffUpload(file);
-  if (!kind) throw new Error(`${file.name}: upload a PDF or a picture (JPG, PNG or WebP), not a ZIP or another kind of file.`);
+  if (!kind) throw new Error(`${file.name}: upload a PDF, a picture (JPG, PNG or WebP) or a ZIP file.`);
+  // A ZIP: kept as it is, as a file of the document (it has no pages to show, nor room for a QR
+  // code, so it is not a DMS document of its own); it downloads when opened.
+  if (kind === 'application/zip') {
+    if (file.size > 20 * 1024 * 1024) throw new Error('The ZIP file is larger than 20 MB.');
+    onStep('Uploading…');
+    const zipName = `${fileBase({ fund: parent.data?.fund, subject: parent.data?.payee || parent.title, number, type: 'ZIP', ref: controlRef(parent.controlNo) })}.zip`;
+    const stored = await uploadAttachment(parent.id, slot, new File([file], zipName, { type: 'application/zip' }), actor,
+      (x) => onStep(`Uploading… ${Math.round(x * 100)}%`));
+    return { ...stored, label, original: file.name };
+  }
   onStep('Preparing the PDF…');
   let pdf = kind === 'application/pdf' ? new Uint8Array(await file.arrayBuffer()) : await imageToPdf(new File([file], file.name, { type: kind }));
   const typeCode = /^[A-Z]{2,8}$/.test(code) ? code : '';

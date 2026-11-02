@@ -136,6 +136,16 @@ function FileView({ file, bytes }) {
   const url = useMemo(() => (bytes && !/pdf/.test(file.type) ? URL.createObjectURL(new Blob([bytes], { type: file.type })) : ''), [bytes, file.type]);
   if (!bytes) return <div className="spinner" />;
   if (/pdf/.test(file.type)) return <PdfViewer bytes={bytes} signatures={readSignatures(bytes)} title={file.name} />;
+  // A ZIP: nothing to show; it downloads.
+  if (/zip/.test(file.type)) {
+    return (
+      <div className="pdf-viewer">
+        <div className="pdf-viewer-head"><b>{file.name}</b></div>
+        <p className="muted" style={{ padding: '1rem' }}>A ZIP file cannot be shown here.{' '}
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => downloadBytes(bytes, file.name, 'application/zip')}>Download it</button></p>
+      </div>
+    );
+  }
   return (
     <div className="pdf-viewer">
       <div className="pdf-viewer-head"><b>{file.name}</b></div>

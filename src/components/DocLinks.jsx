@@ -39,7 +39,7 @@ export function LinkList({ links = [], onRemove, onOpen, isLocked }) {
           : l.kind === 'fts' ? ['DMS', l.typeCode, l.title] : [l.system];
         return (
           <li key={i} className="doc-link">
-            <span className={`doc-link-ic ${l.kind === 'file' || l.kind === 'fts' ? l.kind : 'ext'}`} aria-hidden="true">{l.kind === 'file' ? 'PDF' : l.kind === 'fts' ? 'DMS' : '↗'}</span>
+            <span className={`doc-link-ic ${l.kind === 'file' || l.kind === 'fts' ? l.kind : 'ext'}`} aria-hidden="true">{l.kind === 'file' ? (/zip/.test(l.type || '') ? 'ZIP' : 'PDF') : l.kind === 'fts' ? 'DMS' : '↗'}</span>
             <span className="doc-link-body">
               {open ? <button type="button" className="doc-link-name" title={title} onClick={open}>{title}</button>
                 : l.kind === 'fts' ? <Link className="doc-link-name" to={`/documents/${l.id}`} target="_blank" rel="noopener">{title}</Link>

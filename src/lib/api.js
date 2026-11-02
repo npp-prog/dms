@@ -672,10 +672,10 @@ export async function saveExtraItems(id, { extraItems, links }, user, history = 
 
 // A supporting document uploaded to a checklist item (a scanned PDF or a photo), kept at
 // documents/{docId}/attachments/{itemId}/{time}-{name}. Returns the link stored on the item.
-export const ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+export const ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'application/zip'];
 // dmsDoc: the supporting document the file is (lib/supporting.js), so its QR page can open it.
 export async function uploadAttachment(docId, itemId, file, user, onProgress, dmsDoc = '') {
-  if (!ATTACHMENT_TYPES.includes(file.type)) throw new Error('Upload a PDF or a picture (JPG or PNG).');
+  if (!ATTACHMENT_TYPES.includes(file.type)) throw new Error('Upload a PDF, a picture (JPG or PNG) or a ZIP file.');
   if (file.size > 20 * 1024 * 1024) throw new Error('The file is larger than 20 MB. Scan it at a lower resolution.');
   const name = file.name.replace(/[^\w.\- ()]+/g, '_').slice(-80) || 'file';
   const path = `documents/${docId}/attachments/${itemId}/${Date.now()}-${name}`;

@@ -9,9 +9,6 @@ import {
 import PersonPicker from '../components/PersonPicker.jsx';
 import { Avatar } from '../components/Icon.jsx';
 
-// What can be shared in a community (as storage.rules): documents and pictures only.
-const SHARE_EXT = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.txt', '.csv', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods', '.odp'];
-
 const when = (iso) => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -220,13 +217,7 @@ function Room({ c, me, manages, onBack, onGone }) {
           {file && <div className="chat-attach small">📎 {file.name} <button type="button" className="link small" onClick={() => setFile(null)}>Remove</button></div>}
           <form className="chat-send" onSubmit={send}>
             <button type="button" className="btn-icon" title="Attach a file" aria-label="Attach a file" onClick={() => fileRef.current.click()}>📎</button>
-            <input ref={fileRef} type="file" hidden accept={SHARE_EXT.join(',')} onChange={(e) => {
-              const f = e.target.files?.[0] || null;
-              e.target.value = '';
-              // Documents and pictures only: no ZIP or other archives, programs or scripts.
-              if (f && !SHARE_EXT.includes(`.${f.name.split('.').pop().toLowerCase()}`)) { setError(`${f.name}: share a PDF, a picture, or a Word, Excel, PowerPoint or text file (not a ZIP or other archive).`); return; }
-              setError(''); setFile(f);
-            }} />
+            <input ref={fileRef} type="file" hidden accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.zip" onChange={(e) => { setFile(e.target.files?.[0] || null); e.target.value = ''; }} />
             <textarea rows={1} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} aria-label="Message" placeholder="Write a message…"
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
             <button className="btn btn-primary btn-sm" disabled={busy || (!text.trim() && !file)}>{busy ? '…' : 'Send'}</button>
