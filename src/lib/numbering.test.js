@@ -44,10 +44,14 @@ test('a supporting document goes into the Archive with its processed main docume
 });
 
 import { linkLocked } from './workflow.js';
-test('a link is kept once the document is routed on after it was added', () => {
-  const doc = { workflow: { events: [{ type: 'started' }, { type: 'released' }, { type: 'returned' }] } };
+test('a link is kept once the document is routed on after it was added, until it is returned to the preparer', () => {
+  const atAccounting = { workflow: { state: 'in-progress', stage: 1, events: [{ type: 'started' }, { type: 'released' }] } };
+  const returned = { workflow: { state: 'in-progress', stage: 0, events: [{ type: 'started' }, { type: 'released' }, { type: 'returned' }] } };
+  const atBudget = { workflow: { state: 'in-progress', stage: 2, events: [{ type: 'started' }, { type: 'released' }, { type: 'released' }] } };
   assert.equal(linkLocked({}, { atEvent: 0 }), false); // not routed yet
-  assert.equal(linkLocked(doc, {}), true); // an old link: routed since
-  assert.equal(linkLocked(doc, { atEvent: 1 }), true); // added before it was routed
-  assert.equal(linkLocked(doc, { atEvent: 2 }), false); // added after it was routed and returned
+  assert.equal(linkLocked(atAccounting, {}), true); // an old link: routed since
+  assert.equal(linkLocked(atAccounting, { atEvent: 0 }), true); // added before it was routed
+  assert.equal(linkLocked(returned, { atEvent: 0 }), false); // returned: the preparer may remove it
+  assert.equal(linkLocked(atBudget, { atEvent: 2 }), true); // added by Accounting, routed on since
+  assert.equal(linkLocked(atAccounting, { atEvent: 2 }), false); // added at this step, not routed on yet
 });
