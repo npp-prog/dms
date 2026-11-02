@@ -368,7 +368,7 @@ Fields can be **computed**: in a table column or a field, the formula combines o
 
 ### Work management settings
 
-**Board Templates** (Administration; administrators) are the templates offered when someone creates a board: each has a name, a description and its groups (one per line, in order). **+ Add a template**, change, reorder (↑ ↓) or remove them, then **Save**; **Starter templates** puts back the original list. A new board copies its template's groups, so changing or removing a template does not change existing boards.
+**Board Templates** (Administration; administrators) are the templates offered when someone creates a board. The page lists them (with how many groups each has; ↑ ↓ change their order); click one to edit its name, description and groups (one per row, in order: ↑ ↓ to move one, × to remove it, **+ Add a group**, or Enter in a group to add one below it), then **Save** (or **Remove template**). **+ New template** adds one; **Starter templates** puts back the original list. A new board copies its template's groups, so changing or removing a template does not change existing boards.
 
 Work management (boards, projects, reports) needs the latest `firestore.rules` published in the Firebase console (Firestore → Rules) after each update. Administrators see every board and project, and may export from every board. Reports read at most 40 boards (each up to 500 work items) and 100 projects.
 
