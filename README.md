@@ -27,6 +27,7 @@ Stack: React + Vite, Firebase Authentication + Cloud Firestore, deployed on Netl
 | Document Types (admin) | Field builder (text, long text, number, amount, date, dropdown, line-item tables with computed columns and totals), steps builder, checklist builder, processing-guide builder, and template editor with live preview. Import/export as JSON. Ten starter formats are included (DV, OBR, FURS, Payroll, PCV, LR, IT, PR, PO, JO), printed portrait and **fit to page** (width and height): the DV on Folio (8.5 × 13 in), everything else on A4. |
 | Users (admin) | New accounts wait for approval. Admins approve or deactivate users. Only the superadmin grants admin/superadmin. |
 | Settings (superadmin) | LGU name, address, seal and **signatories** (Mayor, Accountant, Budget Officer, Treasurer, SB Secretary), printed on the forms. |
+| Boards and My Work | Work management around the documents: boards from municipal templates, work items with assignees, due dates and status, linked DMS documents (ids only; access unchanged), My Work and dashboard deadlines. See [docs/work-management-integration.md](docs/work-management-integration.md) and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md). |
 
 Each document stores a frozen copy of its format. A document therefore always prints the way it was prepared, even after an admin revises the document type.
 
@@ -143,6 +144,9 @@ verifications/{sha256}  controlNo, typeCode, typeName, version, kind, signer, si
 Storage: documents/{docId}/attachments/{itemId}/{time}-{name}  (files uploaded to checklist items)
 Storage: documents/{docId}/{n}-generated.pdf, {n}-signed.pdf  (never replaced; storage.rules)
 meta/settings         lguName, lguAddress, province, sealUrl, signatories{}, offices[]
+boards/{id}           name, template, office, ownerUid, managers[], members[], viewers[], access[], names{}, groups[{id,name}]
+workItems/{id}        boardId, groupId, title, status, priority, assignees[], office, startDate, dueDate, completedOn, tags[], docRefs[] (document ids)
+workItems/{id}/activity/{id}  type, text, by, byName, at  (append-only)
 ```
 
 ## Scripts

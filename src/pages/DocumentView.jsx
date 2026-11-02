@@ -25,6 +25,7 @@ import PdfViewer from '../components/PdfViewer.jsx';
 import { verifyUrl } from '../lib/qr.js';
 import { hasDmsQr, withDmsQr } from '../lib/qrStamp.js';
 import { staleReload } from '../lib/freshness.js';
+import DocWorkCard from '../components/DocWorkCard.jsx';
 
 function downloadBytes(bytes, name, type) {
   const a = document.createElement('a');
@@ -405,6 +406,8 @@ function DocumentPage({ docId }) {
               onOpen={(l, key) => (l.kind === 'fts' ? openLinked(l, key) : openFile(l, key))}
               onSave={(list, note) => run(() => saveSupplements(docId, list, actor, note))} />
           )}
+          {/* Work items (Boards) that link this document; it stays as it is in the DMS. */}
+          {!isExternal && <DocWorkCard docId={docId} docData={docData} />}
           {/* Optional initial review of the draft by anyone, before it is converted to PDF. */}
           {!isExternal && <ReviewCard doc={docData} me={user.uid} busy={busy} canSend={editable && !uploaded && (isOwner || isAdmin)}
             onSend={(to, note, done) => run(async () => { await forwardDocument(docId, to, note, actor, 'review'); done(); })}

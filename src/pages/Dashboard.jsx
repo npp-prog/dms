@@ -9,6 +9,9 @@ import NotesCard from '../components/NotesCard.jsx';
 import { drnOf } from '../lib/naming.js';
 import { backupStatus, getArchiveSettings, listBackups } from '../lib/archive.js';
 import { ROLE_NAMES } from '../lib/roles.js';
+import { listMyItems } from '../lib/work.js';
+import { myWorkBuckets } from '../lib/workModel.js';
+import { localDay } from '../lib/archiveFiles.js';
 
 
 function greeting() {
@@ -40,6 +43,9 @@ export default function Dashboard() {
   const [types, setTypes] = useState([]);
   const [docs, setDocs] = useState([]);
   const [pendingUsers, setPendingUsers] = useState(0);
+  // My Work: the work items assigned to the user (Boards).
+  const [work, setWork] = useState(null);
+  useEffect(() => { listMyItems(user.uid).then((l) => setWork(myWorkBuckets(l, user.uid, localDay()))).catch(() => setWork(null)); }, [user.uid]);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
 
@@ -66,6 +72,10 @@ export default function Dashboard() {
     isAdmin && types.length === 0 && <InboxRow key="t" icon="types" tone="red" title="No document formats yet" sub="Load the starter formats or create a document type" n="!" to="/admin/types" />,
     backupsDue > 0 && <InboxRow key="b" icon="archive" tone="red" title="Archive backup due" sub="Back up the archive to the Records Office's devices" n={backupsDue} to="/archive" />,
     waiting > 0 && <InboxRow key="w" icon="inbox" tone="blue" title="Waiting in your office" sub="Documents to act on and route to the next office" n={waiting} to="/notifications" />,
+    work?.overdue.length > 0 && <InboxRow key="wo" icon="check" tone="red" title="Overdue work" sub="Work items assigned to you, past their due date" n={work.overdue.length} to="/my-work?show=overdue" />,
+    work?.today.length > 0 && <InboxRow key="wt" icon="check" tone="blue" title="Work due today" sub="Work items assigned to you, due today" n={work.today.length} to="/my-work?show=today" />,
+    work?.blocked.length > 0 && <InboxRow key="wb" icon="check" title="Blocked work" sub="Your work items marked Blocked" n={work.blocked.length} to="/my-work?show=blocked" />,
+    work?.upcoming.length > 0 && <InboxRow key="wu" icon="check" title="Work due this week" sub="Work items assigned to you, due in the next 7 days" n={work.upcoming.length} to="/my-work?show=upcoming" />,
     count(mine, 'draft') > 0 && <InboxRow key="d" icon="doc" title="Drafts to finish" sub="Documents you started but have not marked complete" n={count(mine, 'draft')} to="/documents" />,
     mine.filter((d) => d.status === 'complete' && !d.workflow).length > 0 && <InboxRow key="c" icon="send" tone="blue" title="Complete — convert to PDF" sub="Converting a document sends it along its workflow" n={mine.filter((d) => d.status === 'complete' && !d.workflow).length} to="/documents" />,
   ].filter(Boolean);

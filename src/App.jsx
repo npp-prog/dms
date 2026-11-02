@@ -28,6 +28,14 @@ import Settings from './pages/admin/Settings.jsx';
 import Checklists from './pages/Checklists.jsx';
 import ChecklistView from './pages/ChecklistView.jsx';
 import ChecklistEditor from './pages/admin/ChecklistEditor.jsx';
+import Boards from './pages/Boards.jsx';
+import MyWork from './pages/MyWork.jsx';
+
+// Work management (Boards, My Work): LGU personnel, not third parties.
+function StaffOnly({ children }) {
+  const { isExternal } = useAuth();
+  return isExternal ? <Navigate to="/notifications" replace /> : children;
+}
 
 function AdminOnly({ children, settings = false, users = false }) {
   const { isAdmin, canManageSettings, canManageUsers } = useAuth();
@@ -77,6 +85,9 @@ export default function App() {
         <Route path="privacy" element={<Privacy />} />
         <Route path="v/:docId" element={<DocCheck />} />
         <Route path="tracking" element={<Tracking />} />
+        <Route path="my-work" element={<StaffOnly><MyWork /></StaffOnly>} />
+        <Route path="boards" element={<StaffOnly><Boards /></StaffOnly>} />
+        <Route path="boards/:boardId" element={<StaffOnly><Boards /></StaffOnly>} />
         <Route path="workflow" element={<Navigate to="/tracking" replace />} />
         <Route path="documents" element={<Documents />} />
         <Route path="documents/:docId" element={<DocumentView />} />

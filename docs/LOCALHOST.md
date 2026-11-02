@@ -288,6 +288,17 @@ Totals are computed as you type. On the Liquidation Report, for example, DMS com
 
 ---
 
+### Boards and My Work (tasks around the documents)
+
+**Boards** (menu, under Work) organize the work of an office, a transaction or a project: who does what, and by when. The documents themselves stay in DMS, with their own route and approvals.
+
+- **+ New board**: name it, choose a **template** (Office task monitoring, Municipal transaction monitoring, Accounting Office work, Municipal project implementation, Administrative and digitalization projects, Interoffice requests, Accounting and administrative follow-ups, or Blank), the office, and add **people** by name or email as **Manager** (board settings and people), **Member** (creates, edits and assigns work items) or **Viewer** (reads only). The template only gives the board its first **groups** (e.g. *DV review*, *Payroll review*, *RCD submissions* for Accounting); a manager renames, adds or removes them under **Settings**.
+- **Work items**: under a group, **+ Add work item**. An item has a title, description, **status** (Not Started, In Progress, Blocked, For Review, Completed), **priority**, the people **assigned** (people on the board), the **responsible office**, **start** and **due** dates, and tags. Click an item to open its details; **Save** keeps the changes, and its **Activity** lists who changed what and when. Search, filter by status or *Assigned to me*, and sort by due date, priority, status or title.
+- **Linked documents**: in an item, **+ Link a DMS document** picks a document you may open; **Upload a new document** opens Upload in a new tab, then link it. Each linked document shows its number, type, status and where it is on its route (e.g. *With Municipal Accounting Office: Pre-audit*, *Returned to …*, *Processed*); click it to open it as usual. Someone on the board who may not open that document sees only *Restricted document*: being on a board never opens a document. An item's status is the task's progress only: completing it does not approve, route or process the document.
+- **From a document**: the **Work items** card on its page lists the items that link it (on your boards), with **+ Create work item** (a new item on one of your boards, already linked to it) and **+ Add to a work item**.
+- **My Work** (menu, under Work) lists the open items assigned to you on every board: **Overdue**, **Due today**, **Next 7 days**, **Blocked**, and **For my review** (items you created that someone marked For Review). Someone assigned to an item but only a viewer on its board can change its status. The **Dashboard** shows overdue work, work due today, blocked work and work due this week; each opens My Work.
+- Due dates are calendar days in Philippine time; an item completed is never overdue.
+
 ## 5. Using DMS as an administrator
 
 Sign out (top right), then sign in as **npp@mgocandoniaccounting.org** / **admin123** (local demo password). On the live site, `npp@mgocandoniaccounting.org` is the superadmin: sign in with **Continue with Google**, or register with email and password and open the verification link.
@@ -355,6 +366,8 @@ Some starter steps also **fill in details before routing** (the DV's Treasurer s
 A type with no route yet follows its processing guide; the editor starts from it. New documents follow the saved route; documents already on their way keep the route they started with. Saving a route doesn't change the document format or its version.
 
 **Tracking** (left menu, for everyone) shows the routed documents you can see: where it is now, its progress along the route, and the last action with any remarks. The tiles filter it (*On the move*, *In your office*, *Returned*, *Processed*, *All routed*), and **Now at** filters by office.
+
+**Boards.** Administrators see every board and act as their managers. Board permissions are separate from document access: a board's people open only the documents the DMS already lets them open. After an update that adds boards, the administrator publishes `firestore.rules` in the Firebase console.
 
 **Users** is where you approve new accounts and **assign each person to an office**. Each person is one row (name, email, office, Office head and positions, role, status); search by name, email, office or position, or show only those **Pending approval**. **Approve** activates a new account; **Edit** opens the person's office, role, positions, **Office head** and **May route documents to any person**, and **Deactivate**. Users see only the documents of their own office (and their own); administrators see all documents and can filter by office. The office someone types when registering is only a request, shown as *Asked for*. The list of offices is in **Settings**. Only the superadmin can make someone an administrator.
 

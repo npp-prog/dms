@@ -661,6 +661,94 @@ service cloud.firestore {
             && handles(get(/databases/$(database)/documents/documents/$(docId)).data));
     }
 
+    // ---- Work management: boards and work items (docs/work-management-integration.md) ----
+    // A board's managers change its settings and people; its members create, edit and assign work
+    // items; its viewers read. access = all of them. Administrators see every board. Seeing a board
+    // gives no access to the DMS documents its items link: an item keeps only their ids, and each
+    // document's own rules decide who opens it.
+    function boardOf(id) {
+      return get(/databases/$(database)/documents/boards/$(id)).data;
+    }
+    function seesBoard(b) {
+      return isAdmin() || request.auth.uid in b.get('access', []);
+    }
+    function editsBoard(b) {
+      return isAdmin() || request.auth.uid in b.get('managers', []) || request.auth.uid in b.get('members', []);
+    }
+    function managesBoard(b) {
+      return isAdmin() || request.auth.uid in b.get('managers', []) || b.get('ownerUid', '') == request.auth.uid;
+    }
+    function boardShapeOk(d) {
+      return d.keys().hasOnly(['name', 'description', 'template', 'office', 'ownerUid', 'ownerName', 'managers', 'members',
+          'viewers', 'access', 'names', 'groups', 'archived', 'createdAt', 'updatedAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 120
+        && d.managers is list && d.members is list && d.viewers is list && d.access is list
+        && d.access.size() <= 200 && d.groups is list && d.groups.size() <= 30
+        && d.access.hasAll(d.managers) && d.access.hasAll(d.members) && d.access.hasAll(d.viewers)
+        && d.access.size() <= d.managers.size() + d.members.size() + d.viewers.size();
+    }
+    match /boards/{boardId} {
+      allow read: if isStaff() && seesBoard(resource.data);
+      allow create: if isStaff() && boardShapeOk(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.auth.uid in request.resource.data.managers;
+      allow update: if isStaff() && managesBoard(resource.data) && boardShapeOk(request.resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
+      allow delete: if isStaff() && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+    }
+    // A work item: on one board (boardId, never changed). Its status is the task's progress only:
+    // it approves, routes or pays nothing in the DMS.
+    function itemShapeOk(d, b) {
+      return d.keys().hasOnly(['boardId', 'groupId', 'title', 'description', 'status', 'priority', 'assignees', 'assigneeNames',
+          'office', 'startDate', 'dueDate', 'completedOn', 'tags', 'docRefs', 'createdBy', 'createdByName', 'createdAt',
+          'updatedAt', 'updatedBy'])
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 200
+        && d.get('description', '') is string && d.get('description', '').size() <= 4000
+        && d.status in ['not_started', 'in_progress', 'blocked', 'for_review', 'done']
+        && d.priority in ['low', 'medium', 'high', 'urgent']
+        && d.assignees is list && d.assignees.size() <= 20
+        && b.get('access', []).hasAll(d.assignees)
+        && d.docRefs is list && d.docRefs.size() <= 50
+        && d.tags is list && d.tags.size() <= 10
+        && d.updatedBy == request.auth.uid;
+    }
+    match /workItems/{itemId} {
+      // Its board's people, its assignees and whoever created it.
+      allow read: if isStaff() && (request.auth.uid in resource.data.assignees || resource.data.createdBy == request.auth.uid
+        || seesBoard(boardOf(resource.data.boardId)));
+      allow create: if isStaff() && editsBoard(boardOf(request.resource.data.boardId))
+        && itemShapeOk(request.resource.data, boardOf(request.resource.data.boardId))
+        && request.resource.data.createdBy == request.auth.uid;
+      // The board's members edit it; an assignee who is not one changes only its status.
+      allow update: if isStaff()
+        && request.resource.data.boardId == resource.data.boardId
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && itemShapeOk(request.resource.data, boardOf(resource.data.boardId))
+        && (editsBoard(boardOf(resource.data.boardId))
+            || (request.auth.uid in resource.data.assignees
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedOn', 'updatedAt', 'updatedBy'])));
+      allow delete: if isStaff() && (resource.data.createdBy == request.auth.uid || managesBoard(boardOf(resource.data.boardId)));
+
+      // The item's timeline: added to by whoever may act on the item, as themselves, at the server's
+      // time; never changed or removed.
+      match /activity/{eventId} {
+        function item() {
+          return get(/databases/$(database)/documents/workItems/$(itemId)).data;
+        }
+        allow read: if isStaff() && (request.auth.uid in item().assignees || item().createdBy == request.auth.uid
+          || seesBoard(boardOf(item().boardId)));
+        allow create: if isStaff()
+          && request.resource.data.keys().hasOnly(['type', 'text', 'by', 'byName', 'at'])
+          && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time
+          && request.resource.data.text is string && request.resource.data.text.size() <= 500
+          && (editsBoard(boardOf(getAfter(/databases/$(database)/documents/workItems/$(itemId)).data.boardId))
+              || request.auth.uid in getAfter(/databases/$(database)/documents/workItems/$(itemId)).data.assignees);
+        allow update, delete: if false;
+      }
+    }
+
     // ---- Where a document of a link-once type is linked (document type: linkOnce) ----
     // One per linked document: the document it is linked to. Taken when it is linked (refused if
     // taken by another document), given back when it is unlinked or that document is deleted.
