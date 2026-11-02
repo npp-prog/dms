@@ -119,7 +119,7 @@ export const SORTS = {
 };
 
 // What a work item may hold (the rules check the same).
-export const ITEM_LIMITS = { title: 200, description: 4000, tags: 10, docRefs: 50, assignees: 20 };
+export const ITEM_LIMITS = { title: 200, description: 4000, tags: 10, docRefs: 50, assignees: 20, checklist: 50, checkText: 200 };
 export function cleanItem(input) {
   const day = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) ? s : '');
   return {
@@ -134,5 +134,38 @@ export function cleanItem(input) {
     dueDate: day(input.dueDate),
     tags: [...new Set((input.tags || []).map((t) => String(t).trim()).filter(Boolean))].slice(0, ITEM_LIMITS.tags),
     docRefs: [...new Set(input.docRefs || [])].slice(0, ITEM_LIMITS.docRefs),
+    // Its checklist: [{ id, text, done }] (stable ids, so ticking one never ticks another).
+    checklist: (input.checklist || []).filter((c) => String(c?.text || '').trim())
+      .map((c) => ({ id: String(c.id || ''), text: String(c.text).trim().slice(0, ITEM_LIMITS.checkText), done: Boolean(c.done) }))
+      .slice(0, ITEM_LIMITS.checklist),
+    // A subtask: the id of its parent item (on the same board); '' for an item.
+    parentId: String(input.parentId || ''),
   };
+}
+
+export const checklistProgress = (list = []) => ({ done: list.filter((c) => c.done).length, total: list.length });
+export const newCheckId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+// Mentions in a comment: the board people whose "@Name" is in the text.
+export function mentionsIn(text, people = []) {
+  const t = String(text || '');
+  return people.filter((p) => p.name && t.includes(`@${p.name}`)).map((p) => p.uid);
+}
+
+// Where a linked document is on its DMS route, for a work item (read-only; the DMS workflow is the
+// authority): a label (as the brief names them) and the step.
+export function routeState(d, officeOfStep = (s) => s?.routedTo || s?.office || '') {
+  const wf = d?.workflow;
+  if (!wf) return { label: d?.status === 'draft' ? 'Draft' : d?.status === 'cancelled' ? 'Cancelled' : 'Not routed yet', tone: 'gray', step: '' };
+  const total = (wf.steps || []).length;
+  const step = `Step ${Math.min(wf.stage + 1, total)} of ${total}`;
+  if (wf.state === 'done') return { label: 'Completed', tone: 'green', step: '' };
+  if (wf.state === 'cancelled') return { label: 'Cancelled', tone: 'red', step: '' };
+  if (wf.referral) return { label: `Forwarded to ${wf.referral.name || 'a person'}`, tone: 'blue', step };
+  const s = wf.steps?.[wf.stage];
+  const holder = officeOfStep(s, d) || 'the preparer';
+  const last = (wf.events || []).at(-1)?.type;
+  if (last === 'returned') return { label: `Returned for correction to ${holder}`, tone: 'red', step };
+  if (s?.sign) return { label: `Awaiting approval: ${holder}`, tone: 'yellow', step, action: s.action || '' };
+  return { label: `Under review: ${holder}`, tone: 'blue', step, action: s?.action || '' };
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getBoard, listBoards, listCreatedForReview, listMyItems } from '../lib/work.js';
+import { getBoard, listBoards, listCreatedForReview, listMentions, listMyItems } from '../lib/work.js';
 import { boardRole, dueState, myWorkBuckets, SORTS } from '../lib/workModel.js';
 import { localDay } from '../lib/archiveFiles.js';
 import WorkItemPanel from '../components/WorkItemPanel.jsx';
@@ -9,7 +9,7 @@ import { Priority, WorkStatus, day } from '../components/WorkBits.jsx';
 
 export const MY_WORK_VIEWS = [
   ['assigned', 'Assigned to me'], ['overdue', 'Overdue'], ['today', 'Due today'], ['upcoming', 'Next 7 days'],
-  ['blocked', 'Blocked'], ['review', 'For my review'],
+  ['blocked', 'Blocked'], ['review', 'For my review'], ['mentions', 'Mentions'],
 ];
 
 // My Work: the open work items assigned to the user on every board, and those they created that
@@ -22,10 +22,12 @@ export default function MyWork() {
   const [boards, setBoards] = useState({});
   const [error, setError] = useState('');
   const [open, setOpen] = useState(null); // { item, board }
+  const [mentions, setMentions] = useState([]);
   const today = localDay();
 
-  const load = () => Promise.all([listMyItems(actor.uid), listCreatedForReview(actor.uid).catch(() => []), listBoards(actor, { all: isAdmin }).catch(() => [])])
-    .then(([mine, review, bs]) => {
+  const load = () => Promise.all([listMyItems(actor.uid), listCreatedForReview(actor.uid).catch(() => []), listBoards(actor, { all: isAdmin }).catch(() => []), listMentions(actor.uid).catch(() => [])])
+    .then(([mine, review, bs, ms]) => {
+      setMentions(ms);
       const byId = new Map([...mine, ...review].map((i) => [i.id, i]));
       setItems([...byId.values()]);
       setBoards(Object.fromEntries(bs.map((b) => [b.id, b])));
@@ -34,7 +36,8 @@ export default function MyWork() {
   useEffect(() => { load(); }, [actor.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buckets = useMemo(() => (items ? myWorkBuckets(items, actor.uid, today) : null), [items, actor.uid, today]);
-  const list = buckets ? [...buckets[show]].sort(SORTS.due) : [];
+  const list = buckets && show !== 'mentions' ? [...buckets[show]].sort(SORTS.due) : [];
+  const counts = buckets ? { ...Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, v.length])), mentions: mentions.filter((m) => !m.read).length } : {};
 
   const openItem = async (item) => {
     // A board the user is only assigned on (not a member of): read as far as allowed.
@@ -53,10 +56,19 @@ export default function MyWork() {
           <div className="wk-tabs" role="tablist">
             {MY_WORK_VIEWS.map(([k, label]) => (
               <button key={k} type="button" role="tab" aria-selected={show === k} className={`wk-tab${show === k ? ' active' : ''}${k === 'overdue' && buckets.overdue.length ? ' alert-tab' : ''}`}
-                onClick={() => setParams(k === 'assigned' ? {} : { show: k })}>{label} <span className="wk-count">{buckets[k].length}</span></button>
+                onClick={() => setParams(k === 'assigned' ? {} : { show: k })}>{label} <span className="wk-count">{counts[k]}</span></button>
             ))}
           </div>
-          {list.length === 0 ? <p className="muted">{show === 'assigned' ? 'Nothing is assigned to you.' : 'Nothing here.'}</p> : (
+          {show === 'mentions' ? (mentions.length === 0 ? <p className="muted">No one has mentioned you yet.</p> : (
+            <ul className="wk-mentions card">
+              {mentions.map((m) => (
+                <li key={m.id} className={m.read ? '' : 'unread'}>
+                  <Link to={m.link}><b>{m.fromName}</b> {m.text}</Link>
+                  <div className="xs muted">{new Date(m.at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' })}</div>
+                </li>
+              ))}
+            </ul>
+          )) : list.length === 0 ? <p className="muted">{show === 'assigned' ? 'Nothing is assigned to you.' : 'Nothing here.'}</p> : (
             <div className="table-card">
               <table className="data-table wk-table">
                 <thead><tr><th>Item</th><th>Board</th><th>Status</th><th>Priority</th><th>Due</th></tr></thead>
@@ -77,7 +89,6 @@ export default function MyWork() {
               </table>
             </div>
           )}
-          <p className="xs muted">Mentions come in a later phase.</p>
         </>
       )}
       {open && (

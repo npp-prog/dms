@@ -83,7 +83,7 @@ service cloud.firestore {
       allow get: if isActive() && resource.data.from == request.auth.uid;
       allow create: if isActive() && request.resource.data.from == request.auth.uid
         && request.resource.data.keys().hasOnly(['kind', 'text', 'link', 'from', 'fromName', 'at', 'read'])
-        && request.resource.data.kind in ['document', 'circular', 'community']
+        && request.resource.data.kind in ['document', 'circular', 'community', 'work', 'mention']
         // signed with the sender's own name (as in their profile), never someone else's
         && request.resource.data.fromName in [profile().get('displayName', ''), profile().get('email', '')]
         && request.resource.data.link is string && request.resource.data.link.matches('^/[A-Za-z0-9/_-]*$')
@@ -702,7 +702,9 @@ service cloud.firestore {
     function itemShapeOk(d, b) {
       return d.keys().hasOnly(['boardId', 'groupId', 'title', 'description', 'status', 'priority', 'assignees', 'assigneeNames',
           'office', 'startDate', 'dueDate', 'completedOn', 'tags', 'docRefs', 'createdBy', 'createdByName', 'createdAt',
-          'updatedAt', 'updatedBy'])
+          'updatedAt', 'updatedBy', 'checklist', 'parentId'])
+        && d.get('checklist', []) is list && d.get('checklist', []).size() <= 50
+        && d.get('parentId', '') is string
         && d.title is string && d.title.size() > 0 && d.title.size() <= 200
         && d.get('description', '') is string && d.get('description', '').size() <= 4000
         && d.status in ['not_started', 'in_progress', 'blocked', 'for_review', 'done']
@@ -728,7 +730,7 @@ service cloud.firestore {
         && itemShapeOk(request.resource.data, boardOf(resource.data.boardId))
         && (editsBoard(boardOf(resource.data.boardId))
             || (request.auth.uid in resource.data.assignees
-                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedOn', 'updatedAt', 'updatedBy'])));
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedOn', 'checklist', 'updatedAt', 'updatedBy'])));
       allow delete: if isStaff() && (resource.data.createdBy == request.auth.uid || managesBoard(boardOf(resource.data.boardId)));
 
       // The item's timeline: added to by whoever may act on the item, as themselves, at the server's
@@ -745,6 +747,24 @@ service cloud.firestore {
           && request.resource.data.text is string && request.resource.data.text.size() <= 500
           && (editsBoard(boardOf(getAfter(/databases/$(database)/documents/workItems/$(itemId)).data.boardId))
               || request.auth.uid in getAfter(/databases/$(database)/documents/workItems/$(itemId)).data.assignees);
+        allow update, delete: if false;
+      }
+      // Comments: whoever may see the item writes them, as themselves, at the server's time, naming
+      // whom they mention (people on the board); never changed or removed.
+      match /comments/{commentId} {
+        function citem() {
+          return get(/databases/$(database)/documents/workItems/$(itemId)).data;
+        }
+        function seesItem() {
+          return request.auth.uid in citem().assignees || citem().createdBy == request.auth.uid || seesBoard(boardOf(citem().boardId));
+        }
+        allow read: if isStaff() && seesItem();
+        allow create: if isStaff() && seesItem()
+          && request.resource.data.keys().hasOnly(['text', 'mentions', 'by', 'byName', 'at'])
+          && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+          && request.resource.data.mentions is list && request.resource.data.mentions.size() <= 20
+          && boardOf(citem().boardId).get('access', []).hasAll(request.resource.data.mentions);
         allow update, delete: if false;
       }
     }

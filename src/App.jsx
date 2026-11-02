@@ -88,6 +88,7 @@ export default function App() {
         <Route path="my-work" element={<StaffOnly><MyWork /></StaffOnly>} />
         <Route path="boards" element={<StaffOnly><Boards /></StaffOnly>} />
         <Route path="boards/:boardId" element={<StaffOnly><Boards /></StaffOnly>} />
+        <Route path="boards/:boardId/:itemId" element={<StaffOnly><Boards /></StaffOnly>} />
         <Route path="workflow" element={<Navigate to="/tracking" replace />} />
         <Route path="documents" element={<Documents />} />
         <Route path="documents/:docId" element={<DocumentView />} />

@@ -8,7 +8,7 @@ import { drnOf } from '../lib/naming.js';
 import { deleteNotification, listCirculars, markNotificationsRead, toReceive, watchNotifications } from '../lib/social.js';
 
 const ago = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '');
-const KIND = { document: 'Document', circular: 'Circular', community: 'Community' };
+const KIND = { document: 'Document', circular: 'Circular', community: 'Community', work: 'Work item', mention: 'Mention' };
 
 // What happened to the user's documents, circulars for their office, communities: newest first.
 function Updates({ uid, external = false }) {

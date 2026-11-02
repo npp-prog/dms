@@ -7,6 +7,14 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { accessOf, cleanItem, groupsFor, templateOf } from './workModel.js';
+import { notifyMany } from './social.js';
+
+// The address of an item (it opens the board with the item's details): used in notifications.
+export const itemLink = (item) => `/boards/${item.boardId}/${item.id}`;
+// Tell the people newly assigned to an item (not the one assigning).
+function tellAssigned(board, item, uids, user) {
+  if (uids.length) notifyMany(uids, { kind: 'work', text: `assigned you "${item.title}" on ${board.name || 'a board'}${item.dueDate ? `, due ${item.dueDate}` : ''}.`, link: itemLink(item) }, user).catch(() => {});
+}
 
 const nameOf = (user) => user.displayName || user.email || '';
 
@@ -115,8 +123,9 @@ export async function createItem(board, input, user) {
     createdBy: user.uid, createdByName: nameOf(user),
     createdAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: user.uid,
   });
-  activityWrite(batch, ref.id, user, 'created', `created "${item.title}"${item.docRefs.length ? ` with ${item.docRefs.length} linked document(s)` : ''}`);
+  activityWrite(batch, ref.id, user, 'created', `created ${item.parentId ? 'the subtask' : ''} "${item.title}"${item.docRefs.length ? ` with ${item.docRefs.length} linked document(s)` : ''}`);
   await batch.commit();
+  tellAssigned(board, { ...item, id: ref.id, boardId: board.id }, item.assignees, user);
   return ref.id;
 }
 
@@ -144,6 +153,13 @@ function describe(before, after, board) {
   if (unlinked.length) out.push(['unlinked', `removed ${unlinked.length} linked document(s)`]);
   if ((before.description || '') !== after.description) out.push(['edited', 'edited the description']);
   if ((before.tags || []).join() !== after.tags.join()) out.push(['edited', `tags: ${after.tags.join(', ') || 'none'}`]);
+  const was = Object.fromEntries((before.checklist || []).map((c) => [c.id, c]));
+  const now = Object.fromEntries(after.checklist.map((c) => [c.id, c]));
+  for (const c of after.checklist) {
+    if (!was[c.id]) out.push(['checklist', `added to the checklist: ${c.text}`]);
+    else if (was[c.id].done !== c.done) out.push(['checklist', `${c.done ? 'checked off' : 'unchecked'}: ${c.text}`]);
+  }
+  for (const c of before.checklist || []) if (!now[c.id]) out.push(['checklist', `removed from the checklist: ${c.text}`]);
   return out;
 }
 
@@ -162,16 +178,51 @@ export async function saveItem(board, before, input, user) {
   });
   for (const [type, text] of changes) activityWrite(batch, before.id, user, type, text);
   await batch.commit();
+  tellAssigned(board, { ...item, id: before.id, boardId: before.boardId }, item.assignees.filter((u) => !(before.assignees || []).includes(u)), user);
 }
 
-// An assignee who is not a member of the board changes only the status of their item.
-export async function setItemStatus(board, before, status, user) {
+// An assignee who is not a member of the board changes only the status and the checklist of
+// their item.
+export async function setItemStatus(board, before, status, user, checklist = before.checklist || []) {
+  const after = cleanItem({ ...before, status, checklist });
+  const changes = describe(before, after, board).filter(([type]) => type === 'status' || type === 'checklist');
+  if (!changes.length) return;
   const batch = writeBatch(db);
   batch.update(doc(db, 'workItems', before.id), {
-    status, completedOn: status === 'done' ? (before.completedOn || today()) : '', updatedAt: serverTimestamp(), updatedBy: user.uid,
+    status: after.status, checklist: after.checklist, completedOn: after.status === 'done' ? (before.completedOn || today()) : '',
+    updatedAt: serverTimestamp(), updatedBy: user.uid,
   });
-  activityWrite(batch, before.id, user, 'status', `status: ${status.replace('_', ' ')}`);
+  for (const [type, text] of changes) activityWrite(batch, before.id, user, type, text);
   await batch.commit();
+}
+
+// ---- Comments (workItems/{id}/comments): whoever may see the item writes them, as themselves;
+// they are never changed or removed. Mentioned people are notified. ----
+export async function listComments(itemId, max = 100) {
+  const snap = await getDocs(query(collection(db, 'workItems', itemId, 'comments'), orderBy('at', 'asc'), limit(max)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+export async function addComment(board, item, text, mentions, user) {
+  const t = String(text || '').trim();
+  if (!t) throw new Error('Write the comment.');
+  await addDoc(collection(db, 'workItems', item.id, 'comments'), {
+    text: t.slice(0, 2000), mentions: [...new Set(mentions)].slice(0, 20), by: user.uid, byName: nameOf(user), at: serverTimestamp(),
+  });
+  if (mentions.length) {
+    notifyMany(mentions, { kind: 'mention', text: `mentioned you on "${item.title}": ${t.slice(0, 160)}`, link: itemLink(item) }, user).catch(() => {});
+  }
+}
+
+// My Work → Mentions: the user's recent mention notices (newest first).
+export async function listMentions(uid, max = 30) {
+  const snap = await getDocs(query(collection(db, 'users', uid, 'notifications'), where('kind', '==', 'mention'), limit(100)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, max);
+}
+
+// The subtasks of an item (items whose parentId is it, on its board).
+export async function listSubtasks(item) {
+  const snap = await getDocs(query(collection(db, 'workItems'), where('boardId', '==', item.boardId), where('parentId', '==', item.id), limit(100)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 // Board managers and the item's creator. (Its activity stays, unreachable; a later phase may

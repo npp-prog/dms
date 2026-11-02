@@ -298,6 +298,12 @@ Totals are computed as you type. On the Liquidation Report, for example, DMS com
 - **From a document**: the **Work items** card on its page lists the items that link it (on your boards), with **+ Create work item** (a new item on one of your boards, already linked to it) and **+ Add to a work item**.
 - **My Work** (menu, under Work) lists the open items assigned to you on every board: **Overdue**, **Due today**, **Next 7 days**, **Blocked**, and **For my review** (items you created that someone marked For Review). Someone assigned to an item but only a viewer on its board can change its status. The **Dashboard** shows overdue work, work due today, blocked work and work due this week; each opens My Work.
 - Due dates are calendar days in Philippine time; an item completed is never overdue.
+- **Kanban**: the **Table / Kanban** switch at the top of a board (remembered on your device) shows the items as cards in a column per status; drag a card to another column to change its status (members, or the item's assignee). It changes only the task's status. Subtasks show in the table, under their item.
+- **Checklist**: in an item, type a line and **Add**; tick lines as they are done (the assignee can tick them too); **Save** keeps the changes. The table shows ✓ done/total.
+- **Subtasks**: in an item, **Add subtask** creates a work item under it (shown indented in the table); open it to assign it or set its dates.
+- **Comments**: in an item, write a comment and click **Comment**. **Mention someone…** adds *@Name* of a person on the board: they are notified (Notifications, and My Work → **Mentions**). Comments cannot be edited or deleted.
+- **Notifications**: you are notified when someone assigns you a work item or mentions you; the notice opens the item.
+- **Linked documents** show where each is on its route: *Under review* or *Awaiting approval* (a step that signs) at an office, *Returned for correction*, *Forwarded* to a person, or *Completed*, with *Step 2 of 4*.
 
 ## 5. Using DMS as an administrator
 

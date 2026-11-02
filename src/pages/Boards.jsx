@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { createBoard, getBoard, listBoardItems, listBoards, updateBoard } from '../lib/work.js';
-import { BOARD_TEMPLATES, SORTS, WORK_STATUSES, boardRole, dueState, nextGroupId, templateOf } from '../lib/workModel.js';
+import { createBoard, getBoard, listBoardItems, listBoards, saveItem, setItemStatus, updateBoard } from '../lib/work.js';
+import { BOARD_TEMPLATES, SORTS, WORK_STATUSES, boardRole, checklistProgress, dueState, nextGroupId, templateOf } from '../lib/workModel.js';
 import { localDay } from '../lib/archiveFiles.js';
 import Select from '../components/Select.jsx';
 import PersonPicker from '../components/PersonPicker.jsx';
@@ -13,9 +13,13 @@ import { Assignees, Priority, WorkStatus, day } from '../components/WorkBits.jsx
 // creates one from a template; /boards/:boardId is a board: its groups of work items as a table,
 // filters, the item details panel and (managers) its settings.
 export default function Boards() {
-  const { boardId } = useParams();
-  return boardId ? <Board key={boardId} boardId={boardId} /> : <BoardList />;
+  const { boardId, itemId } = useParams();
+  return boardId ? <Board key={boardId} boardId={boardId} itemId={itemId} /> : <BoardList />;
 }
+
+// The view of a board (table or Kanban), remembered on this device.
+const viewKey = (id) => `dms-board-view-${id}`;
+const savedView = (id) => { try { return localStorage.getItem(viewKey(id)) || 'table'; } catch { return 'table'; } };
 
 function BoardList() {
   const { actor, isAdmin, settings, profile } = useAuth();
@@ -127,8 +131,12 @@ function PeopleEditor({ people, onChange, exclude = [] }) {
   );
 }
 
-function Board({ boardId }) {
+function Board({ boardId, itemId }) {
   const { actor, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const [view, setView] = useState(() => savedView(boardId));
+  const chooseView = (v) => { setView(v); try { localStorage.setItem(viewKey(boardId), v); } catch { /* not kept */ } };
+  const [dragOver, setDragOver] = useState('');
   const [board, setBoard] = useState(undefined);
   const [items, setItems] = useState(null);
   const [error, setError] = useState('');
@@ -151,6 +159,26 @@ function Board({ boardId }) {
     }
   };
   useEffect(() => { load(); }, [boardId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // /boards/:boardId/:itemId (e.g. from a notification): that item's details.
+  useEffect(() => {
+    if (!itemId || !items) return;
+    const it = items.find((i) => i.id === itemId);
+    if (it) setOpen({ item: it });
+  }, [itemId, items]);
+  // (Reloads the board: the panel may have added subtasks or comments.)
+  const closePanel = () => { setOpen(null); if (itemId) navigate(`/boards/${boardId}`, { replace: true }); load(); };
+  // A status change from the Kanban board: the same rules as the item panel (members; an assignee
+  // for their own item). It is the task's status only: no document is approved or routed.
+  const moveTo = async (item, status) => {
+    if (item.status === status) return;
+    const r = boardRole(board, actor.uid, isAdmin);
+    try {
+      if (r === 'manager' || r === 'member') await saveItem(board, item, { status }, actor);
+      else if ((item.assignees || []).includes(actor.uid)) await setItemStatus(board, item, status, actor);
+      else return;
+      await load();
+    } catch (e) { setError(e.code === 'permission-denied' ? 'You may not change this work item.' : e.message); }
+  };
 
   const role = boardRole(board, actor.uid, isAdmin);
   const shown = useMemo(() => {
@@ -173,6 +201,10 @@ function Board({ boardId }) {
           <h1>{board.name}</h1>
         </div>
         <div className="row gap">
+          <span className="wk-view-switch" role="group" aria-label="View">
+            <button type="button" className={view === 'table' ? 'active' : ''} aria-pressed={view === 'table'} onClick={() => chooseView('table')}>Table</button>
+            <button type="button" className={view === 'kanban' ? 'active' : ''} aria-pressed={view === 'kanban'} onClick={() => chooseView('kanban')}>Kanban</button>
+          </span>
           {role === 'manager' && <button type="button" className={`btn btn-sm${settingsOpen ? ' btn-primary' : ''}`} onClick={() => setSettingsOpen((x) => !x)}>Settings</button>}
         </div>
       </div>
@@ -189,8 +221,47 @@ function Board({ boardId }) {
         </Select>
         <label className="check small"><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Assigned to me</label>
       </div>
-      {!items ? <div className="spinner" /> : (board.groups || []).map((g) => {
-        const rows = shown.filter((i) => i.groupId === g.id || (!board.groups.some((x) => x.id === i.groupId) && g === board.groups[0]));
+      {error && <div className="alert">{error}</div>}
+      {items && view === 'kanban' && (
+        <div className="wk-kanban">
+          {WORK_STATUSES.map((st) => {
+            const cards = shown.filter((i) => !i.parentId && i.status === st.id);
+            return (
+              <div key={st.id} className={`wk-col${dragOver === st.id ? ' over' : ''}`}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(st.id); }} onDragLeave={() => setDragOver('')}
+                onDrop={(e) => { e.preventDefault(); setDragOver(''); const it = items.find((x) => x.id === e.dataTransfer.getData('text/plain')); if (it) moveTo(it, st.id); }}>
+                <div className="wk-col-head"><WorkStatus id={st.id} /><span className="xs muted">{cards.length}</span></div>
+                {cards.map((i) => {
+                  const ds = dueState(i, today);
+                  const movable = canEdit || (i.assignees || []).includes(actor.uid);
+                  const cp = checklistProgress(i.checklist);
+                  const subs = items.filter((x) => x.parentId === i.id);
+                  return (
+                    <div key={i.id} className="wk-card" draggable={movable} tabIndex={0}
+                      onDragStart={(e) => e.dataTransfer.setData('text/plain', i.id)}
+                      onClick={() => setOpen({ item: i })} onKeyDown={(e) => e.key === 'Enter' && setOpen({ item: i })}>
+                      <b>{i.title}</b>
+                      <span className="xs muted">{(board.groups || []).find((g) => g.id === i.groupId)?.name}{cp.total ? ` · ✓ ${cp.done}/${cp.total}` : ''}{subs.length ? ` · ${subs.filter((x) => x.status === 'done').length}/${subs.length} subtasks` : ''}{(i.docRefs || []).length ? ` · ${i.docRefs.length} doc(s)` : ''}</span>
+                      <div className="wk-card-foot">
+                        <Priority id={i.priority} />
+                        <span className={`xs wk-due wk-due-${ds}`}>{i.dueDate ? day(i.dueDate) : ''}</span>
+                        <Assignees item={i} names={board.names} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {items && view === 'kanban' && <p className="xs muted">Drag a card to change its status (the task's progress only: documents keep their own route and approvals). Subtasks show in the table.</p>}
+      {!items ? <div className="spinner" /> : view !== 'table' ? null : (board.groups || []).map((g) => {
+        const inGroup = shown.filter((i) => i.groupId === g.id || (!board.groups.some((x) => x.id === i.groupId) && g === board.groups[0]));
+        // Items, each followed by its subtasks (a subtask whose parent is filtered out shows on its own).
+        const ids = new Set(inGroup.map((i) => i.id));
+        const rows = inGroup.filter((i) => !i.parentId || !ids.has(i.parentId))
+          .flatMap((i) => [i, ...inGroup.filter((x) => x.parentId === i.id)]);
         return (
           <section key={g.id} className="wk-group">
             <div className="wk-group-head"><h3>{g.name}</h3><span className="xs muted">{rows.length}</span></div>
@@ -201,9 +272,11 @@ function Board({ boardId }) {
                   {rows.map((i) => {
                     const ds = dueState(i, today);
                     return (
-                      <tr key={i.id} className="wk-row" onClick={() => setOpen({ item: i })} tabIndex={0}
+                      <tr key={i.id} className={`wk-row${i.parentId && ids.has(i.parentId) ? ' wk-sub-row' : ''}`} onClick={() => setOpen({ item: i })} tabIndex={0}
                         onKeyDown={(e) => e.key === 'Enter' && setOpen({ item: i })}>
-                        <td className="wk-title"><b>{i.title}</b>{(i.tags || []).length > 0 && <span className="xs muted"> {i.tags.join(', ')}</span>}</td>
+                        <td className="wk-title">{i.parentId && ids.has(i.parentId) && <span className="xs muted">↳ </span>}<b>{i.title}</b>
+                          {checklistProgress(i.checklist).total > 0 && <span className="wk-progress">✓ {checklistProgress(i.checklist).done}/{checklistProgress(i.checklist).total}</span>}
+                          {(i.tags || []).length > 0 && <span className="xs muted"> {i.tags.join(', ')}</span>}</td>
                         <td><WorkStatus id={i.status} /></td>
                         <td><Priority id={i.priority} /></td>
                         <td><Assignees item={i} names={board.names} /></td>
@@ -224,9 +297,9 @@ function Board({ boardId }) {
       {items && items.length >= 500 && <p className="xs muted">Showing the first 500 items of this board.</p>}
       {open && (
         <>
-          <div className="wk-backdrop" onClick={() => setOpen(null)} />
-          <WorkItemPanel board={board} item={open.item || null} draft={open.draft} role={role}
-            onClose={() => setOpen(null)} onSaved={() => { setOpen(null); load(); }} />
+          <div className="wk-backdrop" onClick={closePanel} />
+          <WorkItemPanel key={open.item?.id || 'new'} board={board} item={open.item || null} draft={open.draft} role={role}
+            onClose={closePanel} onSaved={() => { closePanel(); load(); }} />
         </>
       )}
     </div>

@@ -68,6 +68,18 @@ startDate, dueDate, completedOn, tags[], docRefs[], createdBy, createdByName, cr
 - A top-level collection (not under the board) so **My Work** can find a user's items on every board
   with one query (`assignees array-contains uid`).
 
+Phase 2 adds to work items: `checklist[{id, text, done}]` (up to 50; stable ids) and `parentId` (a
+**subtask** is a work item whose `parentId` is another item on the same board).
+
+### `workItems/{itemId}/comments/{commentId}` (Phase 2)
+`text, mentions[], by, byName, at` — written by anyone who may see the item, as themselves, at the
+server's time; **never changed or deleted**. `mentions` must be people on the board; each is notified.
+
+### Notifications (existing collection, two new kinds)
+`users/{uid}/notifications` gains `kind: 'work'` (someone assigned you an item) and `kind: 'mention'`
+(someone mentioned you in a comment). Their link (`/boards/{boardId}/{itemId}`) opens the item. They
+show in the existing Notifications page (and are emailed like the others), and mentions in My Work.
+
 ### `workItems/{itemId}/activity/{eventId}`
 `type, text, by, byName, at` — the item's timeline (created, status, assigned, due date, moved,
 documents linked). Written in the same batch as the change; **append-only**: the rules allow adding
@@ -109,11 +121,17 @@ date; full-text search across boards would need a search service (e.g. a Netlify
 index), which is a separate, billed decision.
 
 ## 6. Phases
-1. **Done — Boards and My Work:** boards from templates, groups, items (title, description, status,
+1. **Done (Phase 1) — Boards and My Work:** boards from templates, groups, items (title, description, status,
    priority, assignees, office, start/due dates, tags), table view with filters and sorting, item
    panel, linked DMS documents (with their route shown, restricted ones hidden), document page card,
    dashboard rows, activity timeline, permissions.
-2. Kanban view, comments and mentions, checklists and subtasks, in-app notifications for assignments.
+2. **Done (Phase 2) — collaboration and workflow visibility:** Kanban view (drag a card to change the
+   task's status, with the same permissions as the table; never a document action), checklists
+   (assignees tick them), subtasks (nested under their item in the table), comments with @mentions
+   (append-only), notifications for assignments and mentions, a direct address per item, My Work →
+   Mentions, and each linked document's route state: *Under review*, *Awaiting approval* (a step that
+   signs), *Returned for correction*, *Forwarded* (referred to a person), *Completed*, with *Step n of m*.
+   (DMS has no "awaiting receipt": documents are no longer received.)
 3. Projects: code, office, manager and members, dates, milestones, risks and issues, progress
    updates (manual physical progress with a required explanation), linked documents and work items,
    calendar view. Financial figures only from explicitly defined, authorized sources.

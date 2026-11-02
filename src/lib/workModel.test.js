@@ -58,3 +58,26 @@ test('work items keep only what they may hold', () => {
   assert.deepEqual(i.docRefs, ['d1']);
   assert.deepEqual(i.assignees, ['u']);
 });
+
+import { checklistProgress, mentionsIn, routeState } from './workModel.js';
+test('checklist, subtasks and mentions', () => {
+  const i = cleanItem({ title: 'x', checklist: [{ id: 'c1', text: ' OR attached ', done: 1 }, { id: 'c2', text: '  ' }], parentId: 'p1' });
+  assert.deepEqual(i.checklist, [{ id: 'c1', text: 'OR attached', done: true }]); // blank lines dropped
+  assert.equal(i.parentId, 'p1');
+  assert.deepEqual(checklistProgress([{ done: true }, { done: false }]), { done: 1, total: 2 });
+  const people = [{ uid: 'a', name: 'Ana Reyes' }, { uid: 'b', name: 'Ben Budget' }];
+  assert.deepEqual(mentionsIn('Please check, @Ana Reyes', people), ['a']);
+  assert.deepEqual(mentionsIn('no one', people), []);
+});
+
+test("a linked document's route, as the DMS workflow says (read only)", () => {
+  const office = (s) => s?.routedTo || 'Requesting office';
+  const steps = [{ action: 'Prepare' }, { routedTo: 'Accounting', action: 'Pre-audit', sign: true }, { routedTo: 'Treasury', action: 'Pay' }];
+  assert.equal(routeState({ status: 'draft' }).label, 'Draft');
+  assert.equal(routeState({ workflow: { state: 'in-progress', stage: 1, steps, events: [{ type: 'released' }] } }, office).label, 'Awaiting approval: Accounting');
+  assert.equal(routeState({ workflow: { state: 'in-progress', stage: 2, steps, events: [] } }, office).label, 'Under review: Treasury');
+  assert.equal(routeState({ workflow: { state: 'in-progress', stage: 0, steps, events: [{ type: 'returned' }] } }, office).label, 'Returned for correction to Requesting office');
+  assert.equal(routeState({ workflow: { state: 'in-progress', stage: 1, steps, events: [], referral: { name: 'Leo' } } }, office).label, 'Forwarded to Leo');
+  assert.equal(routeState({ workflow: { state: 'done', stage: 2, steps, events: [] } }, office).label, 'Completed');
+  assert.equal(routeState({ workflow: { state: 'in-progress', stage: 1, steps, events: [] } }, office).step, 'Step 2 of 3');
+});

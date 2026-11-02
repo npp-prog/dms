@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getDocument } from '../lib/api.js';
 import { officeOf } from '../lib/workflow.js';
-import { priorityOf, statusOf } from '../lib/workModel.js';
+import { priorityOf, routeState, statusOf } from '../lib/workModel.js';
 import StatusBadge from './StatusBadge.jsx';
 import { Avatar } from './Icon.jsx';
 
@@ -29,17 +29,6 @@ export const Assignees = ({ item, names = {}, max = 3 }) => {
 };
 export const day = (s) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 
-// Where a document is on its DMS route, in words (the DMS workflow is the authority).
-function routeLine(d) {
-  const wf = d.workflow;
-  if (!wf) return d.status === 'draft' ? 'Draft, not routed' : 'Not routed';
-  if (wf.state === 'done') return 'Processed';
-  if (wf.state === 'cancelled') return 'Cancelled';
-  if (wf.referral) return `Referred to ${wf.referral.name || 'a person'}`;
-  const step = wf.steps?.[wf.stage];
-  const last = wf.events?.at(-1)?.type;
-  return `${last === 'returned' ? 'Returned to' : 'With'} ${officeOf(step, d) || 'the preparer'}${step?.action ? `: ${step.action}` : ''}`;
-}
 
 // The DMS documents an item links, by id: read with the user's own access. A document they may not
 // open shows as restricted, with nothing of it (no number, title or status).
@@ -65,7 +54,13 @@ export function LinkedDocuments({ docRefs = [], onRemove }) {
                     <span className="wk-doc-body">
                       <Link to={`/documents/${id}`} className="wk-doc-no">{d.controlNo}</Link>
                       <span className="small">{d.typeName}{d.title ? ` · ${d.title}` : ''}</span>
-                      <span className="xs muted wk-doc-route"><StatusBadge doc={d} /> {routeLine(d)}</span>
+                      {(() => {
+                        const r = routeState(d, officeOf);
+                        return (
+                          <span className="xs wk-doc-route"><StatusBadge doc={d} /> <span className={`wk-route wk-route-${r.tone}`}>{r.label}</span>
+                            {r.step && <span className="muted">{r.step}{r.action ? ` · ${r.action}` : ''}</span>}</span>
+                        );
+                      })()}
                     </span>
                   )}
             {onRemove && <button type="button" className="btn-icon" title="Remove the link" onClick={() => onRemove(id)}>×</button>}
