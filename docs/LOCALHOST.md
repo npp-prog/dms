@@ -303,6 +303,19 @@ Totals are computed as you type. On the Liquidation Report, for example, DMS com
 - **Subtasks**: in an item, **Add subtask** creates a work item under it (shown indented in the table); open it to assign it or set its dates.
 - **Comments**: in an item, write a comment and click **Comment**. **Mention someone…** adds *@Name* of a person on the board: they are notified (Notifications, and My Work → **Mentions**). Comments cannot be edited or deleted.
 - **Notifications**: you are notified when someone assigns you a work item or mentions you; the notice opens the item.
+- **Calendar**: the third view of a board shows its work items on their due dates (red: overdue, yellow: blocked, green: completed); ‹ › change the month.
+
+### Projects
+
+**Projects** (menu, under Work) keep municipal projects: **+ New project** with its **project code**, name, **implementing office**, status (Planning, Ongoing, On Hold, Completed, Cancelled), start and target completion dates, and, if it applies, the **funding source** and **approved budget**; add people as **Manager** (details, people and budget), **Member** (milestones, progress, issues, links) or **Viewer**. A project's tabs:
+- **Overview**: its details, **physical progress** and **funding**. **Update progress** sets the physical progress (%) with a required **explanation** (what was accomplished and how it was measured); every update is kept, with who made it and when, and cannot be changed. Financial figures are kept apart: only the approved budget, entered by a manager; obligations and disbursements are not computed from document amounts.
+- **Milestones**: add them with a due date; tick one when done (overdue ones show in red, and on the Dashboard as **Upcoming milestones** in the next 14 days).
+- **Risks & issues**: record a risk, issue or blocker with its severity; **Mark resolved** (or **Reopen**).
+- **Work items**: **Relate a board**, then the board's work items whose **Related project** is this one are listed here; **+ New work item for this project** adds one. In any work item, **Related project** sets it.
+- **Documents**: **+ Link a DMS document** (or upload one first). As on boards, someone on the project who may not open a document sees it as restricted.
+- **Calendar**: milestones (◆) and the due dates of the project's work items.
+On a document's page, the **Work items and projects** card also lists the projects that link it, with **Link to a project…**.
+
 - **Linked documents** show where each is on its route: *Under review* or *Awaiting approval* (a step that signs) at an office, *Returned for correction*, *Forwarded* to a person, or *Completed*, with *Step 2 of 4*.
 
 ## 5. Using DMS as an administrator

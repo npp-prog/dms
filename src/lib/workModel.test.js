@@ -81,3 +81,29 @@ test("a linked document's route, as the DMS workflow says (read only)", () => {
   assert.equal(routeState({ workflow: { state: 'done', stage: 2, steps, events: [] } }, office).label, 'Completed');
   assert.equal(routeState({ workflow: { state: 'in-progress', stage: 1, steps, events: [] } }, office).step, 'Step 2 of 3');
 });
+
+import { cleanMilestones, cleanProject, monthGrid, overdueMilestones, peso, upcomingMilestones } from './workModel.js';
+test('projects: details, budget, milestones', () => {
+  const p = cleanProject({ code: ' dms-2026 ', name: 'DMS improvements', status: 'approved', approvedBudget: '1,250,000.555', startDate: 'soon' });
+  assert.equal(p.code, 'DMS-2026');
+  assert.equal(p.status, 'planning');
+  assert.equal(p.approvedBudget, 1250000.56);
+  assert.equal(p.startDate, '');
+  assert.equal(cleanProject({ code: 'X', name: 'Y', approvedBudget: '' }).approvedBudget, null); // no budget, not zero
+  assert.equal(cleanProject({ code: 'X', name: 'Y', approvedBudget: -5 }).approvedBudget, null);
+  assert.equal(peso(1250000.5), '₱1,250,000.50');
+  assert.deepEqual(cleanMilestones([{ id: 'm1', title: ' Bid opening ', dueDate: '2026-11-10' }, { title: ' ' }]), [{ id: 'm1', title: 'Bid opening', dueDate: '2026-11-10', done: false, doneOn: '' }]);
+  const projects = [{ id: 'a', code: 'A', name: 'A', milestones: [
+    { id: '1', title: 'soon', dueDate: '2026-11-05', done: false }, { id: '2', title: 'later', dueDate: '2026-12-30', done: false },
+    { id: '3', title: 'late', dueDate: '2026-10-01', done: false }, { id: '4', title: 'done', dueDate: '2026-11-04', done: true }] }];
+  assert.deepEqual(upcomingMilestones(projects, '2026-11-02').map((m) => m.title), ['soon']);
+  assert.deepEqual(overdueMilestones(projects[0], '2026-11-02').map((m) => m.title), ['late']);
+});
+
+test('calendar month: 6 weeks, Monday first', () => {
+  const g = monthGrid(2026, 10); // November 2026 (starts on a Sunday)
+  assert.equal(g.length, 42);
+  assert.equal(g[0].day, '2026-10-26'); // the Monday before
+  assert.equal(g.find((d) => d.inMonth).day, '2026-11-01');
+  assert.equal(g.filter((d) => d.inMonth).length, 30);
+});

@@ -6,13 +6,17 @@ import { PRIORITIES, WORK_STATUSES, checklistProgress, mentionsIn, newCheckId } 
 import Select from './Select.jsx';
 import { LinkEditor } from './DocLinks.jsx';
 import { LinkedDocuments, WorkStatus } from './WorkBits.jsx';
+import { listProjects } from '../lib/projects.js';
 
 const when = (t) => (t?.toDate ? t.toDate().toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 // A work item's details: everything about it, editable by the board's members (an assignee who is
 // not one changes its status only; a viewer reads). item: null for a new one (groupId in draft).
 export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, onClose }) {
-  const { actor, settings, profile } = useAuth();
+  const { actor, settings, profile, isAdmin } = useAuth();
+  // Projects the user is on, for "Related project".
+  const [projects, setProjects] = useState([]);
+  useEffect(() => { listProjects(actor, { all: isAdmin }).then(setProjects).catch(() => setProjects([])); }, [actor.uid, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
   const isNew = !item;
   const assignedToMe = Boolean(item && (item.assignees || []).includes(actor.uid));
   const canEdit = role === 'manager' || role === 'member';
@@ -20,7 +24,7 @@ export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, 
   const canDelete = Boolean(item) && (role === 'manager' || item.createdBy === actor.uid);
   const [f, setF] = useState(() => ({
     title: '', description: '', groupId: board.groups?.[0]?.id || 'g1', status: 'not_started', priority: 'medium',
-    assignees: [], office: board.office || profile.office || '', startDate: '', dueDate: '', tags: [], docRefs: [], checklist: [], parentId: '',
+    assignees: [], office: board.office || profile.office || '', startDate: '', dueDate: '', tags: [], docRefs: [], checklist: [], parentId: '', projectId: '',
     ...draft, ...(item || {}),
   }));
   const [tagText, setTagText] = useState((item?.tags || draft.tags || []).join(', '));
@@ -107,6 +111,12 @@ export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, 
           <Select value={f.office} onChange={set('office')} disabled={ro}>
             <option value="">—</option>
             {offices.map((o) => <option key={o} value={o}>{o}</option>)}
+          </Select></label>
+        <label className="field"><span className="field-label">Related project</span>
+          <Select value={f.projectId} onChange={set('projectId')} disabled={ro}>
+            <option value="">—</option>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+            {f.projectId && !projects.some((p) => p.id === f.projectId) && <option value={f.projectId}>A project you are not on</option>}
           </Select></label>
         <label className="field"><span className="field-label">Start date</span>
           <input type="date" value={f.startDate} onChange={set('startDate')} disabled={ro} /></label>

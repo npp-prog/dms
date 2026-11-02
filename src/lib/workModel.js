@@ -140,6 +140,8 @@ export function cleanItem(input) {
       .slice(0, ITEM_LIMITS.checklist),
     // A subtask: the id of its parent item (on the same board); '' for an item.
     parentId: String(input.parentId || ''),
+    // The project it belongs to (projects/{id}), if any.
+    projectId: String(input.projectId || ''),
   };
 }
 
@@ -169,3 +171,61 @@ export function routeState(d, officeOfStep = (s) => s?.routedTo || s?.office || 
   if (s?.sign) return { label: `Awaiting approval: ${holder}`, tone: 'yellow', step, action: s.action || '' };
   return { label: `Under review: ${holder}`, tone: 'blue', step, action: s?.action || '' };
 }
+
+// ---- Projects (Phase 3) ----
+// Physical progress is entered by hand with a required explanation (progress updates); it is never
+// computed from documents. Money: only the approved budget and its funding source, entered by the
+// project's managers. Obligations and disbursements are not inferred from document amounts.
+export const PROJECT_STATUSES = [
+  { id: 'planning', label: 'Planning', tone: 'gray' },
+  { id: 'ongoing', label: 'Ongoing', tone: 'blue' },
+  { id: 'on_hold', label: 'On Hold', tone: 'yellow' },
+  { id: 'completed', label: 'Completed', tone: 'green' },
+  { id: 'cancelled', label: 'Cancelled', tone: 'red' },
+];
+export const PROJECT_STATUS_IDS = PROJECT_STATUSES.map((s) => s.id);
+export const projectStatusOf = (id) => PROJECT_STATUSES.find((s) => s.id === id) || PROJECT_STATUSES[0];
+export const ISSUE_TYPES = [{ id: 'risk', label: 'Risk' }, { id: 'issue', label: 'Issue' }, { id: 'blocker', label: 'Blocker' }];
+export const SEVERITIES = [{ id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
+
+const dayOk = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) ? s : '');
+export function cleanProject(input) {
+  const budget = input.approvedBudget === '' || input.approvedBudget === null || input.approvedBudget === undefined ? null : Number(String(input.approvedBudget).replace(/,/g, ''));
+  return {
+    code: String(input.code || '').trim().toUpperCase().slice(0, 30),
+    name: String(input.name || '').trim().slice(0, 160),
+    description: String(input.description || '').slice(0, 4000),
+    office: String(input.office || ''),
+    startDate: dayOk(input.startDate),
+    targetDate: dayOk(input.targetDate),
+    status: PROJECT_STATUS_IDS.includes(input.status) ? input.status : 'planning',
+    fundingSource: String(input.fundingSource || '').trim().slice(0, 160),
+    approvedBudget: budget !== null && Number.isFinite(budget) && budget >= 0 ? Math.round(budget * 100) / 100 : null,
+  };
+}
+// Milestones (on the project): [{ id, title, dueDate, done, doneOn }].
+export function cleanMilestones(list = []) {
+  return list.filter((m) => String(m?.title || '').trim()).slice(0, 50).map((m) => ({
+    id: String(m.id || ''), title: String(m.title).trim().slice(0, 160), dueDate: dayOk(m.dueDate), done: Boolean(m.done), doneOn: m.done ? dayOk(m.doneOn) : '',
+  }));
+}
+// Milestones due within `days` days (not done), across projects: for the Dashboard.
+export function upcomingMilestones(projects, today, days = 14) {
+  const until = addDays(today, days);
+  return projects.flatMap((p) => (p.milestones || []).filter((m) => !m.done && m.dueDate && m.dueDate >= today && m.dueDate <= until)
+    .map((m) => ({ ...m, projectId: p.id, projectCode: p.code, projectName: p.name })))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
+export const overdueMilestones = (p, today) => (p.milestones || []).filter((m) => !m.done && m.dueDate && m.dueDate < today);
+
+// A month for the calendar view: 6 weeks of days (YYYY-MM-DD), Monday first; inMonth for the month's own days.
+export function monthGrid(year, month) {
+  const first = new Date(Date.UTC(year, month, 1));
+  const start = new Date(first);
+  start.setUTCDate(1 - ((first.getUTCDay() + 6) % 7));
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start); d.setUTCDate(start.getUTCDate() + i);
+    return { day: d.toISOString().slice(0, 10), inMonth: d.getUTCMonth() === month };
+  });
+}
+export const peso = (n) => (n === null || n === undefined || n === '' ? '—' : `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);

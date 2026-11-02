@@ -37,14 +37,32 @@ Tests: work-model tests (checklists, mentions, route states); 15 more emulator r
 mentions, checklist by assignee, notification kinds, outsiders); browser run (checklist, subtask,
 comment with mention, Kanban drag, mention in My Work, notification link opens the item).
 
+## Phase 3 — Projects (implemented)
+| Feature | Status |
+|---|---|
+| Projects: code, name, description, implementing office, manager/members/viewers, start and target dates, status | Done |
+| Funding source and approved budget (entered by managers; nothing inferred from documents) | Done |
+| Milestones (due dates, done, overdue), upcoming milestones on the Dashboard | Done |
+| Risks, issues and blockers (severity, resolve/reopen) | Done |
+| Progress updates: physical % with a required explanation, append-only; latest shown | Done |
+| Linked DMS documents (ids only; restricted ones hidden); projects on the document page | Done |
+| Related boards and their work items (`projectId`); new item for the project | Done |
+| Calendar view: boards (items by due date) and projects (milestones and items) | Done |
+| Firestore rules for projects, updates, issues; `projectId` on work items | Done — **publish firestore.rules** |
+
+Tests: work-model tests (project cleaning, budget, milestones, calendar grid); 19 emulator rule checks
+(roles, budget only by managers, progress only with an explanation, append-only updates, issues, outsiders,
+items related to a project); browser run (create project, milestone, progress update, issue, link document,
+relate board, item for the project, both calendars, document page, dashboard).
+
 ## Not yet (next phases)
-- Phase 3: Projects (milestones, risks, progress, linked documents), calendar view.
 - Phase 4: Reports, CSV export, deadline reminders, saved views, configurable columns.
 
-## Known limitations (Phases 1 and 2)
+## Known limitations (Phases 1–3)
 - Activity events are written by the browser (validated and append-only in the rules), not yet by a trusted backend.
 - Boards load at most 500 items; My Work 300 (no paging yet).
 - Deleting an item leaves its activity entries (unreachable).
 - Removing a person from a board does not unassign them from its items (they keep seeing those items as assignees).
 - Kanban moves by drag and drop with a mouse; on a phone or by keyboard, open the item and change its status there.
 - Notifications for assignments and mentions are sent by the browser (like the DMS's other notices), not a backend.
+- Projects: physical progress is manual (no weighted milestones yet); a project lists work items only from related boards the user is on; the project list loads at most 200 projects.

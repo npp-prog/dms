@@ -72,7 +72,7 @@ export default function Layout() {
       ],
     },
     // Work management: tasks and boards around the documents (docs/work-management-integration.md).
-    { label: 'Work', items: [['/my-work', 'check', 'My Work'], ['/boards', 'types', 'Boards']] },
+    { label: 'Work', items: [['/my-work', 'check', 'My Work'], ['/boards', 'types', 'Boards'], ['/projects', 'folder', 'Projects']] },
     { label: 'Account', items: [['/messages', 'chat', 'Messages', false, unread], ['/communities', 'users', 'Communities', false, groupUnread], ['/profile', 'user', 'My Profile']] },
     isAdmin && {
       label: 'Administration',

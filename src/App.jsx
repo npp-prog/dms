@@ -30,6 +30,7 @@ import ChecklistView from './pages/ChecklistView.jsx';
 import ChecklistEditor from './pages/admin/ChecklistEditor.jsx';
 import Boards from './pages/Boards.jsx';
 import MyWork from './pages/MyWork.jsx';
+import Projects from './pages/Projects.jsx';
 
 // Work management (Boards, My Work): LGU personnel, not third parties.
 function StaffOnly({ children }) {
@@ -89,6 +90,8 @@ export default function App() {
         <Route path="boards" element={<StaffOnly><Boards /></StaffOnly>} />
         <Route path="boards/:boardId" element={<StaffOnly><Boards /></StaffOnly>} />
         <Route path="boards/:boardId/:itemId" element={<StaffOnly><Boards /></StaffOnly>} />
+        <Route path="projects" element={<StaffOnly><Projects /></StaffOnly>} />
+        <Route path="projects/:projectId" element={<StaffOnly><Projects /></StaffOnly>} />
         <Route path="workflow" element={<Navigate to="/tracking" replace />} />
         <Route path="documents" element={<Documents />} />
         <Route path="documents/:docId" element={<DocumentView />} />

@@ -6,6 +6,7 @@ import { boardRole } from '../lib/workModel.js';
 import Select from './Select.jsx';
 import WorkItemPanel from './WorkItemPanel.jsx';
 import { WorkStatus, day } from './WorkBits.jsx';
+import { listProjects, projectsLinking, updateProject } from '../lib/projects.js';
 
 // On a document's page: the work items that link it (on the boards the user can see), and creating
 // one for it or adding it to an existing one. The document itself stays as it is: its route and
@@ -21,12 +22,16 @@ export default function DocWorkCard({ docId, docData }) {
   const [panel, setPanel] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Projects the user is on: those that link this document, and linking it to one.
+  const [projects, setProjects] = useState([]);
+  const [projectId, setProjectId] = useState('');
 
   const load = async () => {
     try {
       const bs = await listBoards(actor, { all: isAdmin });
       setBoards(bs);
       setItems(await listItemsForDocument(docId, bs));
+      setProjects(await listProjects(actor, { all: isAdmin }).catch(() => []));
     } catch (e) { setError(e.message); setBoards([]); setItems([]); }
   };
   useEffect(() => { load(); }, [docId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -45,10 +50,18 @@ export default function DocWorkCard({ docId, docData }) {
     try { await linkDocumentToItem(board, item, docId, actor); setMode(''); await load(); } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
-  if (!boards || boards.length === 0) return null; // not on any board: nothing to show
+  const linkedProjects = projectsLinking(projects, docId);
+  const linkable = projects.filter((pr) => ['manager', 'member'].includes(boardRole(pr, actor.uid, isAdmin)) && !(pr.docRefs || []).includes(docId));
+  const linkProject = async () => {
+    const pr = projects.find((x) => x.id === projectId);
+    if (!pr) return;
+    setBusy(true); setError('');
+    try { await updateProject(pr.id, { docRefs: [...(pr.docRefs || []), docId] }); setProjectId(''); await load(); } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+  if ((!boards || boards.length === 0) && projects.length === 0) return null; // on no board or project: nothing to show
   return (
     <section className="card doc-work">
-      <div className="card-head"><h3>Work items</h3>{items?.length > 0 && <span className="small muted">{items.length}</span>}</div>
+      <div className="card-head"><h3>Work items and projects</h3>{items?.length > 0 && <span className="small muted">{items.length}</span>}</div>
       {error && <div className="alert small">{error}</div>}
       {items === null ? <div className="spinner" /> : items.length === 0 ? <p className="small muted">No work item links this document.</p> : (
         <ul className="wk-doc-items">
@@ -60,10 +73,27 @@ export default function DocWorkCard({ docId, docData }) {
           ))}
         </ul>
       )}
-      {editable.length > 0 && !mode && (
+      {(boards || []).length > 0 && editable.length > 0 && !mode && (
         <div className="row gap wrap">
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setMode('new'); setBoardId(editable[0].id); }}>+ Create work item</button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setMode('add'); setBoardId(editable[0].id); }}>+ Add to a work item</button>
+        </div>
+      )}
+      {projects.length > 0 && (
+        <div className="doc-work-projects">
+          <h4>Projects</h4>
+          {linkedProjects.length === 0 ? <p className="small muted">No project links this document.</p> : (
+            <ul className="wk-doc-items">{linkedProjects.map((pr) => <li key={pr.id}><Link to={`/projects/${pr.id}`}><b>{pr.code}</b> {pr.name}</Link></li>)}</ul>
+          )}
+          {linkable.length > 0 && (
+            <div className="row gap wrap">
+              <Select value={projectId} onChange={(e) => setProjectId(e.target.value)} aria-label="Link to a project">
+                <option value="">Link to a project…</option>
+                {linkable.map((pr) => <option key={pr.id} value={pr.id}>{pr.code} — {pr.name}</option>)}
+              </Select>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={!projectId || busy} onClick={linkProject}>Link</button>
+            </div>
+          )}
         </div>
       )}
       {mode && (

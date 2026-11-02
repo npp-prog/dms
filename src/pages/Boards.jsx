@@ -8,6 +8,7 @@ import Select from '../components/Select.jsx';
 import PersonPicker from '../components/PersonPicker.jsx';
 import WorkItemPanel from '../components/WorkItemPanel.jsx';
 import { Assignees, Priority, WorkStatus, day } from '../components/WorkBits.jsx';
+import MonthCalendar from '../components/MonthCalendar.jsx';
 
 // Boards (work management): /boards lists the boards the user is on (administrators: all) and
 // creates one from a template; /boards/:boardId is a board: its groups of work items as a table,
@@ -204,6 +205,7 @@ function Board({ boardId, itemId }) {
           <span className="wk-view-switch" role="group" aria-label="View">
             <button type="button" className={view === 'table' ? 'active' : ''} aria-pressed={view === 'table'} onClick={() => chooseView('table')}>Table</button>
             <button type="button" className={view === 'kanban' ? 'active' : ''} aria-pressed={view === 'kanban'} onClick={() => chooseView('kanban')}>Kanban</button>
+            <button type="button" className={view === 'calendar' ? 'active' : ''} aria-pressed={view === 'calendar'} onClick={() => chooseView('calendar')}>Calendar</button>
           </span>
           {role === 'manager' && <button type="button" className={`btn btn-sm${settingsOpen ? ' btn-primary' : ''}`} onClick={() => setSettingsOpen((x) => !x)}>Settings</button>}
         </div>
@@ -254,6 +256,15 @@ function Board({ boardId, itemId }) {
             );
           })}
         </div>
+      )}
+      {items && view === 'calendar' && (
+        <section className="card">
+          <MonthCalendar entries={shown.filter((i) => i.dueDate).map((i) => ({
+            day: i.dueDate, key: i.id, label: i.title, onOpen: () => setOpen({ item: i }),
+            tone: i.status === 'done' ? 'green' : dueState(i, today) === 'overdue' ? 'red' : i.status === 'blocked' ? 'yellow' : 'blue',
+          }))} />
+          <p className="xs muted">Work items on their due dates (red: overdue, yellow: blocked, green: completed). The filters above apply.</p>
+        </section>
       )}
       {items && view === 'kanban' && <p className="xs muted">Drag a card to change its status (the task's progress only: documents keep their own route and approvals). Subtasks show in the table.</p>}
       {!items ? <div className="spinner" /> : view !== 'table' ? null : (board.groups || []).map((g) => {

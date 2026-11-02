@@ -141,6 +141,7 @@ function describe(before, after, board) {
   if (before.dueDate !== after.dueDate) out.push(['due', after.dueDate ? `due date: ${after.dueDate}` : 'due date removed']);
   if (before.startDate !== after.startDate) out.push(['start', after.startDate ? `start date: ${after.startDate}` : 'start date removed']);
   if (before.groupId !== after.groupId) out.push(['moved', `moved to ${(board.groups || []).find((g) => g.id === after.groupId)?.name || 'another group'}`]);
+  if ((before.projectId || '') !== after.projectId) out.push(['project', after.projectId ? 'related to a project' : 'no longer related to a project']);
   if (before.office !== after.office) out.push(['office', after.office ? `responsible office: ${after.office}` : 'responsible office removed']);
   const added = after.assignees.filter((u) => !(before.assignees || []).includes(u));
   const removed = (before.assignees || []).filter((u) => !after.assignees.includes(u));

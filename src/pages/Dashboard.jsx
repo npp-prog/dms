@@ -10,8 +10,9 @@ import { drnOf } from '../lib/naming.js';
 import { backupStatus, getArchiveSettings, listBackups } from '../lib/archive.js';
 import { ROLE_NAMES } from '../lib/roles.js';
 import { listMyItems } from '../lib/work.js';
-import { myWorkBuckets } from '../lib/workModel.js';
+import { myWorkBuckets, upcomingMilestones } from '../lib/workModel.js';
 import { localDay } from '../lib/archiveFiles.js';
+import { listProjects } from '../lib/projects.js';
 
 
 function greeting() {
@@ -46,6 +47,9 @@ export default function Dashboard() {
   // My Work: the work items assigned to the user (Boards).
   const [work, setWork] = useState(null);
   useEffect(() => { listMyItems(user.uid).then((l) => setWork(myWorkBuckets(l, user.uid, localDay()))).catch(() => setWork(null)); }, [user.uid]);
+  // Milestones of the user's projects due in the next 14 days.
+  const [milestones, setMilestones] = useState([]);
+  useEffect(() => { listProjects({ uid: user.uid }, { all: isAdmin }).then((ps) => setMilestones(upcomingMilestones(ps, localDay()))).catch(() => setMilestones([])); }, [user.uid, isAdmin]);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
 
@@ -75,6 +79,7 @@ export default function Dashboard() {
     work?.overdue.length > 0 && <InboxRow key="wo" icon="check" tone="red" title="Overdue work" sub="Work items assigned to you, past their due date" n={work.overdue.length} to="/my-work?show=overdue" />,
     work?.today.length > 0 && <InboxRow key="wt" icon="check" tone="blue" title="Work due today" sub="Work items assigned to you, due today" n={work.today.length} to="/my-work?show=today" />,
     work?.blocked.length > 0 && <InboxRow key="wb" icon="check" title="Blocked work" sub="Your work items marked Blocked" n={work.blocked.length} to="/my-work?show=blocked" />,
+    milestones.length > 0 && <InboxRow key="ms" icon="folder" tone="blue" title="Upcoming milestones" sub={`Next: ${milestones[0].title} (${milestones[0].projectCode}), due ${milestones[0].dueDate}`} n={milestones.length} to={`/projects/${milestones[0].projectId}`} />,
     work?.upcoming.length > 0 && <InboxRow key="wu" icon="check" title="Work due this week" sub="Work items assigned to you, due in the next 7 days" n={work.upcoming.length} to="/my-work?show=upcoming" />,
     count(mine, 'draft') > 0 && <InboxRow key="d" icon="doc" title="Drafts to finish" sub="Documents you started but have not marked complete" n={count(mine, 'draft')} to="/documents" />,
     mine.filter((d) => d.status === 'complete' && !d.workflow).length > 0 && <InboxRow key="c" icon="send" tone="blue" title="Complete — convert to PDF" sub="Converting a document sends it along its workflow" n={mine.filter((d) => d.status === 'complete' && !d.workflow).length} to="/documents" />,

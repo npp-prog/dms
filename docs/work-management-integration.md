@@ -80,6 +80,25 @@ server's time; **never changed or deleted**. `mentions` must be people on the bo
 (someone mentioned you in a comment). Their link (`/boards/{boardId}/{itemId}`) opens the item. They
 show in the existing Notifications page (and are emailed like the others), and mentions in My Work.
 
+### `projects/{projectId}` (Phase 3)
+`code, name, description, office, startDate, targetDate, status, fundingSource, approvedBudget, ownerUid,
+ownerName, managers[], members[], viewers[], access[], names{}, milestones[{id, title, dueDate, done, doneOn}],
+docRefs[], boardIds[], physicalProgress, progressNote, progressAt, createdAt, updatedAt`
+- Managers change details, people and the approved budget; members keep milestones, links, status and
+  progress; viewers read. `physicalProgress` changes only together with a new `progressNote` (the rules
+  refuse it otherwise), written in the same batch as a progress update.
+- **Money:** only `approvedBudget` (explicit, entered by a manager) and `fundingSource`. Obligations and
+  disbursements are not stored or inferred from document amounts; a later phase can add them only from an
+  authorized source with explicit definitions.
+- Work items join a project by `workItems.projectId`; the project lists them from its **related boards**
+  (`boardIds`), one bounded query per board the user can see.
+
+### `projects/{id}/updates/{id}` and `projects/{id}/issues/{id}` (Phase 3)
+- **updates**: `physical (0–100), note (≥ 5 characters), by, byName, at` — append-only.
+- **issues**: `type (risk | issue | blocker), title, description, severity, owner, status (open | resolved),
+  createdBy, createdByName, createdAt, resolvedOn, updatedBy` — members add them and change only their
+  status; managers delete.
+
 ### `workItems/{itemId}/activity/{eventId}`
 `type, text, by, byName, at` — the item's timeline (created, status, assigned, due date, moved,
 documents linked). Written in the same batch as the change; **append-only**: the rules allow adding
@@ -132,9 +151,12 @@ index), which is a separate, billed decision.
    Mentions, and each linked document's route state: *Under review*, *Awaiting approval* (a step that
    signs), *Returned for correction*, *Forwarded* (referred to a person), *Completed*, with *Step n of m*.
    (DMS has no "awaiting receipt": documents are no longer received.)
-3. Projects: code, office, manager and members, dates, milestones, risks and issues, progress
-   updates (manual physical progress with a required explanation), linked documents and work items,
-   calendar view. Financial figures only from explicitly defined, authorized sources.
+3. **Done (Phase 3) — Projects:** code, implementing office, manager and members, dates, status,
+   funding source and approved budget (entered, never inferred), milestones, risks/issues/blockers,
+   progress updates (manual physical progress with a required explanation, append-only), linked DMS
+   documents, related boards and their work items (`projectId`), a month **calendar** on boards and
+   projects, projects on the document page, and upcoming milestones on the Dashboard. Weighted
+   milestone progress is left for later, as the brief allows.
 4. Reports and automation: aging and overdue, office workload, project summaries, permission-aware
    CSV export, deadline reminders, saved views, configurable columns (stable column ids).
 

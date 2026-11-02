@@ -147,6 +147,10 @@ meta/settings         lguName, lguAddress, province, sealUrl, signatories{}, off
 boards/{id}           name, template, office, ownerUid, managers[], members[], viewers[], access[], names{}, groups[{id,name}]
 workItems/{id}        boardId, groupId, title, status, priority, assignees[], office, startDate, dueDate, completedOn, tags[], docRefs[] (document ids)
 workItems/{id}/activity/{id}  type, text, by, byName, at  (append-only)
+workItems/{id}/comments/{id}  text, mentions[], by, byName, at  (append-only)
+projects/{id}         code, name, office, status, startDate, targetDate, fundingSource, approvedBudget, managers[], members[], viewers[], access[], milestones[], docRefs[], boardIds[], physicalProgress, progressNote
+projects/{id}/updates/{id}  physical, note, by, byName, at  (append-only)
+projects/{id}/issues/{id}   type, title, severity, status, createdBy
 ```
 
 ## Scripts
