@@ -54,6 +54,9 @@ columns[{id, label, type, options[], hidden}], exportBy, reminders` (the last th
 
 - **managers**: board settings and people; **members**: create, edit and assign items;
   **viewers**: read only. `access` = all three (for the "my boards" query and the rules).
+- **Office heads** (`users.head`) see the boards whose `office` is theirs (and their items, read
+  only) and may delete them; deleting a board deletes its work items (`lib/work.js deleteBoard`). Who may
+  delete a board: its creator (`ownerUid`), an administrator, or the head of its office.
 - **groups** have stable ids (`g1`, `g2`, …): renaming a group never moves its items.
 - **columns** (Phase 4): the board's own columns, at most 20. `id` (`f…`, random) never changes:
   renaming keeps values; "removing" hides (`hidden: true`) and keeps them. Types: text, number,

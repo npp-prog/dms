@@ -21,12 +21,15 @@ const nameOf = (user) => user.displayName || user.email || '';
 
 // ---- Boards ----
 // The boards the user can see (admins: all), newest first. Bounded.
-export async function listBoards(user, { all = false } = {}) {
+// headOf: the office of an office head, whose boards (board.office) they also see.
+export async function listBoards(user, { all = false, headOf = '' } = {}) {
   const q = all
     ? query(collection(db, 'boards'), limit(200))
     : query(collection(db, 'boards'), where('access', 'array-contains', user.uid), limit(200));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  const snaps = [await getDocs(q)];
+  if (!all && headOf) snaps.push(await getDocs(query(collection(db, 'boards'), where('office', '==', headOf), limit(200))).catch(() => ({ docs: [] })));
+  const docs = new Map(snaps.flatMap((s) => s.docs).map((d) => [d.id, d]));
+  return [...docs.values()].map((d) => ({ id: d.id, ...d.data() }))
     .filter((b) => !b.archived)
     .sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 }
@@ -66,6 +69,20 @@ export async function updateBoard(id, patch) {
   if (patch.columns) next.columns = cleanColumns(patch.columns);
   if (patch.managers || patch.members || patch.viewers) next.access = accessOf(patch);
   await updateDoc(doc(db, 'boards', id), next);
+}
+
+// Deletes a board and its work items (its creator, an administrator, or the head of its office).
+// The documents the items link stay in the DMS.
+export async function deleteBoard(boardId) {
+  for (;;) {
+    const snap = await getDocs(query(collection(db, 'workItems'), where('boardId', '==', boardId), limit(400)));
+    if (snap.empty) break;
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    if (snap.size < 400) break;
+  }
+  await deleteDoc(doc(db, 'boards', boardId));
 }
 
 // ---- Work items ----

@@ -107,3 +107,15 @@ test('calendar month: 6 weeks, Monday first', () => {
   assert.equal(g.find((d) => d.inMonth).day, '2026-11-01');
   assert.equal(g.filter((d) => d.inMonth).length, 30);
 });
+
+test('who may delete a board: creator, administrator, head of its office', async () => {
+  const { canDeleteBoard } = await import('./workModel.js');
+  const b = { ownerUid: 'o', managers: ['o', 'm'], office: 'Accounting' };
+  assert.equal(canDeleteBoard(b, 'o'), true);
+  assert.equal(canDeleteBoard(b, 'm'), false);
+  assert.equal(canDeleteBoard(b, 'x', { isAdmin: true }), true);
+  assert.equal(canDeleteBoard(b, 'h', { isHead: true, office: 'Accounting' }), true);
+  assert.equal(canDeleteBoard(b, 'h', { isHead: true, office: 'Treasury' }), false);
+  assert.equal(canDeleteBoard(b, 'h', { isHead: false, office: 'Accounting' }), false);
+  assert.equal(canDeleteBoard({ ...b, office: '' }, 'h', { isHead: true, office: '' }), false);
+});

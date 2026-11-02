@@ -74,6 +74,12 @@ fields map, saved views own/shared/never edited, reminders created once and not 
 browser run (columns on a board and in an item, activity for a column change, shared saved view,
 CSV download, the three reports, dashboard overview, reminders received by the assignee).
 
+## After Phase 4
+| Feature | Status |
+|---|---|
+| Scheduled daily reminder sender (service account) | Done — needs GOOGLE_SA_EMAIL / GOOGLE_SA_PRIVATE_KEY in Netlify |
+| Office heads see and delete their office's boards (with their items); Delete board for creator and admins | Done — **publish firestore.rules** |
+
 ## Not yet
 - Trusted audit records written by a backend (activity entries are still written by the browser).
 - Paging for very large boards; weighted milestone progress; a "related record" column type.

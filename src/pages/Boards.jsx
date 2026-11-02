@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { createBoard, deleteView, getBoard, listBoardItems, listBoards, listViews, saveItem, saveView, setItemStatus, updateBoard } from '../lib/work.js';
-import { BOARD_TEMPLATES, COLUMN_LIMIT, COLUMN_TYPES, SORTS, WORK_STATUSES, boardRole, checklistProgress, dueState, fieldText, newColumnId, nextGroupId, templateOf } from '../lib/workModel.js';
+import { createBoard, deleteBoard, deleteView, getBoard, listBoardItems, listBoards, listViews, saveItem, saveView, setItemStatus, updateBoard } from '../lib/work.js';
+import { BOARD_TEMPLATES, COLUMN_LIMIT, COLUMN_TYPES, SORTS, WORK_STATUSES, boardRole, canDeleteBoard, checklistProgress, dueState, fieldText, newColumnId, nextGroupId, templateOf } from '../lib/workModel.js';
 import { EXPORT_CHOICES, canExportBoard, csvName, itemCsvColumns, toCsv } from '../lib/reports.js';
 import { downloadCsv } from '../lib/download.js';
 import { listProjects } from '../lib/projects.js';
@@ -26,12 +26,13 @@ const viewKey = (id) => `dms-board-view-${id}`;
 const savedView = (id) => { try { return localStorage.getItem(viewKey(id)) || 'table'; } catch { return 'table'; } };
 
 function BoardList() {
-  const { actor, isAdmin, settings, profile } = useAuth();
+  const { actor, isAdmin, isHead, settings, profile } = useAuth();
   const navigate = useNavigate();
   const [boards, setBoards] = useState(null);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
-  useEffect(() => { listBoards(actor, { all: isAdmin }).then(setBoards).catch((e) => setError(e.message)); }, [actor.uid, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Office heads also see their office's boards.
+  useEffect(() => { listBoards(actor, { all: isAdmin, headOf: isHead ? profile.office : '' }).then(setBoards).catch((e) => setError(e.message)); }, [actor.uid, isAdmin, isHead, profile.office]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="page">
@@ -136,7 +137,7 @@ function PeopleEditor({ people, onChange, exclude = [] }) {
 }
 
 function Board({ boardId, itemId }) {
-  const { actor, isAdmin } = useAuth();
+  const { actor, isAdmin, isHead, profile } = useAuth();
   const navigate = useNavigate();
   const [view, setView] = useState(() => savedView(boardId));
   const chooseView = (v) => { setView(v); try { localStorage.setItem(viewKey(boardId), v); } catch { /* not kept */ } };
@@ -219,6 +220,12 @@ function Board({ boardId, itemId }) {
 
   const canEdit = role === 'manager' || role === 'member';
   const cols = (board.columns || []).filter((c) => !c.hidden);
+  const deletable = canDeleteBoard(board, actor.uid, { isAdmin, isHead, office: profile.office });
+  const removeBoard = async () => {
+    const n = (items || []).length;
+    if (!window.confirm(`Delete the board "${board.name}"${n ? ` and its ${n} work item${n === 1 ? '' : 's'}` : ''}? This cannot be undone. The DMS documents they link are not affected.`)) return;
+    try { await deleteBoard(board.id); navigate('/boards', { replace: true }); } catch (e) { setError(e.code === 'permission-denied' ? 'You may not delete this board.' : e.message); }
+  };
   return (
     <div className="page wk-board">
       <div className="page-head">
@@ -233,6 +240,7 @@ function Board({ boardId, itemId }) {
             <button type="button" className={view === 'calendar' ? 'active' : ''} aria-pressed={view === 'calendar'} onClick={() => chooseView('calendar')}>Calendar</button>
           </span>
           {role === 'manager' && <button type="button" className={`btn btn-sm${settingsOpen ? ' btn-primary' : ''}`} onClick={() => setSettingsOpen((x) => !x)}>Settings</button>}
+          {deletable && <button type="button" className="btn btn-danger btn-sm" onClick={removeBoard}>Delete board</button>}
         </div>
       </div>
       {settingsOpen && <BoardSettings board={board} onSaved={() => { setSettingsOpen(false); load(); }} />}

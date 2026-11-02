@@ -669,8 +669,12 @@ service cloud.firestore {
     function boardOf(id) {
       return get(/databases/$(database)/documents/boards/$(id)).data;
     }
+    // The head of the office a board belongs to (board.office): sees it, and may delete it.
+    function headsBoardOffice(b) {
+      return b.get('office', '') != '' && isOfficeHead() && b.get('office', '') == myOffice();
+    }
     function seesBoard(b) {
-      return isAdmin() || request.auth.uid in b.get('access', []);
+      return isAdmin() || request.auth.uid in b.get('access', []) || headsBoardOffice(b);
     }
     function editsBoard(b) {
       return isAdmin() || request.auth.uid in b.get('managers', []) || request.auth.uid in b.get('members', []);
@@ -698,7 +702,7 @@ service cloud.firestore {
       allow update: if isStaff() && managesBoard(resource.data) && boardShapeOk(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
-      allow delete: if isStaff() && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+      allow delete: if isStaff() && (isAdmin() || resource.data.ownerUid == request.auth.uid || headsBoardOffice(resource.data));
 
       // Saved views: each person's own (by them), or shared with the board by a manager. Never
       // changed: saved again, or deleted by whoever saved it (shared ones: a manager too).
@@ -752,7 +756,9 @@ service cloud.firestore {
         && (editsBoard(boardOf(resource.data.boardId))
             || (request.auth.uid in resource.data.assignees
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedOn', 'checklist', 'updatedAt', 'updatedBy'])));
-      allow delete: if isStaff() && (resource.data.createdBy == request.auth.uid || managesBoard(boardOf(resource.data.boardId)));
+      // (Its creator, the board's managers, and whoever may delete the board: its items go with it.)
+      allow delete: if isStaff() && (resource.data.createdBy == request.auth.uid || managesBoard(boardOf(resource.data.boardId))
+        || boardOf(resource.data.boardId).get('ownerUid', '') == request.auth.uid || headsBoardOffice(boardOf(resource.data.boardId)));
 
       // The item's timeline: added to by whoever may act on the item, as themselves, at the server's
       // time; never changed or removed.

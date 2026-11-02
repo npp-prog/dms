@@ -283,3 +283,8 @@ export function fieldText(column, value, names = {}) {
   if (column.type === 'person') return names[value] || 'Someone';
   return String(value);
 }
+
+// Who may delete a board (and its work items): its creator, an administrator, or the head of the
+// office the board belongs to (the rules check the same).
+export const canDeleteBoard = (board, uid, { isAdmin = false, isHead = false, office = '' } = {}) =>
+  Boolean(board && uid && (isAdmin || board.ownerUid === uid || (isHead && office && board.office === office)));
