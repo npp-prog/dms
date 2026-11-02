@@ -25,6 +25,7 @@ import DocumentTypes from './pages/admin/DocumentTypes.jsx';
 import DocumentTypeEditor from './pages/admin/DocumentTypeEditor.jsx';
 import Users from './pages/admin/Users.jsx';
 import Settings from './pages/admin/Settings.jsx';
+import BoardTemplates from './pages/admin/BoardTemplates.jsx';
 import Checklists from './pages/Checklists.jsx';
 import ChecklistView from './pages/ChecklistView.jsx';
 import ChecklistEditor from './pages/admin/ChecklistEditor.jsx';
@@ -104,6 +105,7 @@ export default function App() {
         <Route path="admin/workflow" element={<AdminOnly><Workflow /></AdminOnly>} />
         <Route path="admin/users" element={<AdminOnly users><Users /></AdminOnly>} />
         <Route path="admin/settings" element={<AdminOnly settings><Settings /></AdminOnly>} />
+        <Route path="admin/board-templates" element={<AdminOnly settings><BoardTemplates /></AdminOnly>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -79,6 +79,8 @@ CSV download, the three reports, dashboard overview, reminders received by the a
 |---|---|
 | Scheduled daily reminder sender (service account) | Done — needs GOOGLE_SA_EMAIL / GOOGLE_SA_PRIVATE_KEY in Netlify |
 | Office heads see and delete their office's boards (with their items); Delete board for creator and admins | Done — **publish firestore.rules** |
+| Board Templates in Administration (administrators edit the templates; new boards copy their groups) | Done |
+| Board card color (head of the office, managers, admins) | Done — **publish firestore.rules** |
 | Archive and restore boards and projects (managers, admins, head of the office); archived = read-only, out of lists, reports, reminders | Done — **publish firestore.rules** |
 
 ## Not yet

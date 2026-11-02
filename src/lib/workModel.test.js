@@ -131,3 +131,24 @@ test('who may archive a board or project: managers, creator, administrator, head
   assert.equal(canArchive(x, 'h', { isHead: true, office: 'Treasury' }), false);
   assert.equal(canArchive({ ...x, office: '' }, 'h', { isHead: true, office: '' }), false);
 });
+
+test('board templates kept by administrators', async () => {
+  const { templatesOf, cleanTemplates, templateOf, groupsFor, BOARD_TEMPLATES } = await import('./workModel.js');
+  assert.equal(templatesOf({}), BOARD_TEMPLATES);
+  const mine = cleanTemplates([
+    { id: 'office', name: ' Office tasks ', description: 'd', groups: ['To do', ' ', 'Done', 'Done'] },
+    { name: 'Bids and Awards', groups: ['Posting', 'Opening'] },
+    { id: 'x1', name: '', groups: ['A'] },
+    { id: 'x2', name: 'No groups', groups: [] },
+    { id: 'office', name: 'Duplicate', groups: ['A'] },
+  ]);
+  assert.deepEqual(mine.map((t) => t.name), ['Office tasks', 'Bids and Awards']);
+  assert.deepEqual(mine[0].groups, ['To do', 'Done']);
+  assert.match(mine[1].id, /^t[a-z0-9]+$/);
+  const settings = { boardTemplates: mine };
+  assert.equal(templatesOf(settings), mine);
+  assert.deepEqual(groupsFor(mine[1].id, mine).map((g) => g.name), ['Posting', 'Opening']);
+  // a board made from a removed template still shows a name
+  assert.equal(templateOf('accounting', mine).name, 'Accounting Office work');
+  assert.equal(templateOf('gone', mine).name, 'Board');
+});

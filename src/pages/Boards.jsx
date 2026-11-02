@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { archiveBoard, createBoard, deleteBoard, deleteView, getBoard, listBoardItems, listBoards, listViews, saveItem, saveView, setItemStatus, updateBoard } from '../lib/work.js';
-import { BOARD_TEMPLATES, COLUMN_LIMIT, COLUMN_TYPES, SORTS, WORK_STATUSES, boardRole, canArchive, canDeleteBoard, checklistProgress, dueState, fieldText, newColumnId, nextGroupId, templateOf } from '../lib/workModel.js';
+import { archiveBoard, createBoard, deleteBoard, setBoardColor, deleteView, getBoard, listBoardItems, listBoards, listViews, saveItem, saveView, setItemStatus, updateBoard } from '../lib/work.js';
+import { BOARD_COLORS, boardColor, COLUMN_LIMIT, COLUMN_TYPES, SORTS, WORK_STATUSES, boardRole, canArchive, canDeleteBoard, checklistProgress, dueState, fieldText, newColumnId, nextGroupId, templateOf, templatesOf } from '../lib/workModel.js';
 import { EXPORT_CHOICES, canExportBoard, csvName, itemCsvColumns, toCsv } from '../lib/reports.js';
 import { downloadCsv } from '../lib/download.js';
 import { listProjects } from '../lib/projects.js';
@@ -47,7 +47,7 @@ function BoardList() {
           {!creating && !showArchived && <button type="button" className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>+ New board</button>}
         </div>
       </div>
-      {creating && <NewBoard offices={settings.offices || []} office={profile.office} onCancel={() => setCreating(false)}
+      {creating && <NewBoard offices={settings.offices || []} templates={templatesOf(settings)} office={profile.office} onCancel={() => setCreating(false)}
         onCreated={(id) => navigate(`/boards/${id}`)} actor={actor} />}
       {error && <div className="alert">{error}</div>}
       {!boards && !error && <div className="spinner" />}
@@ -55,9 +55,9 @@ function BoardList() {
       {boards && boards.length > 0 && (
         <div className="wk-board-tiles">
           {boards.map((b) => (
-            <Link key={b.id} to={`/boards/${b.id}`} className="wk-board-tile">
+            <Link key={b.id} to={`/boards/${b.id}`} className="wk-board-tile" style={boardColor(b) ? { borderLeftColor: boardColor(b) } : undefined}>
               <b>{b.name}</b>
-              <span className="small muted">{templateOf(b.template).name}{b.office ? ` · ${b.office}` : ''}</span>
+              <span className="small muted">{templateOf(b.template, templatesOf(settings)).name}{b.office ? ` · ${b.office}` : ''}</span>
               <span className="xs muted">{(b.access || []).length} people · {(b.groups || []).length} groups{b.archived ? ` · archived ${String(b.archivedAt || '').slice(0, 10)}` : ''}</span>
             </Link>
           ))}
@@ -67,18 +67,18 @@ function BoardList() {
   );
 }
 
-function NewBoard({ offices, office, onCancel, onCreated, actor }) {
-  const [f, setF] = useState({ name: '', description: '', template: 'office', office: office || '' });
+function NewBoard({ offices, office, templates, onCancel, onCreated, actor }) {
+  const [f, setF] = useState({ name: '', description: '', template: templates[0]?.id || 'blank', office: office || '' });
   const [people, setPeople] = useState([]); // [{ uid, displayName, role }]
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const t = templateOf(f.template);
+  const t = templateOf(f.template, templates);
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true); setError('');
     try {
       const id = await createBoard({
-        ...f,
+        ...f, templates,
         managers: people.filter((p) => p.role === 'manager').map((p) => p.uid),
         members: people.filter((p) => p.role === 'member').map((p) => p.uid),
         viewers: people.filter((p) => p.role === 'viewer').map((p) => p.uid),
@@ -96,7 +96,7 @@ function NewBoard({ offices, office, onCancel, onCreated, actor }) {
           <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={120} required /></label>
         <label className="field"><span className="field-label">Template</span>
           <Select value={f.template} onChange={(e) => setF({ ...f, template: e.target.value })}>
-            {BOARD_TEMPLATES.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            {templates.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
           </Select>
           <span className="xs muted">{t.description} Groups: {t.groups.join(', ')}. You can change them later.</span></label>
         <label className="field"><span className="field-label">Office</span>
@@ -144,7 +144,7 @@ function PeopleEditor({ people, onChange, exclude = [] }) {
 }
 
 function Board({ boardId, itemId }) {
-  const { actor, isAdmin, isHead, profile } = useAuth();
+  const { actor, isAdmin, isHead, profile, settings } = useAuth();
   const navigate = useNavigate();
   const [view, setView] = useState(() => savedView(boardId));
   const chooseView = (v) => { setView(v); try { localStorage.setItem(viewKey(boardId), v); } catch { /* not kept */ } };
@@ -159,6 +159,7 @@ function Board({ boardId, itemId }) {
   const [mine, setMine] = useState(false);
   const [sort, setSort] = useState('due');
   const today = localDay();
+  const [picking, setPicking] = useState(false); // the card color choices
   // Saved views: the user's own and those shared with the board.
   const [views, setViews] = useState([]);
   const [naming, setNaming] = useState(null); // { name, shared } while saving one
@@ -230,6 +231,9 @@ function Board({ boardId, itemId }) {
   const cols = (board.columns || []).filter((c) => !c.hidden);
   const deletable = canDeleteBoard(board, actor.uid, { isAdmin, isHead, office: profile.office });
   const archivable = canArchive(board, actor.uid, { isAdmin, isHead, office: profile.office });
+  const chooseColor = async (c) => {
+    try { await setBoardColor(board.id, c); setPicking(false); await load(); } catch (e) { setError(e.code === 'permission-denied' ? 'You may not change the color of this board.' : e.message); }
+  };
   const toggleArchive = async () => {
     if (!board.archived && !window.confirm(`Archive the board "${board.name}"? It becomes read-only and leaves the board list, reports and reminders. It can be restored at any time.`)) return;
     try { await archiveBoard(board.id, !board.archived, actor); await load(); } catch (e) { setError(e.code === 'permission-denied' ? 'You may not archive this board.' : e.message); }
@@ -240,10 +244,10 @@ function Board({ boardId, itemId }) {
     try { await deleteBoard(board.id); navigate('/boards', { replace: true }); } catch (e) { setError(e.code === 'permission-denied' ? 'You may not delete this board.' : e.message); }
   };
   return (
-    <div className="page wk-board">
+    <div className="page wk-board" style={boardColor(board) ? { '--board-color': boardColor(board) } : undefined}>
       <div className="page-head">
         <div>
-          <div className="crumbs"><Link to="/boards">Boards</Link> / {templateOf(board.template).name}</div>
+          <div className="crumbs"><Link to="/boards">Boards</Link> / {templateOf(board.template, templatesOf(settings)).name}</div>
           <h1>{board.name}</h1>
         </div>
         <div className="row gap">
@@ -253,10 +257,22 @@ function Board({ boardId, itemId }) {
             <button type="button" className={view === 'calendar' ? 'active' : ''} aria-pressed={view === 'calendar'} onClick={() => chooseView('calendar')}>Calendar</button>
           </span>
           {role === 'manager' && <button type="button" className={`btn btn-sm${settingsOpen ? ' btn-primary' : ''}`} onClick={() => setSettingsOpen((x) => !x)}>Settings</button>}
+          {archivable && <button type="button" className={`btn btn-sm${picking ? ' btn-primary' : ''}`} aria-expanded={picking} onClick={() => setPicking((x) => !x)}>
+            <span className="wk-swatch-dot" style={{ background: boardColor(board) || 'var(--line-2)' }} /> Color</button>}
           {archivable && <button type="button" className="btn btn-sm" onClick={toggleArchive}>{board.archived ? 'Restore' : 'Archive'}</button>}
           {deletable && <button type="button" className="btn btn-danger btn-sm" onClick={removeBoard}>Delete board</button>}
         </div>
       </div>
+      {picking && (
+        <div className="card wk-colors" role="group" aria-label="Card color">
+          <span className="small muted">Card color</span>
+          <button type="button" className={`wk-swatch${!board.color ? ' on' : ''}`} title="Default" aria-label="Default" aria-pressed={!board.color} onClick={() => chooseColor('')}>—</button>
+          {BOARD_COLORS.map((c) => (
+            <button key={c.id} type="button" className={`wk-swatch${board.color === c.id ? ' on' : ''}`} style={{ background: c.hex }} title={c.label} aria-label={c.label}
+              aria-pressed={board.color === c.id} onClick={() => chooseColor(c.id)} />
+          ))}
+        </div>
+      )}
       {board.archived && <div className="alert alert-warn">This board is archived{board.archivedAt ? ` (${String(board.archivedAt).slice(0, 10)})` : ''}: it is read-only, and is left out of the board list, reports and reminders.{archivable ? ' Restore it to work on it again.' : ''}</div>}
       {settingsOpen && <BoardSettings board={board} onSaved={() => { setSettingsOpen(false); load(); }} />}
       <div className="filters wk-filters">

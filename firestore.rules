@@ -680,6 +680,13 @@ service cloud.firestore {
     function editsBoard(b) {
       return !b.get('archived', false) && (isAdmin() || request.auth.uid in b.get('managers', []) || request.auth.uid in b.get('members', []));
     }
+    // The head of a board's office: archives or restores it, and sets its card color; nothing else.
+    function headBoardChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'archivedAt', 'archivedBy', 'color', 'updatedAt'])
+        && request.resource.data.get('archived', false) is bool
+        && (request.resource.data.get('archivedBy', '') == resource.data.get('archivedBy', '')
+            || request.resource.data.get('archivedBy', '') in ['', request.auth.uid]);
+    }
     // Archiving or restoring: only the archive fields change.
     function onlyArchiving() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'archivedAt', 'archivedBy', 'updatedAt'])
@@ -691,8 +698,9 @@ service cloud.firestore {
     function boardShapeOk(d) {
       return d.keys().hasOnly(['name', 'description', 'template', 'office', 'ownerUid', 'ownerName', 'managers', 'members',
           'viewers', 'access', 'names', 'groups', 'archived', 'createdAt', 'updatedAt', 'columns', 'exportBy', 'reminders',
-          'archivedAt', 'archivedBy'])
+          'archivedAt', 'archivedBy', 'color'])
         && d.get('archived', false) is bool
+        && d.get('color', '') in ['', 'blue', 'green', 'teal', 'yellow', 'orange', 'red', 'pink', 'purple', 'gray']
         && d.get('columns', []) is list && d.get('columns', []).size() <= 20
         && d.get('exportBy', 'members') in ['members', 'managers', 'everyone']
         && d.get('reminders', true) is bool
@@ -708,7 +716,7 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid
         && request.auth.uid in request.resource.data.managers;
       // Its managers; the head of its office may archive or restore it.
-      allow update: if isStaff() && (managesBoard(resource.data) || (headsBoardOffice(resource.data) && onlyArchiving()))
+      allow update: if isStaff() && (managesBoard(resource.data) || (headsBoardOffice(resource.data) && headBoardChange()))
         && boardShapeOk(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);

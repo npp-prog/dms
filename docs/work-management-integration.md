@@ -57,6 +57,11 @@ columns[{id, label, type, options[], hidden}], exportBy, reminders` (the last th
 - **Office heads** (`users.head`) see the boards whose `office` is theirs (and their items, read
   only) and may delete them; deleting a board deletes its work items (`lib/work.js deleteBoard`). Who may
   delete a board: its creator (`ownerUid`), an administrator, or the head of its office.
+- **Templates**: `meta/settings.boardTemplates [{id, name, description, groups[]}]`, kept by administrators
+  (Administration → Board Templates; `templatesOf(settings)`, default the starter list). A board stores its
+  template's id and copies its groups at creation.
+- **color** (boards): one of blue, teal, green, yellow, orange, red, pink, purple, gray (or none); set by the
+  head of the office (`headBoardChange`: color and archive fields only), managers and administrators.
 - **Archive** (`archived`, `archivedAt`, `archivedBy`, on boards and projects): managers, administrators and
   the head of the office archive or restore (a head may change only these fields). Archived means read-only
   in the rules (`editsBoard`/`editsProject` are false; an assignee's status change and new comments are

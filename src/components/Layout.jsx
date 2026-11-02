@@ -85,6 +85,7 @@ export default function Layout() {
         ['/admin/types', 'types', 'Document Types'],
         ['/admin/workflow', 'workflow', 'Workflow'],
         canManageUsers && ['/admin/users', 'users', 'Users'],
+        canManageSettings && ['/admin/board-templates', 'formats', 'Board Templates'],
         canManageSettings && ['/admin/settings', 'settings', 'Settings'],
       ].filter(Boolean),
     },

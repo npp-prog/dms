@@ -40,7 +40,8 @@ export async function getBoard(id) {
 }
 
 // people: { uid: name } of everyone on the board (names shown without reading their profiles).
-export async function createBoard({ name, description = '', template = 'blank', office = '', managers: extra = [], members = [], viewers = [], people = {} }, user) {
+// templates: the templates in use (templatesOf(settings)).
+export async function createBoard({ name, description = '', template = 'blank', templates, office = '', managers: extra = [], members = [], viewers = [], people = {} }, user) {
   if (!String(name).trim()) throw new Error('Type the name of the board.');
   const managers = [...new Set([user.uid, ...extra])];
   const m = [...new Set(members)].filter((u) => !managers.includes(u));
@@ -48,14 +49,14 @@ export async function createBoard({ name, description = '', template = 'blank', 
   const ref = await addDoc(collection(db, 'boards'), {
     name: String(name).trim().slice(0, 120),
     description: String(description).trim().slice(0, 1000),
-    template: templateOf(template).id,
+    template: templateOf(template, templates).id,
     office,
     ownerUid: user.uid,
     ownerName: nameOf(user),
     managers, members: m, viewers: v,
     access: accessOf({ managers, members: m, viewers: v }),
     names: { ...people, [user.uid]: nameOf(user) },
-    groups: groupsFor(template),
+    groups: groupsFor(template, templates),
     archived: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -69,6 +70,11 @@ export async function updateBoard(id, patch) {
   if (patch.columns) next.columns = cleanColumns(patch.columns);
   if (patch.managers || patch.members || patch.viewers) next.access = accessOf(patch);
   await updateDoc(doc(db, 'boards', id), next);
+}
+
+// The board's card color (BOARD_COLORS id, '' for the default).
+export async function setBoardColor(id, color) {
+  await updateDoc(doc(db, 'boards', id), { color: String(color || ''), updatedAt: serverTimestamp() });
 }
 
 // Archives a board (read-only, out of lists, reports and reminders) or restores it.

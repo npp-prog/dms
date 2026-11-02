@@ -64,10 +64,30 @@ export const BOARD_TEMPLATES = [
   },
   { id: 'blank', name: 'Blank board', description: '', groups: ['Group 1'] },
 ];
-export const templateOf = (id) => BOARD_TEMPLATES.find((t) => t.id === id) || BOARD_TEMPLATES[BOARD_TEMPLATES.length - 1];
+// The templates in use: those kept by administrators (Administration → Board Templates, in
+// settings.boardTemplates), or the starter ones above. A board keeps its template's id only; its groups
+// are copied when it is created, so changing a template never changes existing boards.
+export const templatesOf = (settings) => (settings?.boardTemplates?.length ? settings.boardTemplates : BOARD_TEMPLATES);
+const BLANK = BOARD_TEMPLATES[BOARD_TEMPLATES.length - 1];
+export const templateOf = (id, templates = BOARD_TEMPLATES) =>
+  templates.find((t) => t.id === id) || BOARD_TEMPLATES.find((t) => t.id === id) || { ...BLANK, name: 'Board' };
+export const newTemplateId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+// What a template may hold (cleaned before saving): a name, a description, 1–30 groups; ids kept.
+export function cleanTemplates(list = []) {
+  const seen = new Set();
+  return list
+    .map((t) => ({
+      id: /^[a-z0-9_-]{2,30}$/i.test(String(t?.id || '')) ? t.id : newTemplateId(),
+      name: String(t?.name || '').trim().slice(0, 80),
+      description: String(t?.description || '').trim().slice(0, 400),
+      groups: [...new Set((t?.groups || []).map((g) => String(g).trim()).filter(Boolean))].slice(0, 30).map((g) => g.slice(0, 60)),
+    }))
+    .filter((t) => t.name && t.groups.length && !seen.has(t.id) && seen.add(t.id))
+    .slice(0, 40);
+}
 
 // Stable group ids (g1, g2, …): renaming a group never moves its items.
-export const groupsFor = (templateId) => templateOf(templateId).groups.map((name, i) => ({ id: `g${i + 1}`, name }));
+export const groupsFor = (templateId, templates = BOARD_TEMPLATES) => templateOf(templateId, templates).groups.map((name, i) => ({ id: `g${i + 1}`, name }));
 export const nextGroupId = (groups = []) => `g${Math.max(0, ...groups.map((g) => Number(String(g.id).slice(1)) || 0)) + 1}`;
 
 // Board roles: managers (settings, members, delete items), members (create, edit, assign), viewers
@@ -293,3 +313,18 @@ export const canDeleteBoard = (board, uid, { isAdmin = false, isHead = false, of
 // or the head of its office (board.office, project.office). The rules check the same.
 export const canArchive = (x, uid, { isAdmin = false, isHead = false, office = '' } = {}) =>
   Boolean(x && uid && (isAdmin || x.ownerUid === uid || (x.managers || []).includes(uid) || (isHead && office && x.office === office)));
+
+// A board's card color (Boards list, and an accent on the board), set by the head of its office, its
+// managers or an administrator (the same people who archive it). Stable ids; '' = the default.
+export const BOARD_COLORS = [
+  { id: 'blue', label: 'Blue', hex: '#2f6fb0' },
+  { id: 'teal', label: 'Teal', hex: '#0f8a8a' },
+  { id: 'green', label: 'Green', hex: '#2e8b57' },
+  { id: 'yellow', label: 'Yellow', hex: '#d4a017' },
+  { id: 'orange', label: 'Orange', hex: '#e07b24' },
+  { id: 'red', label: 'Red', hex: '#c0392b' },
+  { id: 'pink', label: 'Pink', hex: '#c2477f' },
+  { id: 'purple', label: 'Purple', hex: '#7b4fb3' },
+  { id: 'gray', label: 'Gray', hex: '#6b7280' },
+];
+export const boardColor = (b) => BOARD_COLORS.find((c) => c.id === b?.color)?.hex || '';
