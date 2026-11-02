@@ -53,9 +53,9 @@ export default function MyWork() {
       {!buckets && !error && <div className="spinner" />}
       {buckets && (
         <>
-          <div className="wk-tabs" role="tablist">
+          <div className="tabs wk-mytabs" role="tablist">
             {MY_WORK_VIEWS.map(([k, label]) => (
-              <button key={k} type="button" role="tab" aria-selected={show === k} className={`wk-tab${show === k ? ' active' : ''}${k === 'overdue' && buckets.overdue.length ? ' alert-tab' : ''}`}
+              <button key={k} type="button" role="tab" aria-selected={show === k} className={`${show === k ? 'active' : ''}${k === 'overdue' && buckets.overdue.length ? ' alert-tab' : ''}`}
                 onClick={() => setParams(k === 'assigned' ? {} : { show: k })}>{label} <span className="wk-count">{counts[k]}</span></button>
             ))}
           </div>

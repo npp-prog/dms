@@ -1556,11 +1556,10 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .wk-activity { border-top: 1px solid var(--line); margin-top: .6rem; padding-top: .6rem; }
 .wk-activity h4 { margin: 0 0 .4rem; }
 .wk-activity ul { list-style: none; padding: 0; margin: 0 0 .5rem; display: grid; gap: .45rem; font-size: .88rem; }
-.wk-tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .9rem; }
-.wk-tab { border: 1px solid var(--line-2); background: var(--card); border-radius: 999px; padding: .35rem .8rem; font: inherit; font-size: .86rem; cursor: pointer; color: var(--text); }
-.wk-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
-.wk-tab .wk-count { font-weight: 700; margin-left: .2rem; }
-.wk-tab.alert-tab:not(.active) { border-color: var(--bad); color: var(--bad); }
+.wk-mytabs .wk-count { display: inline-block; min-width: 1.4em; margin-left: .35rem; padding: 0 .4em; border-radius: 99px; background: rgba(15,23,42,.07); font-size: .78rem; font-weight: 700; text-align: center; }
+.wk-mytabs button.active .wk-count { background: var(--green); color: #fff; }
+.wk-mytabs button.alert-tab:not(.active) { color: var(--bad); }
+.wk-mytabs button.alert-tab .wk-count { background: var(--bad); color: #fff; }
 .doc-work .wk-doc-items { list-style: none; padding: 0; margin: 0 0 .6rem; display: grid; gap: .45rem; }
 .doc-work-pick { display: grid; gap: .2rem; margin-top: .4rem; }
 @media (max-width: 640px) { .wk-panel { padding: 1rem; } .wk-pill { min-width: 0; } }
