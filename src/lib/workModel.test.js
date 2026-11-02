@@ -152,3 +152,11 @@ test('board templates kept by administrators', async () => {
   assert.equal(templateOf('accounting', mine).name, 'Accounting Office work');
   assert.equal(templateOf('gone', mine).name, 'Board');
 });
+
+test("an office head manages their office's boards", () => {
+  const b = { ownerUid: 'o', managers: ['o'], members: [], viewers: [], office: 'Engineering' };
+  assert.equal(boardRole(b, 'h', false, 'Engineering'), 'manager');
+  assert.equal(boardRole(b, 'h', false, 'Health'), '');
+  assert.equal(boardRole(b, 'h'), '');
+  assert.equal(boardRole({ ...b, office: '' }, 'h', false, ''), '');
+});

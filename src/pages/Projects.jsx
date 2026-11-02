@@ -170,7 +170,7 @@ function Project({ projectId }) {
       const proj = await getProject(projectId);
       setP(proj);
       if (proj) {
-        const bs = await listBoards(actor, { all: isAdmin }).catch(() => []);
+        const bs = await listBoards(actor, { all: isAdmin, headOf: isHead ? profile.office : '' }).catch(() => []);
         setBoards(bs);
         setItems(await listProjectItems(proj, bs));
       }
@@ -250,9 +250,9 @@ function Project({ projectId }) {
                 </tr>))}</tbody>
             </table>
           )}
-          {canEdit && (p.boardIds || []).some((id) => boards.some((b) => b.id === id && ['manager', 'member'].includes(boardRole(b, actor.uid, isAdmin)))) && (
+          {canEdit && (p.boardIds || []).some((id) => boards.some((b) => b.id === id && ['manager', 'member'].includes(boardRole(b, actor.uid, isAdmin, isHead ? profile.office : '')))) && (
             <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: '.6rem' }}
-              onClick={() => { const b = boards.find((x) => (p.boardIds || []).includes(x.id) && ['manager', 'member'].includes(boardRole(x, actor.uid, isAdmin))); setPanel({ board: b, draft: { projectId: p.id, office: p.office } }); }}>+ New work item for this project</button>
+              onClick={() => { const b = boards.find((x) => (p.boardIds || []).includes(x.id) && ['manager', 'member'].includes(boardRole(x, actor.uid, isAdmin, isHead ? profile.office : ''))); setPanel({ board: b, draft: { projectId: p.id, office: p.office } }); }}>+ New work item for this project</button>
           )}
         </section>
       )}
@@ -262,7 +262,7 @@ function Project({ projectId }) {
       {panel && (
         <>
           <div className="wk-backdrop" onClick={() => setPanel(null)} />
-          <WorkItemPanel board={panel.board} item={panel.item || null} draft={panel.draft} role={boardRole(panel.board, actor.uid, isAdmin)}
+          <WorkItemPanel board={panel.board} item={panel.item || null} draft={panel.draft} role={boardRole(panel.board, actor.uid, isAdmin, isHead ? profile.office : '')}
             onClose={() => setPanel(null)} onSaved={() => { setPanel(null); load(); }} />
         </>
       )}

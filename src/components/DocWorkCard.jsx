@@ -12,7 +12,8 @@ import { listProjects, projectsLinking, updateProject } from '../lib/projects.js
 // one for it or adding it to an existing one. The document itself stays as it is: its route and
 // approvals are the DMS workflow's, whatever the items' status.
 export default function DocWorkCard({ docId, docData }) {
-  const { actor, isAdmin } = useAuth();
+  const { actor, isAdmin, isHead, profile } = useAuth();
+  const headOffice = isHead ? profile.office : '';
   const [boards, setBoards] = useState(null);
   const [items, setItems] = useState(null);
   const [mode, setMode] = useState(''); // '' | 'new' | 'add'
@@ -28,7 +29,7 @@ export default function DocWorkCard({ docId, docData }) {
 
   const load = async () => {
     try {
-      const bs = await listBoards(actor, { all: isAdmin });
+      const bs = await listBoards(actor, { all: isAdmin, headOf: headOffice });
       setBoards(bs);
       setItems(await listItemsForDocument(docId, bs));
       setProjects(await listProjects(actor, { all: isAdmin }).catch(() => []));
@@ -36,7 +37,7 @@ export default function DocWorkCard({ docId, docData }) {
   };
   useEffect(() => { load(); }, [docId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const editable = (boards || []).filter((b) => ['manager', 'member'].includes(boardRole(b, actor.uid, isAdmin)));
+  const editable = (boards || []).filter((b) => ['manager', 'member'].includes(boardRole(b, actor.uid, isAdmin, headOffice)));
   const board = editable.find((b) => b.id === boardId);
   useEffect(() => {
     setBoardItems(null); setItemId('');
@@ -122,7 +123,7 @@ export default function DocWorkCard({ docId, docData }) {
       {panel && (
         <>
           <div className="wk-backdrop" onClick={() => setPanel(null)} />
-          <WorkItemPanel board={panel.board} draft={panel.draft} role={boardRole(panel.board, actor.uid, isAdmin)}
+          <WorkItemPanel board={panel.board} draft={panel.draft} role={boardRole(panel.board, actor.uid, isAdmin, headOffice)}
             onClose={() => setPanel(null)} onSaved={() => { setPanel(null); setMode(''); load(); }} />
         </>
       )}

@@ -92,9 +92,11 @@ export const nextGroupId = (groups = []) => `g${Math.max(0, ...groups.map((g) =>
 
 // Board roles: managers (settings, members, delete items), members (create, edit, assign), viewers
 // (read only). access = all of them, for the "boards I can see" query and the rules.
-export function boardRole(board, uid, isAdmin = false) {
+// headOffice: the office of an office head, who manages their office's boards (board.office).
+export function boardRole(board, uid, isAdmin = false, headOffice = '') {
   if (!board || !uid) return isAdmin ? 'manager' : '';
   if ((board.managers || []).includes(uid) || board.ownerUid === uid) return 'manager';
+  if (headOffice && board.office === headOffice) return 'manager';
   if ((board.members || []).includes(uid)) return 'member';
   if ((board.viewers || []).includes(uid)) return 'viewer';
   return isAdmin ? 'manager' : '';

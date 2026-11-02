@@ -205,7 +205,7 @@ function Board({ boardId, itemId }) {
   // for their own item). It is the task's status only: no document is approved or routed.
   const moveTo = async (item, status) => {
     if (item.status === status || board.archived) return;
-    const r = boardRole(board, actor.uid, isAdmin);
+    const r = boardRole(board, actor.uid, isAdmin, isHead ? profile.office : '');
     try {
       if (r === 'manager' || r === 'member') await saveItem(board, item, { status }, actor);
       else if ((item.assignees || []).includes(actor.uid)) await setItemStatus(board, item, status, actor);
@@ -215,7 +215,7 @@ function Board({ boardId, itemId }) {
   };
 
   // An archived board is read-only for everyone (its people only read it) until it is restored.
-  const role = board?.archived ? (boardRole(board, actor.uid, isAdmin) ? 'viewer' : '') : boardRole(board, actor.uid, isAdmin);
+  const role = board?.archived ? (boardRole(board, actor.uid, isAdmin, isHead ? profile.office : '') ? 'viewer' : '') : boardRole(board, actor.uid, isAdmin, isHead ? profile.office : '');
   const shown = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     return (items || [])

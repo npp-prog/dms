@@ -54,8 +54,8 @@ columns[{id, label, type, options[], hidden}], exportBy, reminders` (the last th
 
 - **managers**: board settings and people; **members**: create, edit and assign items;
   **viewers**: read only. `access` = all three (for the "my boards" query and the rules).
-- **Office heads** (`users.head`) see the boards whose `office` is theirs (and their items, read
-  only) and may delete them; deleting a board deletes its work items (`lib/work.js deleteBoard`). Who may
+- **Office heads** (`users.head`) manage the boards whose `office` is theirs, like their managers
+  (`managesBoard`/`editsBoard` include `headsBoardOffice`; the creator stays the owner), and may delete them; deleting a board deletes its work items (`lib/work.js deleteBoard`). Who may
   delete a board: its creator (`ownerUid`), an administrator, or the head of its office.
 - **Templates**: `meta/settings.boardTemplates [{id, name, description, groups[]}]`, kept by administrators
   (Administration → Board Templates; `templatesOf(settings)`, default the starter list). A board stores its

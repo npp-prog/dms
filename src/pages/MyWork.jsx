@@ -15,7 +15,7 @@ export const MY_WORK_VIEWS = [
 // My Work: the open work items assigned to the user on every board, and those they created that
 // wait for their review. ?show=overdue (or today, upcoming, blocked, review) opens that list.
 export default function MyWork() {
-  const { actor, isAdmin } = useAuth();
+  const { actor, isAdmin, isHead, profile } = useAuth();
   const [params, setParams] = useSearchParams();
   const show = MY_WORK_VIEWS.some(([k]) => k === params.get('show')) ? params.get('show') : 'assigned';
   const [items, setItems] = useState(null);
@@ -94,7 +94,7 @@ export default function MyWork() {
       {open && (
         <>
           <div className="wk-backdrop" onClick={() => setOpen(null)} />
-          <WorkItemPanel board={open.board} item={open.item} role={boardRole(open.board, actor.uid, isAdmin)}
+          <WorkItemPanel board={open.board} item={open.item} role={boardRole(open.board, actor.uid, isAdmin, isHead ? profile.office : '')}
             onClose={() => setOpen(null)} onSaved={() => { setOpen(null); load(); }} />
         </>
       )}

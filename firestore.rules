@@ -678,7 +678,8 @@ service cloud.firestore {
     }
     // (An archived board is read-only: no work items are added or edited until it is restored.)
     function editsBoard(b) {
-      return !b.get('archived', false) && (isAdmin() || request.auth.uid in b.get('managers', []) || request.auth.uid in b.get('members', []));
+      return !b.get('archived', false) && (isAdmin() || request.auth.uid in b.get('managers', []) || request.auth.uid in b.get('members', [])
+        || headsBoardOffice(b));
     }
     // The head of a board's office: archives or restores it, and sets its card color; nothing else.
     function headBoardChange() {
@@ -692,8 +693,9 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'archivedAt', 'archivedBy', 'updatedAt'])
         && request.resource.data.archived is bool && request.resource.data.get('archivedBy', '') in ['', request.auth.uid];
     }
+    // (The head of a board's office manages it like its managers do, without being on it.)
     function managesBoard(b) {
-      return isAdmin() || request.auth.uid in b.get('managers', []) || b.get('ownerUid', '') == request.auth.uid;
+      return isAdmin() || request.auth.uid in b.get('managers', []) || b.get('ownerUid', '') == request.auth.uid || headsBoardOffice(b);
     }
     function boardShapeOk(d) {
       return d.keys().hasOnly(['name', 'description', 'template', 'office', 'ownerUid', 'ownerName', 'managers', 'members',
