@@ -55,3 +55,16 @@ test('a link is kept once the document is routed on after it was added, until it
   assert.equal(linkLocked(atBudget, { atEvent: 2 }), true); // added by Accounting, routed on since
   assert.equal(linkLocked(atAccounting, { atEvent: 2 }), false); // added at this step, not routed on yet
 });
+
+test('DRN: assigned numbers and filled-in numbers only (no dates, banks)', async () => {
+  const { drnOf } = await import('./naming.js');
+  const d = { refNos: {
+    dvNo: { value: '2026-11-0001', label: 'DV No.' },
+    dvDate: { value: '2026-11-02', label: 'Date', of: 'dvNo' },
+    bank: { value: 'LBP', label: 'Bank', filled: true },
+    checkDate: { value: '2026-11-02', label: 'Check Date', filled: true },
+    checkNo: { value: 'SHSHW', label: 'Check/ADA No.', filled: true },
+  } };
+  assert.equal(drnOf(d), '2026-11-0001, SHSHW');
+  assert.equal(drnOf({}), '');
+});

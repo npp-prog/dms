@@ -140,5 +140,8 @@ export function withRestart(pattern, restart) {
   return p.replace(/^[-/.]+|[-/.]+$/g, '').replace(/([-/.]){2,}/g, '$1');
 }
 
-// The Document Reference No. (DRN): the number(s) assigned along the route, e.g. the DV No.
-export const drnOf = (d) => Object.values(d?.refNos || {}).filter((r) => !r.of && r.value).map((r) => r.value).join(', ');
+// The Document Reference No. (DRN): the number(s) assigned along the route, e.g. the DV No., and
+// numbers an office fills in (a field labelled "… No.", e.g. Check/ADA No.); not dates, banks or
+// other details filled in along the way.
+export const isRefNumber = (r) => Boolean(r?.value) && !r.of && (!r.filled || /no\.?$/i.test(String(r.label || '').trim()));
+export const drnOf = (d) => Object.values(d?.refNos || {}).filter(isRefNumber).map((r) => r.value).join(', ');
