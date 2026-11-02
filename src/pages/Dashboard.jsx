@@ -9,7 +9,8 @@ import NotesCard from '../components/NotesCard.jsx';
 import { drnOf } from '../lib/naming.js';
 import { backupStatus, getArchiveSettings, listBackups } from '../lib/archive.js';
 import { ROLE_NAMES } from '../lib/roles.js';
-import { listMyItems } from '../lib/work.js';
+import { listBoardItems, listBoards, listMyItems } from '../lib/work.js';
+import { workload } from '../lib/reports.js';
 import { myWorkBuckets, upcomingMilestones } from '../lib/workModel.js';
 import { localDay } from '../lib/archiveFiles.js';
 import { listProjects } from '../lib/projects.js';
@@ -49,7 +50,17 @@ export default function Dashboard() {
   useEffect(() => { listMyItems(user.uid).then((l) => setWork(myWorkBuckets(l, user.uid, localDay()))).catch(() => setWork(null)); }, [user.uid]);
   // Milestones of the user's projects due in the next 14 days.
   const [milestones, setMilestones] = useState([]);
-  useEffect(() => { listProjects({ uid: user.uid }, { all: isAdmin }).then((ps) => setMilestones(upcomingMilestones(ps, localDay()))).catch(() => setMilestones([])); }, [user.uid, isAdmin]);
+  const [projects, setProjects] = useState([]);
+  useEffect(() => {
+    listProjects({ uid: user.uid }, { all: isAdmin }).then((ps) => { setProjects(ps); setMilestones(upcomingMilestones(ps, localDay())); }).catch(() => setMilestones([]));
+  }, [user.uid, isAdmin]);
+  // Work by responsible office, on the boards the user is on (the first 10; Reports has them all).
+  const [offices, setOffices] = useState([]);
+  useEffect(() => {
+    listBoards({ uid: user.uid }).then((bs) => Promise.all(bs.slice(0, 10).map((b) => listBoardItems(b.id).catch(() => []))))
+      .then((lists) => setOffices(workload(lists.flat(), localDay(), 'office').filter((r) => r.open > 0).slice(0, 6))).catch(() => setOffices([]));
+  }, [user.uid]);
+  const ongoing = projects.filter((p) => ['planning', 'ongoing', 'on_hold'].includes(p.status)).slice(0, 5);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
 
@@ -141,6 +152,27 @@ export default function Dashboard() {
               {glance.map(([l, v, to]) => <li key={l}><Link to={to}><span>{l}</span></Link><b>{v}</b></li>)}
             </ul>
           </div>
+          {(offices.length > 0 || ongoing.length > 0) && (
+            <div className="card">
+              <div className="card-head"><h3>Work overview</h3><Link className="btn btn-sm" to="/reports">Reports</Link></div>
+              {offices.length > 0 && (
+                <ul className="glance">
+                  {offices.map((r) => (
+                    <li key={r.key || '-'}><Link to={`/reports?tab=aging&office=${encodeURIComponent(r.key || '-')}`}><span>{r.key || 'No office'}</span></Link>
+                      <b>{r.open} open{r.overdue > 0 && <span className="wk-due-overdue"> · {r.overdue} overdue</span>}</b></li>
+                  ))}
+                </ul>
+              )}
+              {ongoing.length > 0 && (
+                <ul className="glance">
+                  {ongoing.map((p) => (
+                    <li key={p.id}><Link to={`/projects/${p.id}`}><span>{p.code} {p.name}</span></Link>
+                      <b><span className="wk-bar"><span style={{ width: `${Number(p.physicalProgress) || 0}%` }} /></span> {Number(p.physicalProgress) || 0}%</b></li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           <div className="card">
             <div className="card-head"><h3>Recent documents</h3><Link className="btn btn-sm" to="/documents">Open list</Link></div>
             <ul className="upcoming">

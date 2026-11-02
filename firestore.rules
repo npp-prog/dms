@@ -83,7 +83,7 @@ service cloud.firestore {
       allow get: if isActive() && resource.data.from == request.auth.uid;
       allow create: if isActive() && request.resource.data.from == request.auth.uid
         && request.resource.data.keys().hasOnly(['kind', 'text', 'link', 'from', 'fromName', 'at', 'read'])
-        && request.resource.data.kind in ['document', 'circular', 'community', 'work', 'mention']
+        && request.resource.data.kind in ['document', 'circular', 'community', 'work', 'mention', 'reminder']
         // signed with the sender's own name (as in their profile), never someone else's
         && request.resource.data.fromName in [profile().get('displayName', ''), profile().get('email', '')]
         && request.resource.data.link is string && request.resource.data.link.matches('^/[A-Za-z0-9/_-]*$')
@@ -680,7 +680,10 @@ service cloud.firestore {
     }
     function boardShapeOk(d) {
       return d.keys().hasOnly(['name', 'description', 'template', 'office', 'ownerUid', 'ownerName', 'managers', 'members',
-          'viewers', 'access', 'names', 'groups', 'archived', 'createdAt', 'updatedAt'])
+          'viewers', 'access', 'names', 'groups', 'archived', 'createdAt', 'updatedAt', 'columns', 'exportBy', 'reminders'])
+        && d.get('columns', []) is list && d.get('columns', []).size() <= 20
+        && d.get('exportBy', 'members') in ['members', 'managers', 'everyone']
+        && d.get('reminders', true) is bool
         && d.name is string && d.name.size() > 0 && d.name.size() <= 120
         && d.managers is list && d.members is list && d.viewers is list && d.access is list
         && d.access.size() <= 200 && d.groups is list && d.groups.size() <= 30
@@ -696,13 +699,31 @@ service cloud.firestore {
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
       allow delete: if isStaff() && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+
+      // Saved views: each person's own (by them), or shared with the board by a manager. Never
+      // changed: saved again, or deleted by whoever saved it (shared ones: a manager too).
+      match /views/{viewId} {
+        function vboard() {
+          return get(/databases/$(database)/documents/boards/$(boardId)).data;
+        }
+        allow read: if isStaff() && seesBoard(vboard()) && (resource.data.by == request.auth.uid || resource.data.shared == true);
+        allow create: if isStaff() && seesBoard(vboard())
+          && request.resource.data.keys().hasOnly(['name', 'shared', 'by', 'byName', 'at', 'view', 'status', 'sort', 'mine', 'q', 'office'])
+          && request.resource.data.by == request.auth.uid && request.resource.data.at == request.time
+          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+          && request.resource.data.q is string && request.resource.data.q.size() <= 100
+          && request.resource.data.shared is bool && (request.resource.data.shared == false || managesBoard(vboard()));
+        allow update: if false;
+        allow delete: if isStaff() && (resource.data.by == request.auth.uid || (resource.data.shared == true && managesBoard(vboard())));
+      }
     }
     // A work item: on one board (boardId, never changed). Its status is the task's progress only:
     // it approves, routes or pays nothing in the DMS.
     function itemShapeOk(d, b) {
       return d.keys().hasOnly(['boardId', 'groupId', 'title', 'description', 'status', 'priority', 'assignees', 'assigneeNames',
           'office', 'startDate', 'dueDate', 'completedOn', 'tags', 'docRefs', 'createdBy', 'createdByName', 'createdAt',
-          'updatedAt', 'updatedBy', 'checklist', 'parentId', 'projectId'])
+          'updatedAt', 'updatedBy', 'checklist', 'parentId', 'projectId', 'fields'])
+        && d.get('fields', {}) is map && d.get('fields', {}).size() <= 40
         && d.get('checklist', []) is list && d.get('checklist', []).size() <= 50
         && d.get('parentId', '') is string
         && d.title is string && d.title.size() > 0 && d.title.size() <= 200

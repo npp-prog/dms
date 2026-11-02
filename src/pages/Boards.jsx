@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { createBoard, getBoard, listBoardItems, listBoards, saveItem, setItemStatus, updateBoard } from '../lib/work.js';
-import { BOARD_TEMPLATES, SORTS, WORK_STATUSES, boardRole, checklistProgress, dueState, nextGroupId, templateOf } from '../lib/workModel.js';
+import { createBoard, deleteView, getBoard, listBoardItems, listBoards, listViews, saveItem, saveView, setItemStatus, updateBoard } from '../lib/work.js';
+import { BOARD_TEMPLATES, COLUMN_LIMIT, COLUMN_TYPES, SORTS, WORK_STATUSES, boardRole, checklistProgress, dueState, fieldText, newColumnId, nextGroupId, templateOf } from '../lib/workModel.js';
+import { EXPORT_CHOICES, canExportBoard, csvName, itemCsvColumns, toCsv } from '../lib/reports.js';
+import { downloadCsv } from '../lib/download.js';
+import { listProjects } from '../lib/projects.js';
 import { localDay } from '../lib/archiveFiles.js';
 import Select from '../components/Select.jsx';
 import PersonPicker from '../components/PersonPicker.jsx';
@@ -148,6 +151,27 @@ function Board({ boardId, itemId }) {
   const [mine, setMine] = useState(false);
   const [sort, setSort] = useState('due');
   const today = localDay();
+  // Saved views: the user's own and those shared with the board.
+  const [views, setViews] = useState([]);
+  const [naming, setNaming] = useState(null); // { name, shared } while saving one
+  const loadViews = () => listViews(boardId, actor.uid).then(setViews).catch(() => setViews([]));
+  useEffect(() => { loadViews(); }, [boardId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const applyView = (v) => { setQ(v.q || ''); setStatus(v.status || ''); setMine(Boolean(v.mine)); setSort(v.sort || 'due'); chooseView(v.view || 'table'); };
+  const keepView = async () => {
+    try {
+      await saveView(boardId, { name: naming.name, shared: naming.shared, filters: { q, status, mine, sort, view } }, actor);
+      setNaming(null); loadViews();
+    } catch (e) { setError(e.code === 'permission-denied' ? 'You may not save this view.' : e.message); }
+  };
+  const dropView = async (v) => {
+    if (!window.confirm(`Delete the saved view "${v.name}"?`)) return;
+    try { await deleteView(boardId, v.id); loadViews(); } catch (e) { setError(e.message); }
+  };
+  // Export to CSV: the items shown (with the filters), for those the board lets export.
+  const exportCsv = async () => {
+    const projects = await listProjects(actor, { all: isAdmin }).catch(() => []);
+    downloadCsv(csvName(board.name, today), toCsv(itemCsvColumns(board, { projects, today }), shown));
+  };
 
   const load = async () => {
     try {
@@ -194,6 +218,7 @@ function Board({ boardId, itemId }) {
   if (!board) return <div className="page"><div className="alert">{error || 'This board does not exist.'}</div><Link to="/boards">Back to Boards</Link></div>;
 
   const canEdit = role === 'manager' || role === 'member';
+  const cols = (board.columns || []).filter((c) => !c.hidden);
   return (
     <div className="page wk-board">
       <div className="page-head">
@@ -212,6 +237,12 @@ function Board({ boardId, itemId }) {
       </div>
       {settingsOpen && <BoardSettings board={board} onSaved={() => { setSettingsOpen(false); load(); }} />}
       <div className="filters wk-filters">
+        {views.length > 0 && (
+          <Select value="" aria-label="Saved views" onChange={(e) => { const v = views.find((x) => x.id === e.target.value); if (v) applyView(v); }}>
+            <option value="">Saved views…</option>
+            {views.map((v) => <option key={v.id} value={v.id}>{v.name}{v.shared ? ' (shared)' : ''}</option>)}
+          </Select>
+        )}
         <input className="search" placeholder="Search work items…" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
           <option value="">All statuses</option>
@@ -222,7 +253,29 @@ function Board({ boardId, itemId }) {
           <option value="status">By status</option><option value="title">By title</option><option value="created">Newest first</option>
         </Select>
         <label className="check small"><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Assigned to me</label>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNaming({ name: '', shared: false })}>Save view</button>
+        {canExportBoard(board, actor.uid, isAdmin) && <button type="button" className="btn btn-ghost btn-sm" disabled={!items} onClick={exportCsv}>Export CSV</button>}
       </div>
+      {naming && (
+        <div className="card wk-save-view row gap wrap">
+          <label className="field"><span className="field-label">Name of the view</span>
+            <input value={naming.name} maxLength={60} autoFocus onChange={(e) => setNaming({ ...naming, name: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && naming.name.trim() && keepView()} /></label>
+          {role === 'manager' && <label className="check small"><input type="checkbox" checked={naming.shared} onChange={(e) => setNaming({ ...naming, shared: e.target.checked })} /> Share with everyone on the board</label>}
+          <button type="button" className="btn btn-primary btn-sm" disabled={!naming.name.trim()} onClick={keepView}>Save</button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNaming(null)}>Cancel</button>
+          <span className="xs muted grow">Keeps the search, status, sort, "Assigned to me" and the view ({view}).</span>
+        </div>
+      )}
+      {views.length > 0 && (
+        <details className="wk-views small">
+          <summary>Manage saved views</summary>
+          <ul>{views.map((v) => (
+            <li key={v.id}>{v.name} <span className="xs muted">{v.shared ? `shared by ${v.byName}` : 'yours'}</span>
+              {(v.by === actor.uid || (v.shared && role === 'manager')) && <button type="button" className="link xs" onClick={() => dropView(v)}>Delete</button>}</li>
+          ))}</ul>
+        </details>
+      )}
       {error && <div className="alert">{error}</div>}
       {items && view === 'kanban' && (
         <div className="wk-kanban">
@@ -277,8 +330,9 @@ function Board({ boardId, itemId }) {
           <section key={g.id} className="wk-group">
             <div className="wk-group-head"><h3>{g.name}</h3><span className="xs muted">{rows.length}</span></div>
             <div className="table-card wk-table-wrap">
-              <table className="data-table wk-table">
-                <thead><tr><th>Item</th><th>Status</th><th>Priority</th><th>Assigned</th><th>Office</th><th>Due</th><th>Docs</th></tr></thead>
+              <table className="data-table wk-table" style={cols.length ? { minWidth: 754 + 115 * cols.length } : undefined}>
+                <thead><tr><th>Item</th><th>Status</th><th>Priority</th><th>Assigned</th><th>Office</th><th>Due</th><th>Docs</th>
+                  {cols.map((c) => <th key={c.id} className={c.type === 'number' || c.type === 'currency' ? 'num' : ''}>{c.label}</th>)}</tr></thead>
                 <tbody>
                   {rows.map((i) => {
                     const ds = dueState(i, today);
@@ -294,10 +348,11 @@ function Board({ boardId, itemId }) {
                         <td className="small">{i.office || '—'}</td>
                         <td className={`small wk-due wk-due-${ds}`}>{i.dueDate ? day(i.dueDate) : '—'}{ds === 'overdue' && <span className="xs"> overdue</span>}</td>
                         <td className="small">{(i.docRefs || []).length || '—'}</td>
+                        {cols.map((c) => <td key={c.id} className={`small${c.type === 'number' || c.type === 'currency' ? ' num' : ''}`}>{fieldText(c, i.fields?.[c.id], board.names) || '—'}</td>)}
                       </tr>
                     );
                   })}
-                  {rows.length === 0 && <tr><td colSpan={7} className="small muted">No items{q || status || mine ? ' match' : ''}.</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={7 + cols.length} className="small muted">No items{q || status || mine ? ' match' : ''}.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -322,6 +377,10 @@ function BoardSettings({ board, onSaved }) {
   const { settings, actor } = useAuth();
   const [f, setF] = useState({ name: board.name, description: board.description || '', office: board.office || '' });
   const [groups, setGroups] = useState(board.groups || []);
+  const [columns, setColumns] = useState(board.columns || []);
+  const [exportBy, setExportBy] = useState(board.exportBy || 'members');
+  const [reminders, setReminders] = useState(board.reminders !== false);
+  const setCol = (id, patch) => setColumns(columns.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   const role = (u) => ((board.managers || []).includes(u) ? 'manager' : (board.members || []).includes(u) ? 'member' : 'viewer');
   const [people, setPeople] = useState((board.access || []).filter((u) => u !== board.ownerUid)
     .map((u) => ({ uid: u, displayName: board.names?.[u] || 'Someone', role: role(u) })));
@@ -331,10 +390,13 @@ function BoardSettings({ board, onSaved }) {
     setBusy(true); setError('');
     try {
       if (!groups.length || groups.some((g) => !g.name.trim())) throw new Error('Every group needs a name, and a board at least one group.');
+      if (columns.some((c) => !String(c.label || '').trim())) throw new Error('Every column needs a name.');
+      if (columns.some((c) => c.type === 'dropdown' && !(c.options || []).some((o) => String(o).trim()))) throw new Error('A dropdown column needs its choices.');
       const managers = [board.ownerUid, ...people.filter((p) => p.role === 'manager').map((p) => p.uid)];
       await updateBoard(board.id, {
         name: f.name.trim(), description: f.description.trim(), office: f.office,
         groups: groups.map((g) => ({ id: g.id, name: g.name.trim() })),
+        columns, exportBy, reminders,
         managers: [...new Set(managers)],
         members: people.filter((p) => p.role === 'member').map((p) => p.uid),
         viewers: people.filter((p) => p.role === 'viewer').map((p) => p.uid),
@@ -366,6 +428,37 @@ function BoardSettings({ board, onSaved }) {
           </div>
         ))}
         <button type="button" className="link small" onClick={() => setGroups([...groups, { id: nextGroupId(groups), name: '' }])}>+ Add a group</button>
+      </div>
+      <div className="field"><span className="field-label">Columns of this board</span>
+        {columns.map((c) => (
+          <div key={c.id} className={`row gap wrap wk-col-edit${c.hidden ? ' wk-col-hidden' : ''}`}>
+            <input value={c.label} aria-label="Column name" maxLength={60} onChange={(e) => setCol(c.id, { label: e.target.value })} />
+            {(board.columns || []).some((x) => x.id === c.id)
+              ? <span className="small muted">{COLUMN_TYPES.find((t) => t.id === c.type)?.label}</span>
+              : (
+                <Select value={c.type} aria-label="Column type" onChange={(e) => setCol(c.id, { type: e.target.value })}>
+                  {COLUMN_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </Select>
+              )}
+            {c.type === 'dropdown' && <input value={(c.options || []).join(', ')} aria-label="Choices, separated by commas" className="grow"
+              onChange={(e) => setCol(c.id, { options: e.target.value.split(',') })} />}
+            {(board.columns || []).some((x) => x.id === c.id)
+              ? <button type="button" className="link small" onClick={() => setCol(c.id, { hidden: !c.hidden })}>{c.hidden ? 'Show again' : 'Hide'}</button>
+              : <button type="button" className="btn-icon" title="Remove" onClick={() => setColumns(columns.filter((x) => x.id !== c.id))}>×</button>}
+          </div>
+        ))}
+        {columns.length < COLUMN_LIMIT && <button type="button" className="link small" onClick={() => setColumns([...columns, { id: newColumnId(), label: '', type: 'text', options: [] }])}>+ Add a column</button>}
+        <span className="xs muted wk-help">Columns of your own (text, number, amount, date, dropdown, checkbox, person, office), after the standard ones. A column&rsquo;s type is fixed once saved;
+          renaming it keeps its values, and hiding it keeps them too (they come back when it is shown again). For dropdowns, separate the choices with commas.</span>
+      </div>
+      <div className="wk-grid">
+        <label className="field"><span className="field-label">Who may export to CSV</span>
+          <Select value={exportBy} onChange={(e) => setExportBy(e.target.value)}>
+            {EXPORT_CHOICES.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+          </Select>
+          <span className="xs muted">An export has only the work items; linked documents are counted, never named.</span></label>
+        <label className="check small wk-remind"><input type="checkbox" checked={reminders} onChange={(e) => setReminders(e.target.checked)} /> Send deadline reminders
+          <span className="xs muted wk-help">To the people assigned: the day before, on the due date, and once when overdue.</span></label>
       </div>
       <PeopleEditor people={people} onChange={setPeople} exclude={[board.ownerUid]} />
       <p className="xs muted">{board.ownerName} created the board and stays its manager.</p>

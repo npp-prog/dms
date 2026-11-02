@@ -72,7 +72,7 @@ function ProjectList() {
 function ProjectForm({ offices, office, project, onCancel, onCreated, onSaved }) {
   const { actor } = useAuth();
   const [f, setF] = useState(() => ({
-    code: '', name: '', description: '', office: office || '', startDate: '', targetDate: '', status: 'planning', fundingSource: '', approvedBudget: '',
+    code: '', name: '', description: '', office: office || '', startDate: '', targetDate: '', status: 'planning', fundingSource: '',
     ...(project || {}), approvedBudget: project?.approvedBudget ?? '',
   }));
   const role = (u) => ((project?.managers || []).includes(u) ? 'manager' : (project?.members || []).includes(u) ? 'member' : 'viewer');

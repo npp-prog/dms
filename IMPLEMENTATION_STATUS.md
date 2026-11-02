@@ -55,14 +55,36 @@ Tests: work-model tests (project cleaning, budget, milestones, calendar grid); 1
 items related to a project); browser run (create project, milestone, progress update, issue, link document,
 relate board, item for the project, both calendars, document page, dashboard).
 
-## Not yet (next phases)
-- Phase 4: Reports, CSV export, deadline reminders, saved views, configurable columns.
+## Phase 4 — Reports and automation (implemented)
+| Feature | Status |
+|---|---|
+| Reports page: aging and overdue (buckets, days overdue, days open), clickable buckets | Done |
+| Workload by office and by person (open, overdue, blocked, due in 7 days, completed in 30 days) | Done |
+| Project summaries (status, physical progress, milestones, open issues, approved budget, days left) | Done |
+| Dashboard: work overview (workload by office, project progress), linked to the reports | Done |
+| CSV export: boards (with filters) and reports; who may export set per board; documents only counted; formula-safe | Done |
+| Deadline reminders (day before, due date, once overdue): notifications + email, fixed ids (sent once), per-board switch | Done — browser-sent; trusted scheduled sender needs a service account (not configured) |
+| Saved views per board (own; shared by managers) | Done — **publish firestore.rules** |
+| Configurable columns (text, number, amount, date, dropdown, checkbox, person, office), stable ids, hide/show | Done — **publish firestore.rules** |
 
-## Known limitations (Phases 1–3)
+Tests: report tests (aging buckets, Philippine-day ages, workload by office/person, project summary,
+export permissions, CSV quoting and formula protection, export columns, reminder plan and ids,
+columns and field cleaning); 22 emulator rule checks (columns/exportBy/reminders by managers only,
+fields map, saved views own/shared/never edited, reminders created once and not overwritten, outsiders);
+browser run (columns on a board and in an item, activity for a column change, shared saved view,
+CSV download, the three reports, dashboard overview, reminders received by the assignee).
+
+## Not yet
+- A trusted scheduled backend for reminders and audit records (needs a Firebase service account in Netlify).
+- Paging for very large boards; weighted milestone progress; a "related record" column type.
+
+## Known limitations (Phases 1–4)
 - Activity events are written by the browser (validated and append-only in the rules), not yet by a trusted backend.
 - Boards load at most 500 items; My Work 300 (no paging yet).
 - Deleting an item leaves its activity entries (unreachable).
 - Removing a person from a board does not unassign them from its items (they keep seeing those items as assignees).
 - Kanban moves by drag and drop with a mouse; on a phone or by keyboard, open the item and change its status there.
 - Notifications for assignments and mentions are sent by the browser (like the DMS's other notices), not a backend.
+- Reminders are sent when someone on the board opens DMS that day (assignee or board manager); a reminder the person deleted may be sent again for the same overdue item.
+- Reports read at most 40 boards (each up to 500 items) and 100 projects; exports are built in the browser.
 - Projects: physical progress is manual (no weighted milestones yet); a project lists work items only from related boards the user is on; the project list loads at most 200 projects.

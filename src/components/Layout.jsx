@@ -16,7 +16,7 @@ import { ROLE_NAMES } from '../lib/roles.js';
 const EXTERNAL_PAGES = /^\/(notifications|messages|profile|documents\/[^/]+)\/?$/;
 
 export default function Layout() {
-  const { user, profile, settings, isAdmin, isSuper, canManageUsers, canManageSettings, isHead, isRecords, isExternal, logout } = useAuth();
+  const { user, actor, profile, settings, isAdmin, isSuper, canManageUsers, canManageSettings, isHead, isRecords, isExternal, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const location = useLocation();
   useEffect(() => setOpen(false), [location.pathname]);
@@ -47,6 +47,11 @@ export default function Layout() {
     if (!profile?.active) return undefined;
     return watchNotifications(user.uid, (list) => setUnreadUpdates(list.filter((n) => !n.read)), () => setUnreadUpdates([]));
   }, [user.uid, profile?.active]);
+  // Deadline reminders for work items (once a day: lib/work.js sendDeadlineReminders).
+  useEffect(() => {
+    if (!profile?.active || isExternal || !actor) return;
+    import('../lib/work.js').then((m) => m.sendDeadlineReminders(actor, new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }))).catch(() => {});
+  }, [user.uid, profile?.active]); // eslint-disable-line react-hooks/exhaustive-deps
   const [groupUnread, setGroupUnread] = useState(0);
   useEffect(() => {
     if (!profile?.active || isExternal) return undefined;
@@ -72,7 +77,7 @@ export default function Layout() {
       ],
     },
     // Work management: tasks and boards around the documents (docs/work-management-integration.md).
-    { label: 'Work', items: [['/my-work', 'check', 'My Work'], ['/boards', 'types', 'Boards'], ['/projects', 'folder', 'Projects']] },
+    { label: 'Work', items: [['/my-work', 'check', 'My Work'], ['/boards', 'types', 'Boards'], ['/projects', 'folder', 'Projects'], ['/reports', 'workflow', 'Reports']] },
     { label: 'Account', items: [['/messages', 'chat', 'Messages', false, unread], ['/communities', 'users', 'Communities', false, groupUnread], ['/profile', 'user', 'My Profile']] },
     isAdmin && {
       label: 'Administration',

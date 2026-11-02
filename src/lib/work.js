@@ -3,11 +3,12 @@
 // their ids (docRefs), never their title or content, so linking a restricted document shows
 // nothing of it to board members who may not open it.
 import {
-  addDoc, collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, updateDoc, where, writeBatch,
+  addDoc, collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
-import { accessOf, cleanItem, groupsFor, templateOf } from './workModel.js';
-import { notifyMany } from './social.js';
+import { accessOf, boardRole, cleanColumns, cleanFields, cleanItem, fieldText, groupsFor, templateOf } from './workModel.js';
+import { emailNotices, notifyMany } from './social.js';
+import { reminderPlan, reminderText } from './reports.js';
 
 // The address of an item (it opens the board with the item's details): used in notifications.
 export const itemLink = (item) => `/boards/${item.boardId}/${item.id}`;
@@ -62,6 +63,7 @@ export async function createBoard({ name, description = '', template = 'blank', 
 // Managers: name, description, office, groups, people.
 export async function updateBoard(id, patch) {
   const next = { ...patch, updatedAt: serverTimestamp() };
+  if (patch.columns) next.columns = cleanColumns(patch.columns);
   if (patch.managers || patch.members || patch.viewers) next.access = accessOf(patch);
   await updateDoc(doc(db, 'boards', id), next);
 }
@@ -112,6 +114,7 @@ export async function listActivity(itemId, max = 50) {
 // board: the board doc (its names, for assignee names). Returns the new item's id.
 export async function createItem(board, input, user) {
   const item = cleanItem(input);
+  item.fields = cleanFields(item.fields, board.columns);
   if (!item.title) throw new Error('Type what the work item is.');
   const ref = doc(collection(db, 'workItems'));
   const batch = writeBatch(db);
@@ -161,12 +164,21 @@ function describe(before, after, board) {
     else if (was[c.id].done !== c.done) out.push(['checklist', `${c.done ? 'checked off' : 'unchecked'}: ${c.text}`]);
   }
   for (const c of before.checklist || []) if (!now[c.id]) out.push(['checklist', `removed from the checklist: ${c.text}`]);
+  // The board's own columns (by their current label).
+  for (const c of board.columns || []) {
+    const a = (before.fields || {})[c.id]; const b = (after.fields || {})[c.id];
+    if ((a ?? '') !== (b ?? '')) out.push(['field', b === undefined || b === '' ? `${c.label}: cleared` : `${c.label}: ${fieldText(c, b, board.names)}`]);
+  }
   return out;
 }
 
 // Saves the item (all its fields, as edited) and records what changed.
 export async function saveItem(board, before, input, user) {
   const item = cleanItem({ ...before, ...input });
+  // Values of hidden or removed columns stay as they were; the visible ones are as edited.
+  const visible = (board.columns || []).filter((c) => !c.hidden);
+  const kept = Object.fromEntries(Object.entries(before.fields || {}).filter(([k]) => !visible.some((c) => c.id === k)));
+  item.fields = { ...kept, ...cleanFields(item.fields, visible) };
   if (!item.title) throw new Error('The work item needs a title.');
   const changes = describe(before, item, board);
   if (!changes.length) return;
@@ -238,3 +250,64 @@ export async function linkDocumentToItem(board, item, docId, user) {
   await saveItem(board, item, { docRefs: [...(item.docRefs || []), docId] }, user);
 }
 
+
+// ---- Saved views (boards/{id}/views/{id}): a name for a board's filters and view. Each person
+// keeps their own; a board manager may share one with everyone on the board. Never edited:
+// saved again under a name, or deleted. ----
+export async function listViews(boardId, uid) {
+  const col = collection(db, 'boards', boardId, 'views');
+  const [own, shared] = await Promise.all([
+    getDocs(query(col, where('by', '==', uid), limit(50))),
+    getDocs(query(col, where('shared', '==', true), limit(50))),
+  ]);
+  const all = new Map([...own.docs, ...shared.docs].map((d) => [d.id, { id: d.id, ...d.data() }]));
+  return [...all.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+export async function saveView(boardId, { name, shared = false, filters }, user) {
+  const n = String(name || '').trim();
+  if (!n) throw new Error('Name the view.');
+  const f = filters || {};
+  const ref = await addDoc(collection(db, 'boards', boardId, 'views'), {
+    name: n.slice(0, 60), shared: Boolean(shared), by: user.uid, byName: nameOf(user), at: serverTimestamp(),
+    view: ['table', 'kanban', 'calendar'].includes(f.view) ? f.view : 'table',
+    status: String(f.status || ''), sort: String(f.sort || 'due'), mine: Boolean(f.mine), q: String(f.q || '').slice(0, 100),
+    office: String(f.office || ''),
+  });
+  return ref.id;
+}
+export async function deleteView(boardId, viewId) {
+  await deleteDoc(doc(db, 'boards', boardId, 'views', viewId));
+}
+
+// ---- Deadline reminders ----
+// Sent from the browser of whoever opens DMS (once a day per person and device): for the items
+// assigned to them and on the boards they manage, a notice (and email) to each assignee when an
+// item is due tomorrow, due today, or overdue (once). Each notice has a fixed id, so however many
+// people's browsers run this, each reminder is created once: the rules refuse overwriting one.
+// (A scheduled backend would send them even when nobody signs in; it needs a Firebase service
+// account in Netlify: see docs/work-management-integration.md.)
+const REMIND_KEY = (uid) => `dms-reminders-${uid}`;
+export async function sendDeadlineReminders(user, today) {
+  try { if (localStorage.getItem(REMIND_KEY(user.uid)) === today) return 0; } catch { /* no storage: run */ }
+  const boards = await listBoards(user);
+  const byId = Object.fromEntries(boards.map((b) => [b.id, b]));
+  const managed = boards.filter((b) => boardRole(b, user.uid) === 'manager').slice(0, 20);
+  const lists = await Promise.all([listMyItems(user.uid), ...managed.map((b) => listBoardItems(b.id).catch(() => []))]);
+  const items = [...new Map(lists.flat().map((i) => [i.id, i])).values()];
+  const at = new Date().toISOString();
+  const sent = [];
+  for (const r of reminderPlan(items, today, byId)) {
+    const text = reminderText(r.item, r.kind, byId[r.item.boardId]?.name || '');
+    for (const to of r.to) {
+      try {
+        await setDoc(doc(db, 'users', to, 'notifications', r.id), {
+          kind: 'reminder', text: text.slice(0, 500), link: itemLink(r.item), from: user.uid, fromName: nameOf(user), at, read: false,
+        });
+        sent.push({ to, id: r.id });
+      } catch { /* already sent (by this or another person's browser) */ }
+    }
+  }
+  emailNotices(sent);
+  try { localStorage.setItem(REMIND_KEY(user.uid), today); } catch { /* not kept */ }
+  return sent.length;
+}

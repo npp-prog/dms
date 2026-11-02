@@ -318,6 +318,18 @@ On a document's page, the **Work items and projects** card also lists the projec
 
 - **Linked documents** show where each is on its route: *Under review* or *Awaiting approval* (a step that signs) at an office, *Returned for correction*, *Forwarded* to a person, or *Completed*, with *Step 2 of 4*.
 
+### Reports, exports, reminders, saved views and board columns
+
+- **Reports** (menu, under Work) count only the boards, work items and projects you can already see:
+  - **Aging and overdue**: the open work items by how overdue they are (*Not overdue*, *1–7*, *8–30*, *31–60*, *over 60 days*); click a box to list only those. Each row shows its due date, days overdue and how many days it has been open; click it to open the item. Filter by board and responsible office.
+  - **Workload**: per responsible office (or **By person**): open items, overdue, blocked, due in the next 7 days, and completed in the last 30 days. Click an office or person to see their items under Aging and overdue.
+  - **Projects**: each project's status, physical progress (as last reported), milestones done and overdue, open risks and issues, approved budget and days to the target date.
+  - The Dashboard's **Work overview** shows the work per office (each opens its report) and the progress of ongoing projects.
+- **Export CSV** (on a board, and on each report) saves what is listed, with the filters, as a spreadsheet file. A board's manager chooses in **Settings** who may export its items: **managers and members** (the usual), **managers only**, or **everyone on the board**. Projects are exported by their managers and members. Items from boards that do not let you export are left out (the report says how many). An export never names a linked document: it gives only how many are linked.
+- **Deadline reminders**: the people assigned to a work item are reminded the day before it is due, on the due date, and once when it is overdue (in Notifications, as **Reminder**, and by email when email is set up). Reminders are sent when someone on the board opens DMS that day (the person assigned, or a board manager); each is sent only once. A manager can switch them off for a board in **Settings** (*Send deadline reminders*).
+- **Saved views**: on a board, set the search, status, sort, *Assigned to me* and the view (Table, Kanban or Calendar), then **Save view** and name it; choose it later under **Saved views…**. Your views are yours; a board manager can tick **Share with everyone on the board**. **Manage saved views** deletes one.
+- **Board columns**: in a board's **Settings**, **+ Add a column** of your own: text, number, amount (₱), date, dropdown (type its choices separated by commas), checkbox, person on the board, or office. They show in the table after the standard columns, in each work item (members fill them in), in its activity, and in exports. A column's type is fixed once saved; renaming it keeps its values; **Hide** removes it from view and keeps its values (**Show again** brings it back).
+
 ## 5. Using DMS as an administrator
 
 Sign out (top right), then sign in as **npp@mgocandoniaccounting.org** / **admin123** (local demo password). On the live site, `npp@mgocandoniaccounting.org` is the superadmin: sign in with **Continue with Google**, or register with email and password and open the verification link.
@@ -350,6 +362,10 @@ The **Processing Guide** tab has the routing steps: which office receives the do
 ![Processing guide editor](images/21-admin-processing-guide.png)
 
 Fields can be **computed**: in a table column or a field, the formula combines other keys with `+`, `-` and `*`, and `sum:table.column` adds up a table column. For example, `qty*unitCost`, `gross-deductions` or `sum:items.amount-cashAdvance`.
+
+### Work management settings
+
+Work management (boards, projects, reports) needs the latest `firestore.rules` published in the Firebase console (Firestore → Rules) after each update. Administrators see every board and project, and may export from every board. Reports read at most 40 boards (each up to 500 work items) and 100 projects.
 
 ### Settings and users
 

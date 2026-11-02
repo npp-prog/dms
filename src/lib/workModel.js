@@ -142,6 +142,8 @@ export function cleanItem(input) {
     parentId: String(input.parentId || ''),
     // The project it belongs to (projects/{id}), if any.
     projectId: String(input.projectId || ''),
+    // Values of the board's own columns (cleaned against them by cleanFields when saved).
+    fields: input.fields && typeof input.fields === 'object' ? input.fields : {},
   };
 }
 
@@ -229,3 +231,55 @@ export function monthGrid(year, month) {
   });
 }
 export const peso = (n) => (n === null || n === undefined || n === '' ? '—' : `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+
+// ---- Configurable columns (Phase 4) ----
+// A board's own columns: [{ id, label, type, options, hidden }]. Items keep their values in
+// fields: { [columnId]: value }. The id never changes, so renaming a column keeps its values;
+// "removing" one hides it (its values stay, and come back if it is shown again).
+export const COLUMN_TYPES = [
+  { id: 'text', label: 'Text' },
+  { id: 'number', label: 'Number' },
+  { id: 'currency', label: 'Amount (₱)' },
+  { id: 'date', label: 'Date' },
+  { id: 'dropdown', label: 'Dropdown' },
+  { id: 'checkbox', label: 'Checkbox' },
+  { id: 'person', label: 'Person on the board' },
+  { id: 'office', label: 'Office' },
+];
+export const COLUMN_TYPE_IDS = COLUMN_TYPES.map((t) => t.id);
+export const COLUMN_LIMIT = 20;
+export const newColumnId = () => `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+export function cleanColumns(list = []) {
+  const seen = new Set();
+  return list.filter((c) => /^f[a-z0-9]{2,20}$/.test(String(c?.id || '')) && COLUMN_TYPE_IDS.includes(c.type) && String(c.label || '').trim())
+    .filter((c) => !seen.has(c.id) && seen.add(c.id))
+    .slice(0, COLUMN_LIMIT)
+    .map((c) => ({
+      id: c.id, label: String(c.label).trim().slice(0, 60), type: c.type, hidden: Boolean(c.hidden),
+      options: c.type === 'dropdown' ? [...new Set((c.options || []).map((o) => String(o).trim()).filter(Boolean))].slice(0, 30).map((o) => o.slice(0, 60)) : [],
+    }));
+}
+// An item's values for the board's columns (unknown columns and invalid values are dropped).
+export function cleanFields(fields = {}, columns = []) {
+  const out = {};
+  for (const c of columns) {
+    const v = fields?.[c.id];
+    if (v === undefined || v === null || v === '') continue;
+    if (c.type === 'text' || c.type === 'person' || c.type === 'office') { const s = String(v).trim().slice(0, 500); if (s) out[c.id] = s; }
+    else if (c.type === 'number' || c.type === 'currency') {
+      const n = Number(String(v).replace(/,/g, ''));
+      if (Number.isFinite(n)) out[c.id] = c.type === 'currency' ? Math.round(n * 100) / 100 : n;
+    } else if (c.type === 'date') { if (dayOk(v)) out[c.id] = v; }
+    else if (c.type === 'dropdown') { if ((c.options || []).includes(v)) out[c.id] = v; }
+    else if (c.type === 'checkbox') { if (v === true) out[c.id] = true; }
+  }
+  return out;
+}
+// A value as text (table, CSV). names: { uid: name } of the board's people.
+export function fieldText(column, value, names = {}) {
+  if (value === undefined || value === null || value === '') return '';
+  if (column.type === 'currency') return peso(value);
+  if (column.type === 'checkbox') return value ? 'Yes' : '';
+  if (column.type === 'person') return names[value] || 'Someone';
+  return String(value);
+}

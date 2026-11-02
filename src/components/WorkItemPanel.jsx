@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { addComment, createItem, deleteItem, listActivity, listComments, listSubtasks, saveItem, setItemStatus } from '../lib/work.js';
 import { PRIORITIES, WORK_STATUSES, checklistProgress, mentionsIn, newCheckId } from '../lib/workModel.js';
+import WorkFieldInput from './WorkFieldInput.jsx';
 import Select from './Select.jsx';
 import { LinkEditor } from './DocLinks.jsx';
 import { LinkedDocuments, WorkStatus } from './WorkBits.jsx';
@@ -24,7 +25,7 @@ export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, 
   const canDelete = Boolean(item) && (role === 'manager' || item.createdBy === actor.uid);
   const [f, setF] = useState(() => ({
     title: '', description: '', groupId: board.groups?.[0]?.id || 'g1', status: 'not_started', priority: 'medium',
-    assignees: [], office: board.office || profile.office || '', startDate: '', dueDate: '', tags: [], docRefs: [], checklist: [], parentId: '', projectId: '',
+    assignees: [], office: board.office || profile.office || '', startDate: '', dueDate: '', tags: [], docRefs: [], checklist: [], parentId: '', projectId: '', fields: {},
     ...draft, ...(item || {}),
   }));
   const [tagText, setTagText] = useState((item?.tags || draft.tags || []).join(', '));
@@ -143,6 +144,14 @@ export default function WorkItemPanel({ board, item, draft = {}, role, onSaved, 
       <label className="field"><span className="field-label">Tags</span>
         <input value={tagText} onChange={(e) => setTagText(e.target.value)} disabled={ro} />
         <span className="xs muted">Separate tags with commas.</span></label>
+      {(board.columns || []).some((c) => !c.hidden) && (
+        <div className="wk-grid">
+          {board.columns.filter((c) => !c.hidden).map((c) => (
+            <WorkFieldInput key={c.id} column={c} value={f.fields?.[c.id]} disabled={ro} people={people} offices={offices}
+              onChange={(v) => setF({ ...f, fields: { ...(f.fields || {}), [c.id]: v } })} />
+          ))}
+        </div>
+      )}
 
       <div className="field"><span className="field-label">Linked DMS documents</span>
         <LinkedDocuments docRefs={f.docRefs} onRemove={ro ? undefined : (id) => setF({ ...f, docRefs: f.docRefs.filter((x) => x !== id) })} />

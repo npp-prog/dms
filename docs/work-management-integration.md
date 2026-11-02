@@ -49,17 +49,26 @@ SPA redirect, Netlify Functions for Ask DMS and the Drive backup). Tests: `node 
 
 ### `boards/{boardId}`
 `name, description, template, office, ownerUid, ownerName, managers[], members[], viewers[], access[],
-names{uid: name}, groups[{id, name}], archived, createdAt, updatedAt`
+names{uid: name}, groups[{id, name}], archived, createdAt, updatedAt,
+columns[{id, label, type, options[], hidden}], exportBy, reminders` (the last three: Phase 4)
 
 - **managers**: board settings and people; **members**: create, edit and assign items;
   **viewers**: read only. `access` = all three (for the "my boards" query and the rules).
 - **groups** have stable ids (`g1`, `g2`, …): renaming a group never moves its items.
+- **columns** (Phase 4): the board's own columns, at most 20. `id` (`f…`, random) never changes:
+  renaming keeps values; "removing" hides (`hidden: true`) and keeps them. Types: text, number,
+  currency, date, dropdown (`options`), checkbox, person (a board person's uid), office. The
+  brief's "related record" type is not offered: documents and projects already have their own fields.
+- **exportBy** (Phase 4): who may export the board's items to CSV: `members` (managers and members,
+  the default), `managers`, or `everyone`. **reminders** (Phase 4): `false` stops deadline reminders.
 - **names** holds the display names of the board's people (so items show who is assigned without
   reading user profiles, which ordinary users may not read).
 
 ### `workItems/{itemId}`
 `boardId, groupId, title, description, status, priority, assignees[], assigneeNames{}, office,
-startDate, dueDate, completedOn, tags[], docRefs[], createdBy, createdByName, createdAt, updatedAt, updatedBy`
+startDate, dueDate, completedOn, tags[], docRefs[], createdBy, createdByName, createdAt, updatedAt, updatedBy,
+checklist[], parentId, projectId, fields{columnId: value}` (`fields`: Phase 4, values of the board's columns,
+cleaned against their type; at most 40)
 
 - **docRefs** holds DMS document *ids only* — never their number, title, amounts or files. A
   document may be linked to many items; an item to up to 50 documents.
@@ -75,10 +84,37 @@ Phase 2 adds to work items: `checklist[{id, text, done}]` (up to 50; stable ids)
 `text, mentions[], by, byName, at` — written by anyone who may see the item, as themselves, at the
 server's time; **never changed or deleted**. `mentions` must be people on the board; each is notified.
 
-### Notifications (existing collection, two new kinds)
+### `boards/{boardId}/views/{viewId}` (Phase 4)
+`name, shared, by, byName, at, view, status, sort, mine, q, office` — a saved view (filters, sort and
+view). Each person's own; a board manager may share one (`shared: true`). Read: own or shared; never
+updated; deleted by whoever saved it (a shared one also by a manager).
+
+### Notifications (existing collection, new kinds)
 `users/{uid}/notifications` gains `kind: 'work'` (someone assigned you an item) and `kind: 'mention'`
 (someone mentioned you in a comment). Their link (`/boards/{boardId}/{itemId}`) opens the item. They
 show in the existing Notifications page (and are emailed like the others), and mentions in My Work.
+Phase 4 adds `kind: 'reminder'`: deadline reminders, with a **fixed id** per item, kind and due date
+(`rem` + S/T/O + YYYYMMDD + item id), so each is created once: the rules let no one overwrite a
+notification (a second create of the same id is an update, refused).
+
+### Deadline reminders: how they are sent
+There is no trusted backend with database access yet (the Netlify Functions act as the signed-in
+user). So reminders are sent by the browser of whoever opens DMS, once a day per person and device
+(`lib/work.js sendDeadlineReminders`): for the items assigned to them and the items of boards they
+manage, a reminder to each assignee when the item is due tomorrow, due today, or overdue (once per due
+date). Fixed ids make it idempotent across devices and people. **Limitation:** if nobody on a board
+opens DMS that day, its reminders wait until someone does. **Proposed trusted version (needs manual
+configuration):** a Netlify Scheduled Function (daily, 7:00 Manila) using a Firebase service account
+(`FIREBASE_SERVICE_ACCOUNT` in Netlify, Firebase Admin SDK) to run the same plan for all boards and
+write the same fixed-id notifications; no extra billing beyond Firestore reads. Not enabled until
+that credential is added.
+
+### Reports and exports (Phase 4)
+Reports (`/reports`) are computed in the browser (`lib/reports.js`) from the boards (first 40, each
+≤ 500 items) and projects (≤ 100) the user can read, so every count respects access. CSV exports
+contain only those rows, only from boards whose `exportBy` allows the user (projects: managers and
+members), with linked documents as a count only. Cells that a spreadsheet would run as a formula
+(`= + - @`) are prefixed with `'`. Reports are not stored.
 
 ### `projects/{projectId}` (Phase 3)
 `code, name, description, office, startDate, targetDate, status, fundingSource, approvedBudget, ownerUid,
@@ -157,11 +193,15 @@ index), which is a separate, billed decision.
    documents, related boards and their work items (`projectId`), a month **calendar** on boards and
    projects, projects on the document page, and upcoming milestones on the Dashboard. Weighted
    milestone progress is left for later, as the brief allows.
-4. Reports and automation: aging and overdue, office workload, project summaries, permission-aware
-   CSV export, deadline reminders, saved views, configurable columns (stable column ids).
+4. **Done (Phase 4) — Reports and automation:** Reports page (aging and overdue buckets, workload by
+   office or person, project summaries) with clickable summaries; Dashboard work overview (workload by
+   office, project progress); permission-aware CSV export (boards and reports; `exportBy`); deadline
+   reminders (idempotent notifications and email; browser-sent until a trusted scheduled function is
+   configured); saved views (personal and shared); configurable columns with stable ids.
 
 ## 7. Setup and deployment
 1. Merge to `main` (Netlify builds and deploys as before; new routes work on refresh through the
    existing SPA redirect).
 2. Publish `firestore.rules` in the Firebase console (Firestore → Rules). Storage rules are unchanged by Phase 1.
-3. No new environment variables, indexes, functions or billing.
+3. No new environment variables, indexes, functions or billing. (Phase 4's optional trusted reminder
+   sender would need a Firebase service account in Netlify: see "Deadline reminders" above.)

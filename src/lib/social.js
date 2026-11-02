@@ -24,7 +24,7 @@ function upload(path, file) {
 
 // Each notification is also emailed to its recipient (netlify/functions/email.mjs, once an
 // administrator has set up the mailbox in Netlify). Never fails the action.
-function emailNotices(items) {
+export function emailNotices(items) {
   if (!items.length || !auth?.currentUser || import.meta.env?.VITE_USE_EMULATOR === 'true') return;
   auth.currentUser.getIdToken()
     .then((token) => fetch('/.netlify/functions/email', {
