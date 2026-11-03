@@ -564,8 +564,9 @@ export async function copyDocument(src, user, signatories) {
   }, user);
 }
 
-export async function updateDocument(id, type, { data, checklist, additionalDocs = [], links = {}, transaction = null, status }, user, history = []) {
+export async function updateDocument(id, type, { data, checklist, additionalDocs = [], links = {}, transaction = null, status, signatories }, user, history = []) {
   await withLinkClaims(id, { links }, user, (st) => updateDoc(doc(db, 'documents', id), {
+    ...(signatories ? { signatories } : {}),
     data,
     checklist,
     additionalDocs,
@@ -845,7 +846,7 @@ export async function workflowAction(id, action, user, { stage, remarks = '' } =
       patch.referred = [...new Set([...(d.referred || []), patch.currentOffice.slice(7)])];
     }
     const label = d.workflow.referral ? { back: 'sent back' }[action]
-      : { release: 'routed', return: 'returned', complete: 'processed' }[action];
+      : { release: 'routed', return: 'returned', complete: 'processed', hold: 'put on hold', resume: 'resumed' }[action];
     const history = [...(d.history || []), historyEntry(label, user, remarks)];
     tx.update(ref, { ...patch, updatedAt: serverTimestamp(), history });
     publishCheck(tx, id, { ...d, ...patch });
@@ -858,6 +859,8 @@ export async function workflowAction(id, action, user, { stage, remarks = '' } =
     return: () => `returned by ${who} to ${at(patch.workflow)}${why}.`,
     complete: () => `processed by ${who}: its route is complete${why}.`,
     back: () => `sent back by ${who} to ${at(patch.workflow)}${why}.`,
+    hold: () => `put on hold by ${who} at ${at(d.workflow)}${why}.`,
+    resume: () => `taken off hold by ${who}: it goes on along its route.`,
   }[action];
   if (text) tellPreparer(d, id, text(), user);
 }
@@ -1462,6 +1465,9 @@ export async function listDocuments({ uid, office = '', all = false, head = fals
     : [
       query(docs, where('createdBy', '==', uid), limit(max)),
       query(docs, where('currentOffice', '==', `person:${uid}`), limit(max)),
+      // Forwarded to them, or referred to them (also after they sent it back): theirs to see too.
+      query(docs, where('sharedWith', 'array-contains', uid), limit(max)),
+      query(docs, where('referred', 'array-contains', uid), limit(max)),
       ...(office && head ? [
         query(docs, where('office', '==', office), limit(max)),
         query(docs, where('routeOffices', 'array-contains', office), limit(max)),

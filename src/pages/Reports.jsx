@@ -21,7 +21,7 @@ const TABS = [['aging', 'Aging and overdue'], ['workload', 'Workload'], ['projec
 // read, so every count respects their access. Exports (CSV) only from the boards and projects that
 // let them export.
 export default function Reports() {
-  const { actor, isAdmin } = useAuth();
+  const { actor, isAdmin, profile } = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([k]) => k === params.get('tab')) ? params.get('tab') : 'aging';
   const f = { board: params.get('board') || '', office: params.get('office') === null ? null : params.get('office') === '-' ? '' : params.get('office'), person: params.get('person') || '', bucket: params.get('bucket') || '' };
@@ -38,7 +38,7 @@ export default function Reports() {
   useEffect(() => {
     (async () => {
       try {
-        const bs = await listBoards(actor, { all: isAdmin });
+        const bs = await listBoards(actor, { all: isAdmin, office: profile.office });
         setMore(bs.length > MAX_BOARDS);
         const read = bs.slice(0, MAX_BOARDS);
         setBoards(read);

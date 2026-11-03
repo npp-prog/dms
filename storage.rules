@@ -73,8 +73,12 @@ service firebase.storage {
         && d.get('pdf', {}).get('files', []).size() > 0
         && d.pdf.files[d.pdf.files.size() - 1].path == path;
     }
+    // Staff of an office the document reached on its route (not its own office): as firestore.rules.
+    function routeStaff(d) {
+      return myOffice() != '' && myOffice() != d.get('office', '') && myOffice() in d.get('routeOffices', []);
+    }
     function canRead(d) {
-      return isAdmin() || isRecords() || d.createdBy == request.auth.uid || heldByMyOffice(d) || referredToMe(d) || referredByMyOffice(d) || request.auth.uid in d.get('sharedWith', []) || request.auth.uid in d.get('referred', [])
+      return isAdmin() || isRecords() || d.createdBy == request.auth.uid || heldByMyOffice(d) || referredToMe(d) || routeStaff(d) || referredByMyOffice(d) || request.auth.uid in d.get('sharedWith', []) || request.auth.uid in d.get('referred', [])
         || (isHead() && (d.get('office', '') == myOffice() || d.get('currentOffice', '') == myOffice()
             || myOffice() in d.get('routeOffices', [])))
         || request.auth.uid in d.get('access', []) || folderGranted(d);
@@ -88,6 +92,8 @@ service firebase.storage {
     function canAdd(d) {
       return isAdmin() || (d.status != 'cancelled'
         && (d.createdBy == request.auth.uid || (heldByMyOffice(d) && holdsStepPosition(d)) || referredToMe(d)
+            // anyone on its route (supplemental documents): an office it reached, a person referred to
+            || routeStaff(d) || request.auth.uid in d.get('referred', [])
             || (isHead() && d.get('currentOffice', '') == myOffice()) || isEditor(d)));
     }
 

@@ -340,7 +340,7 @@ function DocumentPage({ docId }) {
               onClick={async () => {
                 if (uploaded) { navigate(`/upload?copy=${docId}`); return; }
                 setBusy(true); setActionError('');
-                try { navigate(`/documents/${await copyDocument({ ...docData, id: docId }, actor, signatoriesFrom(settings))}/edit`, { state: { copied: true } }); } catch (e) { if (!staleReload(e)) setActionError(e.message); setBusy(false); }
+                try { navigate(`/documents/${await copyDocument({ ...docData, id: docId }, actor, { ...signatoriesFrom(settings), custom: docData.signatories?.custom || [] })}/edit`, { state: { copied: true } }); } catch (e) { if (!staleReload(e)) setActionError(e.message); setBusy(false); }
               }}>Copy as new draft</button>
           )}
           {canCancel && (
@@ -401,7 +401,10 @@ function DocumentPage({ docId }) {
           {/* Supplemental documents: between the PDF and the workflow. */}
           {type && !isExternal && (
             <SupplementsCard doc={{ ...docData, id: docId }} actor={actor} busy={busy}
-              canAdd={editable && ((isOwner && notDone) || isAdmin || canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }))}
+              canAdd={editable && ((isOwner && notDone) || isAdmin || canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant })
+                // anyone on its route: an office it has reached, a person it was referred to
+                || (wf?.state === 'in-progress' && ((profile.office && profile.office !== docData.office && (docData.routeOffices || []).includes(profile.office))
+                  || (profile.office && docData.currentOffice === profile.office && !docData.atPreparer) || (docData.referred || []).includes(user.uid))))}
               canRemove={editable && ((isOwner && notDone) || isAdmin)}
               onOpen={(l, key) => (l.kind === 'fts' ? openLinked(l, key) : openFile(l, key))}
               onSave={(list, note) => run(() => saveSupplements(docId, list, actor, note))} />

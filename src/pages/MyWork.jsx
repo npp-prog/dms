@@ -25,7 +25,7 @@ export default function MyWork() {
   const [mentions, setMentions] = useState([]);
   const today = localDay();
 
-  const load = () => Promise.all([listMyItems(actor.uid), listCreatedForReview(actor.uid).catch(() => []), listBoards(actor, { all: isAdmin }).catch(() => []), listMentions(actor.uid).catch(() => [])])
+  const load = () => Promise.all([listMyItems(actor.uid), listCreatedForReview(actor.uid).catch(() => []), listBoards(actor, { all: isAdmin, office: profile.office }).catch(() => []), listMentions(actor.uid).catch(() => [])])
     .then(([mine, review, bs, ms]) => {
       setMentions(ms);
       const byId = new Map([...mine, ...review].map((i) => [i.id, i]));
@@ -94,7 +94,7 @@ export default function MyWork() {
       {open && (
         <>
           <div className="wk-backdrop" onClick={() => setOpen(null)} />
-          <WorkItemPanel board={open.board} item={open.item} role={boardRole(open.board, actor.uid, isAdmin, isHead ? profile.office : '')}
+          <WorkItemPanel board={open.board} item={open.item} role={boardRole(open.board, actor.uid, isAdmin, isHead ? profile.office : '', profile.office)}
             onClose={() => setOpen(null)} onSaved={() => { setOpen(null); load(); }} />
         </>
       )}

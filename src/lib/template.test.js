@@ -202,7 +202,7 @@ test('document workflow', () => {
   assert.ok(doc.routeOffices.includes('Municipal Accounting Office') && !doc.routeOffices.includes('Office of the Municipal Mayor'));
   const acct = { uid: 'a1', displayName: 'Ana', office: 'Municipal Accounting Office' };
   assert.ok(canAct(doc, acct) && !canAct(doc, user));
-  assert.deepEqual(availableActions(doc), ['release', 'return']); // no receiving: it is there
+  assert.deepEqual(availableActions(doc), ['release', 'return', 'hold']); // no receiving: it is there
   assert.throws(() => applyAction(doc, 'return', acct, ''), /why/);
   doc = { ...doc, ...applyAction(doc, 'return', acct, 'OBR not attached', 't2') };
   assert.equal(doc.currentOffice, 'Municipal Engineering Office');
@@ -563,4 +563,36 @@ test('editors given by the office head act as the preparer', () => {
   const routed = { ...doc, workflow: { state: 'in-progress', stage: 0, steps: [{ office: '', action: 'Prepare' }] } };
   assert.ok(canAct(routed, { uid: 'e1', office }));
   assert.ok(!canAct(routed, { uid: 'v1', office }));
+});
+
+test('an office puts a document on hold, then takes it off hold', () => {
+  const doc = { office: 'A', pdf: { files: [{}] }, workflow: { state: 'in-progress', stage: 1, steps: [{ office: '' }, { office: 'B', routedTo: 'B' }, { office: 'C', routedTo: 'C' }], events: [{ type: 'released', stage: 0 }] } };
+  const u = { uid: 'u', displayName: 'Rosa' };
+  assert.throws(() => applyAction(doc, 'hold', u, ''), /why/);
+  const held = { ...doc, ...applyAction(doc, 'hold', u, 'Waiting for the certification') };
+  assert.equal(held.workflow.hold.reason, 'Waiting for the certification');
+  assert.equal(held.workflow.hold.office, 'B');
+  assert.equal(held.workflow.stage, 1);
+  assert.deepEqual(availableActions(held), ['resume']);
+  assert.throws(() => applyAction(held, 'release', u), /not possible/);
+  assert.throws(() => referDocument(held, { uid: 'x' }, '', u), /on hold/);
+  const back = { ...held, ...applyAction(held, 'resume', u) };
+  assert.equal(back.workflow.hold, undefined);
+  assert.deepEqual(back.workflow.events.map((e) => e.type), ['released', 'held', 'resumed']);
+  assert.deepEqual(availableActions(back), ['release', 'return', 'hold']);
+});
+
+test('signatories set on a document whose type has none print at the end, or where the format says', async () => {
+  const { usesStandardSignatories, cleanCustomSignatories } = await import('./signatories.js');
+  assert.equal(usesStandardSignatories({ template: '<b>{{sig.mayor}}</b>' }), true);
+  assert.equal(usesStandardSignatories({ template: '<p>{{subject}}</p>' }), false);
+  assert.deepEqual(cleanCustomSignatories([{ label: ' Noted by ', name: ' Ana Reyes ', position: 'MEO' }, { name: '' }]), [{ label: 'Noted by', name: 'Ana Reyes', position: 'MEO' }]);
+  const custom = [{ label: 'Noted by', name: 'Ana <Reyes>', position: 'Municipal Engineer' }];
+  const end = renderTemplate('<p>Body</p>', { signatories: { custom } });
+  assert.match(end, /^<p>Body<\/p><div class="sig-block">/);
+  assert.match(end, /ANA &lt;REYES&gt;/);
+  assert.match(end, /Municipal Engineer/);
+  const placed = renderTemplate('<p>A</p>{{signatoriesBlock}}<p>B</p>', { signatories: { custom } });
+  assert.match(placed, /<p>A<\/p><div class="sig-block">.*<\/div><p>B<\/p>$/);
+  assert.equal(renderTemplate('<p>A</p>{{signatoriesBlock}}', {}), '<p>A</p>');
 });

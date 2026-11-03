@@ -6,7 +6,7 @@ import Select from './Select.jsx';
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const EVENT_TEXT = {
   started: 'Started', released: 'Routed', returned: 'Returned', completed: 'Processed', cancelled: 'Cancelled', assigned: 'Assigned',
-  route: 'Offices chosen', referred: 'Referred', 'referral back': 'Sent back',
+  route: 'Offices chosen', referred: 'Referred', 'referral back': 'Sent back', held: 'Put on hold', resumed: 'Taken off hold',
 };
 
 // The preparer chooses which office handles each step that has alternates (e.g. the Mayor or the
@@ -129,6 +129,7 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
   const wf = doc.workflow;
   const [returning, setReturning] = useState(false);
   const [referring, setReferring] = useState(false);
+  const [holding, setHolding] = useState(false);
   const [remarks, setRemarks] = useState('');
 
   if (!wf) {
@@ -161,14 +162,14 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
   const toAssign = canAct && assignPending(doc) ? wf.steps[wf.stage].assign.field : '';
   // (The step's upload is optional: it does not block routing.)
   const blocked = fillsMissing(doc).length > 0 || Boolean(refPending) || Boolean(toAssign);
-  const act = (action) => onAction(action, remarks, () => { setRemarks(''); setReturning(false); });
+  const act = (action) => onAction(action, remarks, () => { setRemarks(''); setReturning(false); setHolding(false); });
 
   return (
     <section className="card workflow-card">
       <div className="card-head">
         <h3>Workflow</h3>
         <span className={`badge ${wf.state === 'done' ? 'badge-green' : wf.state === 'cancelled' ? 'badge-gray' : 'badge-blue'}`}>
-          {wf.state === 'done' ? 'Processed' : wf.state === 'cancelled' ? 'Cancelled' : `Step ${wf.stage + 1} of ${wf.steps.length}`}
+          {wf.state === 'done' ? 'Processed' : wf.state === 'cancelled' ? 'Cancelled' : `${wf.hold ? 'On hold · ' : ''}Step ${wf.stage + 1} of ${wf.steps.length}`}
         </span>
       </div>
       <ol className="wf-steps">
@@ -182,7 +183,8 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
                 <div className="wf-office">{nameOf(step)}{wf.choose && step.alternates?.length > 0 && <span className="small muted"> (or {step.alternates.map((o) => o || "Preparer's office").join(' or ')}: to choose)</span>}</div>
                 <div className="small"><b>{step.action}</b>{step.positions?.length > 0 && <span className="muted"> · by the {step.positions.join(' or ')}</span>}{step.sign && <span className="muted"> · signs the PDF</span>}
                   {step.assign && <span className="muted"> · assigns the {fieldLabel(step.assign.field)}</span>}</div>
-                {state === 'current' && !referral && <div className="small wf-now">Here now</div>}
+                {state === 'current' && !referral && !wf.hold && <div className="small wf-now">Here now</div>}
+                {state === 'current' && wf.hold && <div className="small wf-hold">On hold at {wf.hold.office || nameOf(step)} since {when(wf.hold.at)}{wf.hold.reason && <> — <i>{wf.hold.reason}</i></>}</div>}
                 {state === 'current' && referral && (
                   <div className="small wf-now">Referred to <b>{referral.name}</b>{referral.office ? ` (${referral.office})` : ''}: with them now</div>
                 )}
@@ -227,9 +229,28 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
         </div>
       )}
 
-      {!referral && actions.length > 0 && (
+      {!referral && actions.includes('resume') && (
         <div className="wf-actions no-print">
-          {referring ? (
+          <div className="alert-info small">On hold: it does not go on along its route until your office takes it off hold.</div>
+          <div className="wf-buttons"><button className="btn btn-primary" disabled={busy} onClick={() => act('resume')}>Take off hold</button></div>
+        </div>
+      )}
+
+      {!referral && actions.length > 0 && !actions.includes('resume') && (
+        <div className="wf-actions no-print">
+          {holding ? (
+            <div className="fields">
+              <div className="field field-wide">
+                <label className="field-label" htmlFor="wf-hold">Why is it put on hold?</label>
+                <textarea id="wf-hold" rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+                <span className="xs muted">It stays with your office and does not go on until you take it off hold. The preparer is told.</span>
+              </div>
+              <div className="row gap">
+                <button className="btn btn-danger" disabled={busy || !remarks.trim()} onClick={() => act('hold')}>Put on hold</button>
+                <button className="btn btn-ghost" onClick={() => setHolding(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : referring ? (
             <ReferPanel me={me} busy={busy} onCancel={() => setReferring(false)}
               onRefer={(to, note) => onRefer(to, note, () => setReferring(false))} />
           ) : returning ? (
@@ -275,6 +296,7 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
                 {actions.includes('complete') && <button className="btn btn-primary" disabled={busy || unsigned || blocked} onClick={() => act('complete')}>{ACTION_LABELS.complete}</button>}
                 {actions.includes('return') && <button className="btn btn-ghost" disabled={busy} onClick={() => setReturning(true)}>Return to {nameOf(prev)}</button>}
                 {canRefer && <button className="btn btn-ghost" disabled={busy} onClick={() => setReferring(true)}>Refer to a person…</button>}
+                {actions.includes('hold') && <button className="btn btn-ghost" disabled={busy} onClick={() => setHolding(true)}>Put on hold…</button>}
               </div>
             </>
           )}

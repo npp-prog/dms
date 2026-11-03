@@ -191,8 +191,10 @@ export function availableActions(doc) {
   if (!wf || wf.state !== 'in-progress') return [];
   // No receiving: released to an office (or referred to a person), it is there to act on.
   if (wf.referral) return ['back'];
+  // On hold: it stays where it is until the office holding it resumes it.
+  if (wf.hold) return ['resume'];
   const last = wf.stage === wf.steps.length - 1;
-  return [last ? 'complete' : 'release', ...(wf.stage > 0 ? ['return'] : [])];
+  return [last ? 'complete' : 'release', ...(wf.stage > 0 ? ['return', 'hold'] : [])];
 }
 
 // PDF versions still in effect. A 'restored' version (to change an assigned reference no. that was
@@ -314,6 +316,16 @@ export function applyAction(doc, action, user, remarks = '', at = new Date().toI
     }
     return { workflow: next, ...placement(next, doc) };
   }
+  // On hold (the office holding it does not let it go on yet, and says why), and resumed.
+  if (action === 'hold') {
+    if (!String(remarks).trim()) throw new Error('Say why the document is put on hold.');
+    const ev = event('held', wf.stage);
+    return { workflow: { ...wf, hold: { office: ev.office, by: ev.by, uid: ev.uid, at, reason: ev.remarks }, events: [...wf.events, ev] } };
+  }
+  if (action === 'resume') {
+    const { hold, ...rest } = wf;
+    return { workflow: { ...rest, events: [...wf.events, event('resumed', wf.stage)] } };
+  }
   if (action === 'release') next = { ...wf, stage: wf.stage + 1, received: true, events: [...wf.events, event('released', wf.stage)] };
   if (action === 'return') next = { ...wf, stage: wf.stage - 1, received: true, events: [...wf.events, event('returned', wf.stage)] };
   if (action === 'complete') next = { ...wf, state: 'done', events: [...wf.events, event('completed', wf.stage)] };
@@ -325,6 +337,7 @@ export function applyAction(doc, action, user, remarks = '', at = new Date().toI
 export function referDocument(doc, to, note, user, at = new Date().toISOString()) {
   const wf = doc.workflow;
   if (!wf || wf.state !== 'in-progress' || wf.referral) throw new Error('This document cannot be referred now.');
+  if (wf.hold) throw new Error('The document is on hold: take it off hold first.');
   if (!to?.uid) throw new Error('Choose the person to refer it to.');
   if (to.uid === user.uid) throw new Error('Choose someone other than yourself.');
   const fromOffice = officeOf(wf.steps[wf.stage], doc);
@@ -411,5 +424,5 @@ export function assignPending(doc) {
   return Boolean(step?.assign?.field && !String(doc.data?.[step.assign.field] || '').trim());
 }
 
-export const ACTION_LABELS = { release: 'Route', return: 'Return', complete: 'Mark processed', back: 'Send back' };
+export const ACTION_LABELS = { release: 'Route', return: 'Return', complete: 'Mark processed', back: 'Send back', hold: 'Put on hold', resume: 'Take off hold' };
 

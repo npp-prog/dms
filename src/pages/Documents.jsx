@@ -1,9 +1,9 @@
+import { DOC_STAGES, docStage } from '../lib/docStatus.js';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { matchesSearch } from '../lib/docSearch.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listDocuments } from '../lib/api.js';
-import { STATUSES } from '../lib/defaults.js';
 import { whereIs } from '../lib/workflow.js';
 import { isArchived } from '../lib/archive.js';
 import StatusBadge from '../components/StatusBadge.jsx';
@@ -33,13 +33,13 @@ export default function Documents() {
   // The search and filters, processed documents included (for Download ZIP).
   const matching = useMemo(() => (docs || []).filter((d) => {
     const q = filters.q.toLowerCase();
-    return (!filters.status || d.status === filters.status)
+    return (!filters.status || docStage(d) === filters.status)
       && (!filters.type || d.typeCode === filters.type)
       && (!filters.office || (filters.office === '__none' ? !d.office : d.office === filters.office))
       && matchesSearch(d, q);
   }), [docs, filters]);
   // Processed documents are in the Archive.
-  const shown = useMemo(() => matching.filter((d) => !isArchived(d)), [matching]);
+  const shown = useMemo(() => (filters.status === 'complete' ? matching : matching.filter((d) => !isArchived(d))), [matching, filters.status]);
 
   return (
     <div className="page">
@@ -69,7 +69,7 @@ export default function Documents() {
         )}
         <Select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
           <option value="">All statuses</option>
-          {Object.entries(STATUSES).filter(([k]) => k !== 'processed').map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          {Object.entries(DOC_STAGES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </Select>
       </div>
       {error && <div className="alert">{error}</div>}

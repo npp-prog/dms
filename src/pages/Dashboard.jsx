@@ -1,3 +1,4 @@
+import { docStage } from '../lib/docStatus.js';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -57,7 +58,7 @@ export default function Dashboard() {
   // Work by responsible office, on the boards the user is on (the first 10; Reports has them all).
   const [offices, setOffices] = useState([]);
   useEffect(() => {
-    listBoards({ uid: user.uid }).then((bs) => Promise.all(bs.slice(0, 10).map((b) => listBoardItems(b.id).catch(() => []))))
+    listBoards({ uid: user.uid }, { office: profile.office }).then((bs) => Promise.all(bs.slice(0, 10).map((b) => listBoardItems(b.id).catch(() => []))))
       .then((lists) => setOffices(workload(lists.flat(), localDay(), 'office').filter((r) => r.open > 0).slice(0, 6))).catch(() => setOffices([]));
   }, [user.uid]);
   const ongoing = projects.filter((p) => ['planning', 'ongoing', 'on_hold'].includes(p.status)).slice(0, 5);
@@ -77,6 +78,7 @@ export default function Dashboard() {
   const mine = docs.filter((d) => d.createdBy === user.uid);
   const routed = docs.filter((d) => d.workflow).map((d) => ({ d, state: stateOf(d, profile.office, user.uid) }));
   const count = (list, status) => list.filter((d) => d.status === status).length;
+  const stageCount = (stage) => docs.filter((d) => docStage(d) === stage).length;
   const year = String(new Date().getFullYear());
   const thisYear = docs.filter((d) => String(d.createdAt?.toDate?.().getFullYear()) === year);
   const waiting = profile.office ? docs.filter((d) => d.currentOffice === profile.office).length : 0;
@@ -93,15 +95,17 @@ export default function Dashboard() {
     milestones.length > 0 && <InboxRow key="ms" icon="folder" tone="blue" title="Upcoming milestones" sub={`Next: ${milestones[0].title} (${milestones[0].projectCode}), due ${milestones[0].dueDate}`} n={milestones.length} to={`/projects/${milestones[0].projectId}`} />,
     work?.upcoming.length > 0 && <InboxRow key="wu" icon="check" title="Work due this week" sub="Work items assigned to you, due in the next 7 days" n={work.upcoming.length} to="/my-work?show=upcoming" />,
     count(mine, 'draft') > 0 && <InboxRow key="d" icon="doc" title="Drafts to finish" sub="Documents you started but have not marked complete" n={count(mine, 'draft')} to="/documents" />,
-    mine.filter((d) => d.status === 'complete' && !d.workflow).length > 0 && <InboxRow key="c" icon="send" tone="blue" title="Complete — convert to PDF" sub="Converting a document sends it along its workflow" n={mine.filter((d) => d.status === 'complete' && !d.workflow).length} to="/documents" />,
+    mine.filter((d) => d.status === 'complete' && !d.workflow).length > 0 && <InboxRow key="c" icon="send" tone="blue" title="Ready — convert to PDF" sub="Converting a document sends it along its workflow" n={mine.filter((d) => d.status === 'complete' && !d.workflow).length} to="/documents" />,
   ].filter(Boolean);
 
   const glance = [
     ['Document formats available', types.length, '/new'],
     [`Documents prepared, ${year}`, thisYear.length, '/documents'],
-    ['Drafts', count(docs, 'draft'), '/documents'],
-    ['Complete', count(docs, 'complete'), '/documents'],
-    ['Cancelled', count(docs, 'cancelled'), '/documents'],
+    ['Drafts', stageCount('draft'), '/documents'],
+    ['For processing', stageCount('processing'), '/documents'],
+    ['Returned', stageCount('returned'), '/documents'],
+    ['On hold', stageCount('hold'), '/documents'],
+    ['Complete', stageCount('complete'), '/archive'],
   ];
 
   return (

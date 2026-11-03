@@ -17,3 +17,23 @@ export function signatoriesFrom(settings = {}) {
   }
   return sig;
 }
+
+// A document type whose format prints the standard signatories ({{sig.…}}, from Settings).
+export const usesStandardSignatories = (type) => /\{\{\s*sig\./.test(String(type?.template || ''));
+
+// Signatories the preparer sets on a document whose type has none (signatories.custom):
+// [{ label, name, position }], printed in a block at the end of the document (or where its format
+// puts {{signatoriesBlock}}).
+export const CUSTOM_SIGNATORY_LIMIT = 8;
+export function cleanCustomSignatories(list = []) {
+  return (Array.isArray(list) ? list : [])
+    .map((s) => ({ label: String(s?.label || '').trim().slice(0, 60), name: String(s?.name || '').trim().slice(0, 80), position: String(s?.position || '').trim().slice(0, 80) }))
+    .filter((s) => s.name)
+    .slice(0, CUSTOM_SIGNATORY_LIMIT);
+}
+const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+export function customSignatoriesHtml(list = []) {
+  const rows = cleanCustomSignatories(list);
+  if (!rows.length) return '';
+  return `<div class="sig-block">${rows.map((s) => `<div class="sig-cell">${s.label ? `<div class="sig-label">${esc(s.label)}:</div>` : ''}<div class="sig-line"></div><b class="sig-name">${esc(s.name.toUpperCase())}</b>${s.position ? `<div class="sig-pos">${esc(s.position)}</div>` : ''}</div>`).join('')}</div>`;
+}

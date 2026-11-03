@@ -396,6 +396,13 @@ service cloud.firestore {
         return isHead() && (resource.data.get('office', '') == myOffice() || holder() == myOffice()
           || myOffice() in resource.data.get('routeOffices', []));
       }
+      // Staff of an office the document has reached on its route (not the office that prepared it,
+      // whose staff see only their own documents unless given access): they open it and add
+      // supplemental documents.
+      function routeStaff() {
+        return myOffice() != '' && myOffice() != resource.data.get('office', '')
+          && myOffice() in resource.data.get('routeOffices', []);
+      }
       // The office head (or an administrator or the Records Officer) gave this user, of the same
       // office, access to this folder (document type) of the office's documents, or to all of them
       // (Folders: Access). Not to a restricted document, nor to a folder the office restricted.
@@ -427,7 +434,7 @@ service cloud.firestore {
         return unchanged(['workflow', 'currentOffice', 'routeOffices', 'atPreparer']);
       }
       allow read: if isActive()
-        && (resource.data.createdBy == request.auth.uid || isAdmin() || heldByMyOffice() || headSees() || referredToMe() || referredByMyOffice() || isRecords()
+        && (resource.data.createdBy == request.auth.uid || isAdmin() || heldByMyOffice() || headSees() || referredToMe() || referredByMyOffice() || isRecords() || routeStaff()
             // forwarded to this user, or referred to them (also after they sent it back)
             || request.auth.uid in resource.data.get('sharedWith', [])
             || request.auth.uid in resource.data.get('referred', [])
@@ -446,7 +453,8 @@ service cloud.firestore {
           || (request.resource.data.workflow.state in ['in-progress', 'cancelled']
               && request.resource.data.workflow.stage <= resource.data.get('workflow', {}).get('stage', 0) + 1)
           || (request.resource.data.workflow.state == 'done' && 'workflow' in resource.data
-              && resource.data.workflow.stage == resource.data.workflow.steps.size() - 1);
+              && resource.data.workflow.stage == resource.data.workflow.steps.size() - 1
+              && resource.data.workflow.get('hold', null) == null);
       }
       // History, reviews, a route's events, PDF versions: entries are only added, never changed or
       // removed (the record of who did what stays whole).
@@ -491,7 +499,9 @@ service cloud.firestore {
         let w1 = request.resource.data.workflow;
         return w1.stage >= w0.stage - 1 && w1.stage <= w0.stage + 1
           && (w1.state == 'in-progress'
-              || (w1.state == 'done' && w1.stage == w0.stage && w0.stage == w0.steps.size() - 1));
+              || (w1.state == 'done' && w1.stage == w0.stage && w0.stage == w0.steps.size() - 1))
+          // On hold: it stays where it is (no move, no referral) until taken off hold.
+          && (w0.get('hold', null) == null || (w1.stage == w0.stage && w1.state == w0.state && w1.get('referral', null) == null));
       }
       allow update: if isActive()
         && unchanged(['createdBy', 'createdAt', 'typeId', 'controlNo', 'typeSnapshot', 'office'])
@@ -510,6 +520,13 @@ service cloud.firestore {
                 && appended('history') && pdfAppended() && routeRecordKept() && routeMoveOk() && placedRight()
                 && request.resource.data.get('data', {}).diff(resource.data.get('data', {})).affectedKeys().hasOnly(assignedKeys())
                 && request.resource.data.get('refNos', {}).diff(resource.data.get('refNos', {})).affectedKeys().hasOnly(assignedKeys()))
+            // Anyone on its route (staff of an office it has reached, the office holding it, the person
+            // it is referred to) adds supplemental documents while it is on its way: only added.
+            || ((routeStaff() || heldByMyOffice() || request.auth.uid in resource.data.get('referred', []))
+                && resource.data.get('status', '') != 'cancelled' && resource.data.get('workflow', {}).get('state', '') == 'in-progress'
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['supplements', 'updatedAt', 'history'])
+                && request.resource.data.get('supplements', []).hasAll(resource.data.get('supplements', []))
+                && appended('history'))
             // The Records Officer files a processed document in the Archive (where it is kept).
             || (isRecords() && resource.data.get('workflow', {}).get('state', '') == 'done' && appended('history')
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archive', 'updatedAt', 'history']))
@@ -678,8 +695,11 @@ service cloud.firestore {
     function headsBoardOffice(b) {
       return b.get('office', '') != '' && isOfficeHead() && b.get('office', '') == myOffice();
     }
+    // Everyone of the board's office sees it (and its work items), as viewers; its people and the
+    // office head do more (editsBoard, managesBoard).
     function seesBoard(b) {
-      return isAdmin() || request.auth.uid in b.get('access', []) || headsBoardOffice(b);
+      return isAdmin() || request.auth.uid in b.get('access', []) || headsBoardOffice(b)
+        || (b.get('office', '') != '' && myOffice() == b.get('office', ''));
     }
     // (An archived board is read-only: no work items are added or edited until it is restored.)
     function editsBoard(b) {

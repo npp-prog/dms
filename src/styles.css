@@ -1680,3 +1680,14 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .office-switch { max-width: 260px; }
 .office-switch .ss-trigger, .office-switch select { font-size: .85rem; }
 @media (max-width: 700px) { .office-switch { max-width: 150px; } }
+.wf-hold { color: var(--bad); font-weight: 600; }
+/* Signatories the preparer set (document types without standard signatories) */
+.doc-render .sig-block { display: grid; grid-template-columns: repeat(auto-fit, minmax(45%, 1fr)); gap: 1.6em 2em; margin-top: 2.2em; page-break-inside: avoid; }
+.doc-render .sig-cell { text-align: center; }
+.doc-render .sig-label { text-align: left; margin-bottom: 2.4em; }
+.doc-render .sig-line { border-bottom: 1px solid #000; margin: 0 8% .2em; }
+.doc-render .sig-name { display: block; }
+.doc-render .sig-pos { font-size: .92em; }
+.custom-sigs { display: grid; gap: .5rem; margin: .6rem 0; }
+.custom-sig { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: .4rem; align-items: center; }
+@media (max-width: 700px) { .custom-sig { grid-template-columns: 1fr; } }

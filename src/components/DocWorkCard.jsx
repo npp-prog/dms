@@ -29,7 +29,7 @@ export default function DocWorkCard({ docId, docData }) {
 
   const load = async () => {
     try {
-      const bs = await listBoards(actor, { all: isAdmin, headOf: headOffice });
+      const bs = await listBoards(actor, { all: isAdmin, headOf: headOffice, office: profile.office });
       setBoards(bs);
       setItems(await listItemsForDocument(docId, bs));
       setProjects(await listProjects(actor, { all: isAdmin }).catch(() => []));
@@ -37,7 +37,7 @@ export default function DocWorkCard({ docId, docData }) {
   };
   useEffect(() => { load(); }, [docId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const editable = (boards || []).filter((b) => ['manager', 'member'].includes(boardRole(b, actor.uid, isAdmin, headOffice)));
+  const editable = (boards || []).filter((b) => ['manager', 'member'].includes(boardRole(b, actor.uid, isAdmin, headOffice, profile.office)));
   const board = editable.find((b) => b.id === boardId);
   useEffect(() => {
     setBoardItems(null); setItemId('');
@@ -123,7 +123,7 @@ export default function DocWorkCard({ docId, docData }) {
       {panel && (
         <>
           <div className="wk-backdrop" onClick={() => setPanel(null)} />
-          <WorkItemPanel board={panel.board} draft={panel.draft} role={boardRole(panel.board, actor.uid, isAdmin, headOffice)}
+          <WorkItemPanel board={panel.board} draft={panel.draft} role={boardRole(panel.board, actor.uid, isAdmin, headOffice, profile.office)}
             onClose={() => setPanel(null)} onSaved={() => { setPanel(null); setMode(''); load(); }} />
         </>
       )}

@@ -1,3 +1,4 @@
+import { customSignatoriesHtml } from './signatories.js';
 import { amountToWords } from './numberToWords.js';
 import { approverSignatories, viceApproves } from './approver.js';
 import { localDay } from './archiveFiles.js';
@@ -215,7 +216,12 @@ export function renderTemplate(template, ctx = {}) {
     },
   );
 
-  return renderTokens(withLoops, base, ctx);
+  // Signatories the preparer set (document types without standard signatories): where the format
+  // puts {{signatoriesBlock}}, or at the end.
+  const MARK = '\u0000SIGBLOCK\u0000';
+  const out = renderTokens(withLoops.replace(/\{\{\s*signatoriesBlock\s*\}\}/g, MARK), base, ctx);
+  const block = customSignatoriesHtml(ctx.signatories?.custom);
+  return out.includes(MARK) ? out.split(MARK).join(block) : out + block;
 }
 
 // Generate a sensible starting template from a document type's fields so an

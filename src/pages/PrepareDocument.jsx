@@ -9,7 +9,8 @@ import { editableByPreparer } from '../lib/workflow.js';
 import { carryOver, effectiveChecklist, missingRequired } from '../lib/checklists.js';
 import ChecklistStep from '../components/ChecklistStep.jsx';
 import ChecklistSheet from '../components/ChecklistSheet.jsx';
-import { signatoriesFrom } from '../lib/signatories.js';
+import { cleanCustomSignatories, signatoriesFrom, usesStandardSignatories } from '../lib/signatories.js';
+import CustomSignatories from '../components/CustomSignatories.jsx';
 import FieldInput from '../components/FieldInput.jsx';
 import DocumentPreview from '../components/DocumentPreview.jsx';
 import ProcessingGuide from '../components/ProcessingGuide.jsx';
@@ -79,6 +80,7 @@ function Wizard({ typeId, docId }) {
   // Links from checklist items to the supporting documents (in DMS or another system).
   const [links, setLinks] = useState({});
   const [transaction, setTransaction] = useState(null);
+  const [customSigs, setCustomSigs] = useState([]); // signatories the preparer sets (signatories.custom)
   const [stepIndex, setStepIndex] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -102,6 +104,7 @@ function Wizard({ typeId, docId }) {
           setAdditionalDocs(d.additionalDocs || []);
           setLinks(d.links || {});
           setTransaction(d.transaction || null);
+          setCustomSigs(d.signatories?.custom || []);
         } else {
           const t = await getDocumentType(typeId);
           if (!t || t.active === false) throw new Error('Document type not found or inactive.');
@@ -115,11 +118,17 @@ function Wizard({ typeId, docId }) {
     })();
   }, [typeId, docId, isAdmin]);
 
+  // The document's signatories: those of Settings when it was first saved, and those the preparer
+  // set (formats without the standard signatories).
+  const sigs = { ...(existing?.signatories || signatoriesFrom(settings)), custom: cleanCustomSignatories(customSigs) };
   const steps = useMemo(() => {
     if (!type) return [];
     const fromLibrary = type.checklistSource && type.checklistSource !== 'own';
+    const own = buildSteps(type);
+    // (A format with its own signatory fields, e.g. a step named Signatories, needs no second one.)
+    const hasSignatories = usesStandardSignatories(type) || own.some((st) => /signator/i.test(st.title || ''));
     return [
-      ...buildSteps(type),
+      ...own,
       // Only documents with a checklist (the DV and the Liquidation Report) have this step.
       ...(fromLibrary || (type.checklist || []).length ? [{
         id: '__checklist',
@@ -128,6 +137,12 @@ function Wizard({ typeId, docId }) {
           ? 'Choose the type of transaction to load its checklist from the Municipal Accounting Office. Attach each document on it, then tick Y (or N/A if it does not apply). Items marked required must be ticked before the document can be marked complete.'
           : 'Confirm that each requirement is attached or complied with. Items marked required must be ticked before the document can be marked complete.',
       }] : []),
+      // A format without the standard signatories: the preparer names who signs (optional).
+      ...(hasSignatories ? [] : [{
+        id: '__signatories',
+        title: 'Signatories',
+        instructions: 'Add the people who sign this document, if any: they print at its end. Skip this step if it needs none.',
+      }]),
       { id: '__review', title: 'Review & Save', instructions: 'Review the generated document. Save as draft to continue later, or mark complete when everything is encoded. Then print it and process it as shown below.' },
     ];
   }, [type]);
@@ -158,7 +173,7 @@ function Wizard({ typeId, docId }) {
     setError('');
     try {
       let id = docId;
-      const payload = { data, checklist, additionalDocs: additionalDocs.filter((t) => t.trim()), links, transaction, status, signatories: existing?.signatories || signatoriesFrom(settings) };
+      const payload = { data, checklist, additionalDocs: additionalDocs.filter((t) => t.trim()), links, transaction, status, signatories: sigs };
       if (existing) await updateDocument(docId, type, payload, actor, existing.history);
       else id = await createDocument(type, payload, actor);
       // Editing (opened from the document page): return there. New document: replace the
@@ -221,6 +236,8 @@ function Wizard({ typeId, docId }) {
               }} />
           )}
 
+          {step.id === '__signatories' && <CustomSignatories value={customSigs} onChange={setCustomSigs} />}
+
           {step.id === '__review' && (
             <div>
               {allMissing.length > 0 && (
@@ -269,7 +286,7 @@ function Wizard({ typeId, docId }) {
             <>
               <div className="preview-label no-print">Live preview</div>
               <DocumentPreview type={type} data={data} checklist={checklist} settings={settings}
-                signatories={existing?.signatories} office={existing?.office || profile?.office} controlNo={existing?.controlNo || '(assigned on save)'} preparedBy={existing?.createdByName || actor.displayName}
+                signatories={sigs} office={existing?.office || profile?.office} controlNo={existing?.controlNo || '(assigned on save)'} preparedBy={existing?.createdByName || actor.displayName}
                 preparedByPosition={existing ? existing.createdByPosition || '' : actor.position} preparedByIdNo={existing ? existing.createdByIdNo || '' : actor.idNo} />
             </>
           )}

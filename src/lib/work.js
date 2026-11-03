@@ -22,12 +22,14 @@ const nameOf = (user) => user.displayName || user.email || '';
 // ---- Boards ----
 // The boards the user can see (admins: all), newest first. Bounded.
 // headOf: the office of an office head, whose boards (board.office) they also see.
-export async function listBoards(user, { all = false, headOf = '', archived = false } = {}) {
+// office: the user's office (everyone of an office sees its boards).
+export async function listBoards(user, { all = false, headOf = '', office = '', archived = false } = {}) {
   const q = all
     ? query(collection(db, 'boards'), limit(200))
     : query(collection(db, 'boards'), where('access', 'array-contains', user.uid), limit(200));
   const snaps = [await getDocs(q)];
-  if (!all && headOf) snaps.push(await getDocs(query(collection(db, 'boards'), where('office', '==', headOf), limit(200))).catch(() => ({ docs: [] })));
+  const own = headOf || office;
+  if (!all && own) snaps.push(await getDocs(query(collection(db, 'boards'), where('office', '==', own), limit(200))).catch(() => ({ docs: [] })));
   const docs = new Map(snaps.flatMap((s) => s.docs).map((d) => [d.id, d]));
   return [...docs.values()].map((d) => ({ id: d.id, ...d.data() }))
     .filter((b) => (archived === 'all' ? true : Boolean(b.archived) === archived))
