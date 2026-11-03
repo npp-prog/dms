@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion } from '../lib/api.js';
+import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest } from '../lib/api.js';
+import SignRequestCard from '../components/SignRequestCard.jsx';
+import { currentSigner, isMyTurn, markInBox } from '../lib/signRequest.js';
 import { assignPending, canAct, editableByPreparer, holdsPosition, isPreparer, isReceived, linkLocked, liveFiles, officeOf } from '../lib/workflow.js';
 import { readSignatures } from '../lib/signing.js';
 import { signatoriesFrom } from '../lib/signatories.js';
@@ -210,7 +212,7 @@ function DocumentPage({ docId }) {
   const [placing, setPlacing] = useState(null);
   const [placements, setPlacements] = useState({});
   const tapItem = placing?.items?.[placing.target] || null;
-  const placedMarks = placing ? ['mark', 'text', 'ref'].filter((k) => placing.items[k] && placements[k])
+  const placedMarks = placing ? Object.keys(placing.items).filter((k) => placing.items[k] && placements[k])
     .map((k) => ({ ...placements[k], ...placing.items[k], id: k, kind: k === 'mark' ? 'mark' : 'text', active: k === placing.target })) : [];
   const onPlace = (p) => placing && setPlacements((cur) => ({ ...cur, [placing.target]: p }));
   // Working copy of the data while the Accounting Office fills in its part.
@@ -281,7 +283,13 @@ function DocumentPage({ docId }) {
   // an uploaded one opens Upload with its type, payee, fund and notes (the new file is chosen).
   const canCopy = !docData.supports && !isExternal && (uploaded || Boolean(docData.typeId));
   const canConvert = !uploaded && editable && (docData.status === 'complete' || (revising && (docData.pdf?.files || []).length > 0)) && (!hasSignature || revising) && (isAdmin || (isOwner && editableByPreparer(docData)));
-  const canSign = editable && docData.status === 'complete' && wf?.state !== 'done' && (isAdmin || (wf ? isReceived(wf) && canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }) : isOwner));
+  const myTurn = isMyTurn(docData, user.uid); // a signature request: theirs to sign now
+  const canSign = editable && docData.status === 'complete' && wf?.state !== 'done' && (isAdmin || myTurn || (wf ? isReceived(wf) && canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }) : isOwner));
+  // The boxes of a signature request still to sign, shown on the PDF (when not placing anything).
+  const requestMarks = docData.signRequest?.state === 'open'
+    ? docData.signRequest.steps.map((s, i) => ({ s, i })).filter(({ s }) => s.status === 'pending')
+      .map(({ s, i }) => ({ id: `sr${i}`, kind: 'text', page: s.page, rect: s.rect, size: 8, active: s.uid === user.uid && myTurn, label: `${s.label ? `${s.label}: ` : ''}${s.name}${i === docData.signRequest.current ? '' : ' (later)'}` }))
+    : [];
   // (The office holding it signs: documents are no longer received first.)
   // Signing is open only at a step of the route that signs (or to a person it is referred to).
   const signHere = !wf || (wf.state === 'in-progress' && Boolean(wf.referral || wf.steps[wf.stage]?.sign));
@@ -389,14 +397,32 @@ function DocumentPage({ docId }) {
                 if (!p) { setPlacements({}); return; }
                 setView('pdf');
                 // A new size keeps the mark centred where it was, and the text's top left corner.
-                setPlacements((cur) => Object.fromEntries(Object.entries(cur).filter(([k, v]) => v && p.items[k]).map(([k, v]) => {
-                  const { w, h } = p.items[k];
-                  if (k === 'text') return [k, { ...v, rect: [v.rect[0], v.rect[3] - h, v.rect[0] + w, v.rect[3]] }];
-                  const cx = (v.rect[0] + v.rect[2]) / 2; const cy = (v.rect[1] + v.rect[3]) / 2;
-                  return [k, { ...v, rect: [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2] }];
-                })));
+                // Signing on a signature request: the mark starts in the signer's box.
+                const turn = myTurn ? currentSigner(docData) : null;
+                setPlacements((cur) => ({
+                  ...(turn && p.items.mark && !cur.mark ? { mark: markInBox(turn, p.items.mark.w, p.items.mark.h) } : {}),
+                  ...Object.fromEntries(Object.entries(cur).filter(([k, v]) => v && p.items[k]).map(([k, v]) => {
+                    const { w, h } = p.items[k];
+                    if (k === 'text') return [k, { ...v, rect: [v.rect[0], v.rect[3] - h, v.rect[0] + w, v.rect[3]] }];
+                    const cx = (v.rect[0] + v.rect[2]) / 2; const cy = (v.rect[1] + v.rect[3]) / 2;
+                    return [k, { ...v, rect: [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2] }];
+                  })),
+                }));
               }}
               reason={wf?.state === 'in-progress' ? `${wf.steps[wf.stage].action} (${officeOf(wf.steps[wf.stage], docData) || 'Requesting office'})` : ''} />
+          )}
+          {/* Signature requests: a document outside any route, signed by people its preparer chooses. */}
+          {type && !isExternal && !wf && (docData.pdf?.files || []).length > 0 && (
+            <SignRequestCard doc={docData} me={user.uid} busy={busy} placements={placements}
+              canRequest={editable && (isOwner || isAdmin)}
+              onPlacing={(p) => {
+                setPlacing(p);
+                if (!p) { setPlacements((cur) => Object.fromEntries(Object.entries(cur).filter(([k]) => !k.startsWith('req:')))); return; }
+                setView('pdf'); viewer.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              onSend={(steps, note) => requestSignatures(docId, steps, note, actor).then(load)}
+              onDecline={(remarks) => declineSignature(docId, remarks, actor).then(load)}
+              onCancel={() => run(() => cancelSignRequest(docId, actor))} />
           )}
           {/* Supplemental documents: between the PDF and the workflow. */}
           {type && !isExternal && (
@@ -584,10 +610,10 @@ function DocumentPage({ docId }) {
               </>
             ) : view === 'pdf' && pdfView ? (
               <PdfViewer bytes={pdfView.bytes} signatures={pdfView.signatures} title={`${docData.controlNo} · ${hasSignature ? 'signed PDF' : 'PDF'}`}
-                placing={tapItem} onPlace={onPlace} marks={placedMarks} />
+                placing={tapItem} onPlace={onPlace} marks={placing ? placedMarks : requestMarks} />
             ) : uploaded ? (
               pdfView ? <PdfViewer bytes={pdfView.bytes} signatures={pdfView.signatures} title={`${docData.controlNo} · ${docData.uploaded.name}`}
-                placing={tapItem} onPlace={onPlace} marks={placedMarks} /> : <div className="spinner" />
+                placing={tapItem} onPlace={onPlace} marks={placing ? placedMarks : requestMarks} /> : <div className="spinner" />
             ) : view === 'checklist' && activeChecklist ? (
               <ChecklistSheet checklist={activeChecklist} state={docData.checklist} data={draft || docData.data} additional={docData.additionalDocs || []} links={docData.links || {}} settings={settings} />
             ) : (

@@ -1,4 +1,5 @@
 import { docStage } from '../lib/docStatus.js';
+import { isMyTurn } from '../lib/signRequest.js';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -79,6 +80,8 @@ export default function Dashboard() {
   const routed = docs.filter((d) => d.workflow).map((d) => ({ d, state: stateOf(d, profile.office, user.uid) }));
   const count = (list, status) => list.filter((d) => d.status === status).length;
   const stageCount = (stage) => docs.filter((d) => docStage(d) === stage).length;
+  // Signature requests: documents whose turn to sign is the user's.
+  const toSign = docs.filter((d) => isMyTurn(d, user.uid));
   const year = String(new Date().getFullYear());
   const thisYear = docs.filter((d) => String(d.createdAt?.toDate?.().getFullYear()) === year);
   const waiting = profile.office ? docs.filter((d) => d.currentOffice === profile.office).length : 0;
@@ -88,6 +91,7 @@ export default function Dashboard() {
     canManageUsers && pendingUsers > 0 && <InboxRow key="u" icon="user" tone="red" title="Registrations to approve" sub="New accounts waiting for access" n={pendingUsers} to="/admin/users" />,
     isAdmin && types.length === 0 && <InboxRow key="t" icon="types" tone="red" title="No document formats yet" sub="Load the starter formats or create a document type" n="!" to="/admin/types" />,
     backupsDue > 0 && <InboxRow key="b" icon="archive" tone="red" title="Archive backup due" sub="Back up the archive to the Records Office's devices" n={backupsDue} to="/archive" />,
+    toSign.length > 0 && <InboxRow key="sg" icon="sign" tone="red" title="Waiting for your signature" sub={toSign.length === 1 ? `${toSign[0].controlNo}${toSign[0].title ? ` — ${toSign[0].title}` : ''}` : 'Documents you were asked to sign'} n={toSign.length} to={toSign.length === 1 ? `/documents/${toSign[0].id}` : '/documents'} />,
     waiting > 0 && <InboxRow key="w" icon="inbox" tone="blue" title="Waiting in your office" sub="Documents to act on and route to the next office" n={waiting} to="/notifications" />,
     work?.overdue.length > 0 && <InboxRow key="wo" icon="check" tone="red" title="Overdue work" sub="Work items assigned to you, past their due date" n={work.overdue.length} to="/my-work?show=overdue" />,
     work?.today.length > 0 && <InboxRow key="wt" icon="check" tone="blue" title="Work due today" sub="Work items assigned to you, due today" n={work.today.length} to="/my-work?show=today" />,

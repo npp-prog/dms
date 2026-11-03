@@ -403,6 +403,38 @@ service cloud.firestore {
         return myOffice() != '' && myOffice() != resource.data.get('office', '')
           && myOffice() in resource.data.get('routeOffices', []);
       }
+      // Signature requests (lib/signRequest.js): the person whose turn it is signs where their box
+      // is (a new PDF version, their step recorded, the next one's turn) or declines; nothing else
+      // of the request, nor of the other steps, changes.
+      function signTurn() {
+        return resource.data.get('signRequest', {}).get('state', '') == 'open'
+          && resource.data.signRequest.steps[resource.data.signRequest.current].uid == request.auth.uid;
+      }
+      function signStepOk() {
+        let s0 = resource.data.signRequest;
+        let s1 = request.resource.data.signRequest;
+        let c = s0.current;
+        let n = s0.steps.size();
+        return s1.steps.size() == n && s1.byUid == s0.byUid && s1.at == s0.at
+          // (an empty slice is an error in the rules: those cases are skipped)
+          && (c == 0 || s1.steps[0:c] == s0.steps[0:c]) && (c + 1 >= n || s1.steps[c + 1:n] == s0.steps[c + 1:n])
+          && s1.steps[c].uid == s0.steps[c].uid && s1.steps[c].page == s0.steps[c].page && s1.steps[c].rect == s0.steps[c].rect
+          && ((s1.steps[c].status == 'signed' && s1.current == c + 1 && s1.state == (c + 1 == n ? 'done' : 'open')
+               && request.resource.data.pdf.files.size() == resource.data.pdf.files.size() + 1)
+              || (s1.steps[c].status == 'declined' && s1.current == c && s1.state == 'declined'
+                  && request.resource.data.get('pdf', {}) == resource.data.get('pdf', {})));
+      }
+      // The preparer sends a document outside any route to be signed (a new request, theirs), or
+      // withdraws an open one; they never mark steps signed.
+      function preparerSignOk() {
+        let s0 = resource.data.get('signRequest', null);
+        let s1 = request.resource.data.get('signRequest', null);
+        return !('signRequest' in request.resource.data.diff(resource.data).affectedKeys())
+          || (s1 != null && s1.state == 'open' && s1.current == 0 && s1.byUid == request.auth.uid
+              && !('workflow' in resource.data) && (s0 == null || s0.state != 'open'))
+          || (s0 != null && s1 != null && s0.state == 'open' && s1.state == 'cancelled'
+              && s1.byUid == s0.byUid && s1.at == s0.at && s1.current == s0.current && s1.steps.size() == s0.steps.size());
+      }
       // The office head (or an administrator or the Records Officer) gave this user, of the same
       // office, access to this folder (document type) of the office's documents, or to all of them
       // (Folders: Access). Not to a restricted document, nor to a folder the office restricted.
@@ -435,6 +467,8 @@ service cloud.firestore {
       }
       allow read: if isActive()
         && (resource.data.createdBy == request.auth.uid || isAdmin() || heldByMyOffice() || headSees() || referredToMe() || referredByMyOffice() || isRecords() || routeStaff()
+            // asked to sign it (a signature request)
+            || request.auth.uid in resource.data.get('signers', [])
             // forwarded to this user, or referred to them (also after they sent it back)
             || request.auth.uid in resource.data.get('sharedWith', [])
             || request.auth.uid in resource.data.get('referred', [])
@@ -507,6 +541,11 @@ service cloud.firestore {
         && unchanged(['createdBy', 'createdAt', 'typeId', 'controlNo', 'typeSnapshot', 'office'])
         && referralAllowed()
         && (isAdmin()
+            // The person whose turn it is on a signature request signs it, or declines. (Its first
+            // test is cheap, so route moves below lose almost nothing to it.)
+            || (signTurn()
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pdf', 'signRequest', 'updatedAt', 'history'])
+                && appended('history') && pdfAppended() && signStepOk())
             // (First: route moves are the most frequent update, and every rule expression evaluated,
             // also of the branches that fail, counts toward Firestore's limit of 1000.)
             // The office holding a routed document receives, releases or returns it, and signs its PDF.
@@ -552,7 +591,7 @@ service cloud.firestore {
             || (actsAsPreparer() && resource.data.status != 'cancelled'
                 && resource.data.get('workflow', {}).get('state', '') != 'done'
                 && unchanged(['archive', 'reviews', 'access', 'editors', 'restricted'])
-                && appended('history') && pdfAppended() && routeRecordKept()
+                && appended('history') && pdfAppended() && routeRecordKept() && preparerSignOk()
                 && (workflowUntouched()
                     || ((!('workflow' in resource.data)
                         || (resource.data.workflow.state == 'in-progress' && (holder() == '' || holder() == myOffice())))
@@ -662,6 +701,7 @@ service cloud.firestore {
                       && get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.office == myOffice())))
           || (myOffice() != '' && d.get('currentOffice', '') == myOffice() && d.get('atPreparer', true) == false)
           || d.get('currentOffice', '') == 'person:' + request.auth.uid
+          || request.auth.uid in d.get('signers', [])
           || (myOffice() != '' && profile().get('head', false) == true && d.get('office', '') == myOffice());
       }
       allow get: if true;

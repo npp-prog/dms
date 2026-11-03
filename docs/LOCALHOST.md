@@ -234,6 +234,15 @@ The completed document gets a control number, e.g. `DMS-2026-000001`. Above the 
 
 The checklist's header boxes (DV Number, OBR/FURS Number, Payee) fill in from the document.
 
+### Ask for signatures (documents outside any route)
+
+A document that follows no route (for example a **certificate** uploaded under **Upload**, or a document type with no workflow) can still be signed by the people who must sign it, as in eGovDoc. On its page, in the **Signatures** card, the preparer (or an administrator) clicks **Ask for signatures**:
+1. **Add who signs** (type a name or email: the office head, the Mayor, anyone in DMS), in the order they sign; for each, what they sign as (Noted by, Approved by…) if you like. ↑ changes the order, × removes someone.
+2. For each person, click **Show where they sign** and tap the PDF where their signature goes: a box with their name shows there (tap again to move it).
+3. Add a note if you like, then **Send for signature**.
+
+The first person is notified (Notifications, email, and **Waiting for your signature** on their Dashboard). They open the document, see their box on the PDF, and sign it under **PDF and digital signatures** (e-signature, or PNPKI): their signature mark starts in their box. Then the next person is notified, and so on; the preparer is told as each signs, and when everyone has. Someone who cannot sign clicks **Decline to sign…** and says why: the request stops and the preparer is told; they can fix the document and **Ask for signatures again**. The preparer can **Withdraw the request** while it is out (signatures already on the PDF stay). The document's status shows **For Signature** while it is out, **Returned** if someone declined, and **Complete** once everyone has signed. Those asked to sign can open the document and find it in their Documents list.
+
 ### Workflow: where is the document?
 
 When you **convert a document to PDF**, DMS starts its **workflow**: from then on the PDF goes from office to office along the route set under Administration → Workflow (or, if none is set, the steps of **How to process this document**). Marking it complete is not enough: the document leaves your office only as a PDF. For a DV: your office → Municipal Accounting Office → Municipal Treasurer's Office → Office of the Municipal Mayor → Treasurer's Office → Accounting. The **Workflow** card on the document shows each office, where the document is now, and who routed or returned it and when.

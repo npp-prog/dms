@@ -1691,3 +1691,14 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .custom-sigs { display: grid; gap: .5rem; margin: .6rem 0; }
 .custom-sig { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: .4rem; align-items: center; }
 @media (max-width: 700px) { .custom-sig { grid-template-columns: 1fr; } }
+/* Signature requests */
+.sr-steps { list-style: none; margin: 0 0 .5rem; padding: 0; display: grid; gap: .5rem; }
+.sr-steps li { display: flex; gap: .6rem; align-items: flex-start; }
+.sr-dot { flex: none; width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-content: center; font-size: .8rem; background: var(--sunken); color: var(--muted); font-weight: 700; }
+.sr-signed .sr-dot { background: var(--green); color: #fff; }
+.sr-declined .sr-dot { background: var(--bad); color: #fff; }
+.sr-now .sr-dot { background: var(--primary); color: #fff; }
+.sr-compose { display: grid; gap: .6rem; margin-top: .4rem; }
+.sr-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.sr-rows li { display: grid; gap: .35rem; padding: .6rem .7rem; border: 1px solid var(--line); border-radius: 10px; }
+.sr-row-head { display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; }

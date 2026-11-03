@@ -13,6 +13,7 @@ import { withApprover } from './approver.js';
 import { copiedData } from './forms.js';
 import { localDay, withParents } from './archiveFiles.js';
 import { notify } from './social.js';
+import { afterDeclined, afterSigned, buildSignRequest, isMyTurn } from './signRequest.js';
 
 // ---------- Users ----------
 
@@ -1107,8 +1108,10 @@ export async function addPdfVersion(id, bytes, user, { kind, method = 'dms', sig
   };
   const verifyRef = doc(db, 'verifications', file.sha256);
   let d;
+  let signed = null;
   await runTransaction(db, async (tx) => {
     d = (await tx.get(docRef)).data();
+    signed = null;
     const known = (await tx.get(verifyRef)).exists();
     const files = d.pdf?.files || [];
     if (files.length !== n) throw new Error('Someone else added a version of this PDF first. Reload the page and try again.');
@@ -1121,15 +1124,65 @@ export async function addPdfVersion(id, bytes, user, { kind, method = 'dms', sig
     const note = kind === 'signed' ? `${signer?.name || ''}${method === 'upload' ? ' — uploaded' : ''}` : kind === 'esigned' ? `${signer?.name || ''} — e-signature` : '';
     const pdf = { basis: basis ?? d.pdf?.basis ?? null, basisV: basis ? BASIS_VERSION : d.pdf?.basisV ?? null, files: [...files, file] };
     publishCheck(tx, id, { ...d, pdf });
+    // A signature request: the person whose turn it is signed; it passes to the next one.
+    if ((kind === 'signed' || kind === 'esigned') && isMyTurn(d, user.uid)) signed = afterSigned(d.signRequest, file.at);
     tx.update(docRef, {
+      ...(signed ? { signRequest: signed } : {}),
       // basisV: how the basis was computed (bases computed another way are not compared).
       pdf,
       updatedAt: serverTimestamp(),
       history: [...(d.history || []), historyEntry(kind === 'signed' || kind === 'esigned' ? 'signed' : kind === 'stamped' ? (reason === 'QR code' ? 'QR code put on the PDF' : 'reference no. put on the PDF') : kind === 'restored' ? `PDF back to version ${restores + 1}` : 'converted to PDF', user, kind === 'restored' ? reason : note)],
     });
   });
-  if (kind === 'signed' || kind === 'esigned') tellPreparer(d, id, `${kind === 'esigned' ? 'e-signed' : 'signed'} by ${signer?.name || user.displayName || user.email}${reason ? ` — ${reason}` : ''}.`, user);
+  if (kind === 'signed' || kind === 'esigned') tellPreparer(d, id, `${kind === 'esigned' ? 'e-signed' : 'signed'} by ${signer?.name || user.displayName || user.email}${reason ? ` — ${reason}` : ''}${signed?.state === 'done' ? '. Everyone asked has signed it.' : ''}.`, user);
+  if (signed?.state === 'open') tellSigner(d, id, signed, user);
   return file;
+}
+
+// ---- Signature requests (lib/signRequest.js): documents outside any route ----
+function tellSigner(d, id, r, user) {
+  const s = r.steps[r.current];
+  if (!s || s.uid === user.uid) return;
+  const name = `${d.controlNo || ''}${d.title ? ` (${d.title})` : ''}`.trim();
+  notify(s.uid, { kind: 'document', text: `${name}: ${r.by} asks you to sign it${s.label ? ` (${s.label})` : ''}${r.note ? ` — ${r.note}` : ''}. Open it and sign where your box is.`, link: `/documents/${id}` }, user).catch(() => {});
+}
+// The preparer sends it to be signed: who signs, in this order, and where (steps).
+export async function requestSignatures(id, steps, note, user) {
+  const ref = doc(db, 'documents', id);
+  const r = buildSignRequest(steps, note, user);
+  let d;
+  await runTransaction(db, async (tx) => {
+    d = (await tx.get(ref)).data();
+    if (d.workflow) throw new Error('This document follows a route: its offices sign it there.');
+    if (!(d.pdf?.files || []).length) throw new Error('Convert it to PDF (or upload the PDF) first.');
+    if (d.signRequest?.state === 'open') throw new Error('It is already out for signature.');
+    tx.update(ref, {
+      signRequest: r,
+      signers: [...new Set([...(d.signers || []), ...r.steps.map((s) => s.uid)])],
+      updatedAt: serverTimestamp(),
+      history: [...(d.history || []), historyEntry('sent for signature', user, r.steps.map((s) => `${s.name}${s.label ? ` (${s.label})` : ''}`).join(', '))],
+    });
+  });
+  tellSigner(d, id, r, user);
+}
+export async function declineSignature(id, remarks, user) {
+  const ref = doc(db, 'documents', id);
+  let d;
+  await runTransaction(db, async (tx) => {
+    d = (await tx.get(ref)).data();
+    if (!isMyTurn(d, user.uid)) throw new Error('It is not yours to sign now.');
+    tx.update(ref, { signRequest: afterDeclined(d.signRequest, remarks), updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('declined to sign', user, String(remarks).trim())] });
+  });
+  tellPreparer(d, id, `${user.displayName || user.email} declined to sign it — ${String(remarks).trim()}.`, user);
+}
+// The preparer withdraws the request (those who signed stay on the PDF).
+export async function cancelSignRequest(id, user) {
+  const ref = doc(db, 'documents', id);
+  await runTransaction(db, async (tx) => {
+    const d = (await tx.get(ref)).data();
+    if (!d.signRequest || d.signRequest.state === 'done') return;
+    tx.update(ref, { signRequest: { ...d.signRequest, state: 'cancelled' }, updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('signature request withdrawn', user)] });
+  });
 }
 
 // The reference no. assigned on receiving (e.g. the DV No.) is a suggestion: the office may change
@@ -1468,6 +1521,8 @@ export async function listDocuments({ uid, office = '', all = false, head = fals
       // Forwarded to them, or referred to them (also after they sent it back): theirs to see too.
       query(docs, where('sharedWith', 'array-contains', uid), limit(max)),
       query(docs, where('referred', 'array-contains', uid), limit(max)),
+      // Asked to sign it (signature requests).
+      query(docs, where('signers', 'array-contains', uid), limit(max)),
       ...(office && head ? [
         query(docs, where('office', '==', office), limit(max)),
         query(docs, where('routeOffices', 'array-contains', office), limit(max)),
