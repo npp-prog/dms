@@ -37,7 +37,7 @@ function ProjectList() {
   // Office heads also see their office's projects. Archived projects: on request.
   useEffect(() => {
     setProjects(null);
-    listProjects(actor, { all: isAdmin, headOf: isHead ? profile.office : '', office: profile.office, archived: showArchived }).then(setProjects).catch((e) => setError(e.message));
+    listProjects(actor, { all: isAdmin, headOf: isHead ? profile.office : '', archived: showArchived }).then(setProjects).catch((e) => setError(e.message));
   }, [actor.uid, isAdmin, isHead, profile.office, showArchived]); // eslint-disable-line react-hooks/exhaustive-deps
   const today = localDay();
   return (

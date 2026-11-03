@@ -29,7 +29,9 @@ export function officesPatch(u, patch = {}, others = otherOffices(u)) {
   const was = others.find((e) => e.office === next.office);
   const kept = was && u.office && u.office !== next.office ? [{ office: u.office, head: Boolean(u.head) }] : [];
   const list = [...others, ...kept].filter((e) => e.office !== next.office);
-  const head = 'head' in patch ? Boolean(patch.head) : was && 'office' in patch ? was.head : Boolean(next.head);
+  // (Moved to an office not in their list: not its head unless that is set with the move.)
+  const moved = 'office' in patch && patch.office !== (u.office || '');
+  const head = 'head' in patch ? Boolean(patch.head) : was && moved ? was.head : moved ? false : Boolean(next.head);
   const offices = officesOf({ office: next.office, head, offices: list });
   return { ...patch, head, offices };
 }

@@ -407,7 +407,7 @@ service cloud.firestore {
       // is (a new PDF version, their step recorded, the next one's turn) or declines; nothing else
       // of the request, nor of the other steps, changes.
       function signTurn() {
-        return resource.data.get('signRequest', {}).get('state', '') == 'open'
+        return resource.data.get('signRequest', {}).get('state', '') == 'open' && !('workflow' in resource.data)
           && resource.data.signRequest.steps[resource.data.signRequest.current].uid == request.auth.uid;
       }
       function signStepOk() {
@@ -415,7 +415,8 @@ service cloud.firestore {
         let s1 = request.resource.data.signRequest;
         let c = s0.current;
         let n = s0.steps.size();
-        return s1.steps.size() == n && s1.byUid == s0.byUid && s1.at == s0.at
+        return s1.steps.size() == n && s1.byUid == s0.byUid && s1.at == s0.at && s1.by == s0.by && s1.get('note', '') == s0.get('note', '')
+          && s1.steps[c].get('name', '') == s0.steps[c].get('name', '') && s1.steps[c].get('label', '') == s0.steps[c].get('label', '')
           // (an empty slice is an error in the rules: those cases are skipped)
           && (c == 0 || s1.steps[0:c] == s0.steps[0:c]) && (c + 1 >= n || s1.steps[c + 1:n] == s0.steps[c + 1:n])
           && s1.steps[c].uid == s0.steps[c].uid && s1.steps[c].page == s0.steps[c].page && s1.steps[c].rect == s0.steps[c].rect
@@ -485,7 +486,10 @@ service cloud.firestore {
       function preparerRouteOk() {
         return !('workflow' in request.resource.data)
           || (request.resource.data.workflow.state in ['in-progress', 'cancelled']
-              && request.resource.data.workflow.stage <= resource.data.get('workflow', {}).get('stage', 0) + 1)
+              && request.resource.data.workflow.stage <= resource.data.get('workflow', {}).get('stage', 0) + 1
+              // on hold: it stays where it is (it may still be cancelled)
+              && (resource.data.get('workflow', {}).get('hold', null) == null || request.resource.data.workflow.state == 'cancelled'
+                  || request.resource.data.workflow.stage == resource.data.workflow.stage))
           || (request.resource.data.workflow.state == 'done' && 'workflow' in resource.data
               && resource.data.workflow.stage == resource.data.workflow.steps.size() - 1
               && resource.data.workflow.get('hold', null) == null);

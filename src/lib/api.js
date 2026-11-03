@@ -795,6 +795,7 @@ export async function startWorkflow(id, type, user, offices) {
     const snap = await tx.get(ref);
     const d = snap.data();
     if (!d || d.workflow) return;
+    if (d.signRequest?.state === 'open') throw new Error('It is out for signature: withdraw the request (Signatures) before starting its route.');
     const live = d.typeId ? (await tx.get(doc(db, 'documentTypes', d.typeId))).data() : null;
     const start = buildWorkflow(live || type, d, offices, user);
     if (!start) return;

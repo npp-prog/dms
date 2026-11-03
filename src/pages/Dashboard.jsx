@@ -62,7 +62,7 @@ export default function Dashboard() {
   useEffect(() => {
     listBoards({ uid: user.uid }, { office: profile.office }).then((bs) => Promise.all(bs.slice(0, 10).map((b) => listBoardItems(b.id).catch(() => []))))
       .then((lists) => setOffices(workload(lists.flat(), localDay(), 'office').filter((r) => r.open > 0).slice(0, 6))).catch(() => setOffices([]));
-  }, [user.uid]);
+  }, [user.uid, profile.office]);
   const ongoing = projects.filter((p) => ['planning', 'ongoing', 'on_hold'].includes(p.status)).slice(0, 5);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);

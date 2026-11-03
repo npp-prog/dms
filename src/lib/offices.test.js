@@ -26,3 +26,12 @@ test('administrator changes keep the list complete', () => {
   // third party: no offices
   assert.deepEqual(officesPatch(u, { role: 'payee', office: '' }).offices, []);
 });
+
+test('moving the head of one office to another does not make them head there', () => {
+  const u = { office: 'Accounting', head: true, offices: [{ office: 'Accounting', head: true }] };
+  const p = officesPatch(u, { office: 'Treasury' }, []);
+  assert.equal(p.head, false);
+  assert.deepEqual(p.offices, [{ office: 'Treasury', head: false }]);
+  assert.equal(officesPatch(u, { office: 'Treasury', head: true }, []).head, true);
+  assert.equal(officesPatch(u, {}).head, true); // nothing moved: unchanged
+});

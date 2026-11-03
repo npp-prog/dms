@@ -222,9 +222,11 @@ function DocumentPage({ docId }) {
   const assigning = useRef(new Set());
   const docRef = useRef(null); // the document as last opened (this docId)
   // live: reloaded because someone else changed it (watchDocument), not after the user's own action.
-  const load = async ({ live = false } = {}) => {
+  // data: the document as the live listener just received it (not read again).
+  const load = async ({ live = false, data = null } = {}) => {
     try {
-      let d = await getDocument(docId);
+      // (A supporting document is read in full: its main document decides whether it is processed.)
+      let d = (data && !data.supports ? data : null) || await getDocument(docId);
       if (!d) throw new Error('Document not found.');
       // At a step that assigns a reference no. (e.g. the DV No.): the office holding it gets it on
       // opening (not an administrator who only looks at it: they can assign it in the Workflow card).
@@ -247,7 +249,8 @@ function DocumentPage({ docId }) {
       ensureCheck(docId, d).catch(() => {}); // only those who may act on it can write it
       // (What the user is typing into its fields stays, when someone else changed the document.)
       setDraft((cur) => (live && before && JSON.stringify(cur || {}) !== JSON.stringify(before.data || {}) ? cur : (d.data || {})));
-      setType(await getTypeForDocument(d));
+      // (Its type is read again only when it is another type, not on every live change.)
+      if (!live || d.typeId !== before?.typeId) setType(await getTypeForDocument(d));
     } catch (e) {
       // Opened a moment ago, no longer readable: the user routed it on (or returned it), so it has
       // left their office. Not an error: back to their Notifications, with a word on where it went.
@@ -265,7 +268,7 @@ function DocumentPage({ docId }) {
   useEffect(() => watchDocument(docId, (d) => {
     const cur = docRef.current;
     if (!cur || d.updatedAt?.toMillis?.() === cur.updatedAt?.toMillis?.()) return;
-    load({ live: true });
+    load({ live: true, data: d });
   }), [docId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) return <div className="page"><div className="alert">{error}</div></div>;
@@ -294,7 +297,7 @@ function DocumentPage({ docId }) {
   const canCopy = !docData.supports && !isExternal && (uploaded || Boolean(docData.typeId));
   const canConvert = !uploaded && editable && (docData.status === 'complete' || (revising && (docData.pdf?.files || []).length > 0)) && (!hasSignature || revising) && (isAdmin || (isOwner && editableByPreparer(docData)));
   const myTurn = isMyTurn(docData, user.uid); // a signature request: theirs to sign now
-  const canSign = editable && docData.status === 'complete' && wf?.state !== 'done' && (isAdmin || myTurn || (wf ? isReceived(wf) && canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }) : isOwner));
+  const canSign = editable && docData.status === 'complete' && wf?.state !== 'done' && !docData.closed && (isAdmin || myTurn || (wf ? isReceived(wf) && canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant }) : isOwner));
   // The boxes of a signature request still to sign, shown on the PDF (when not placing anything).
   const requestMarks = docData.signRequest?.state === 'open'
     ? docData.signRequest.steps.map((s, i) => ({ s, i })).filter(({ s }) => s.status === 'pending')
@@ -465,7 +468,7 @@ function DocumentPage({ docId }) {
           {type && (wf || (type.processing || []).length > 0) && (docData.status !== 'draft' || wf) && (
             <WorkflowCard doc={docData} busy={busy}
               canAct={canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant })}
-              canStart={docData.status === 'complete' && (docData.pdf?.files || []).length > 0 && (isOwner || isAdmin)}
+              canStart={docData.status === 'complete' && (docData.pdf?.files || []).length > 0 && (isOwner || isAdmin) && docData.signRequest?.state !== 'open' && !docData.closed}
               onStart={() => run(() => startWorkflow(docId, type, actor, settings.offices || []))}
               onAction={(action, remarks, done) => run(async () => {
                 try { await workflowAction(docId, action, actor, { stage: wf.stage, remarks }); done(); } catch (e) { await load(); throw e; }
