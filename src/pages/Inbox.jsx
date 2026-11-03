@@ -1,3 +1,4 @@
+import { useLiveRefresh } from '../lib/useLiveRefresh.js';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -61,7 +62,8 @@ export default function Inbox() {
   const [error, setError] = useState('');
   // Documents someone forwarded to this user.
   const [forwarded, setForwarded] = useState(null);
-  useEffect(() => { listForwarded(user.uid).then(setForwarded).catch(() => setForwarded([])); }, [user.uid]);
+  const live = useLiveRefresh(user.uid); // reload on a new notification
+  useEffect(() => { listForwarded(user.uid).then(setForwarded).catch(() => setForwarded([])); }, [user.uid, live]);
   // A supplier or payee: the documents they signed and sent back (still open to them).
   const [sentBack, setSentBack] = useState([]);
   useEffect(() => {
@@ -75,7 +77,7 @@ export default function Inbox() {
     // An office head (or an admin) sees everything waiting in the office; staff, what is routed to
     // the office and their own documents at the preparer's step.
     listInbox({ office, all, uid: user.uid, head: isHead || isAdmin }).then(setDocs).catch((e) => setError(e.message));
-  }, [office, isAdmin, isHead, user.uid]);
+  }, [office, isAdmin, isHead, user.uid, live]);
 
   // Circulars for the user's office not marked received yet.
   const [circulars, setCirculars] = useState([]);

@@ -1,3 +1,4 @@
+import { useLiveRefresh } from '../lib/useLiveRefresh.js';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -44,12 +45,13 @@ export default function WorkflowTracking() {
   const [view, setView] = useState(params.get('view') || 'active');
   const [q, setQ] = useState('');
   const [at, setAt] = useState('');
+  const live = useLiveRefresh(user.uid); // reload on a new notification
 
   useEffect(() => {
     listDocuments({ uid: user.uid, office: profile.office, all: isAdmin, head: isHead })
       .then((d) => setDocs(d.filter((x) => x.workflow)))
       .catch((e) => setError(e.message));
-  }, [user.uid, profile.office, isAdmin, isHead]);
+  }, [user.uid, profile.office, isAdmin, isHead, live]);
 
   const rows = useMemo(() => (docs || []).map((d) => ({ d, state: stateOf(d, profile.office, user.uid) })), [docs, profile.office, user.uid]);
   const count = (fn) => rows.filter(fn).length;

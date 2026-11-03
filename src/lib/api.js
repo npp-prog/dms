@@ -1139,6 +1139,15 @@ export async function addPdfVersion(id, bytes, user, { kind, method = 'dms', sig
   return file;
 }
 
+// A document, live: onChange(data) each time someone changes it (not for this browser's own writes
+// still on their way). Used to show another person's signature or route move without reloading.
+export function watchDocument(id, onChange, onError = () => {}) {
+  return onSnapshot(doc(db, 'documents', id), (snap) => {
+    if (snap.metadata.hasPendingWrites || !snap.exists()) return;
+    onChange({ id: snap.id, ...snap.data() });
+  }, onError);
+}
+
 // ---- Signature requests (lib/signRequest.js): documents outside any route ----
 function tellSigner(d, id, r, user) {
   const s = r.steps[r.current];

@@ -1,3 +1,4 @@
+import { useLiveRefresh } from '../lib/useLiveRefresh.js';
 import { docStage } from '../lib/docStatus.js';
 import { isMyTurn } from '../lib/signRequest.js';
 import { useEffect, useState } from 'react';
@@ -65,6 +66,7 @@ export default function Dashboard() {
   const ongoing = projects.filter((p) => ['planning', 'ongoing', 'on_hold'].includes(p.status)).slice(0, 5);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const live = useLiveRefresh(user.uid); // reload on a new notification
 
   useEffect(() => {
     Promise.all([
@@ -74,7 +76,7 @@ export default function Dashboard() {
     ])
       .then(([t, d, u]) => { setTypes(t.filter((x) => !x.uploadOnly)); setDocs(d); setLoaded(true); setPendingUsers(u.filter((x) => !x.active && !x.deactivated).length); })
       .catch((e) => setError(e.message));
-  }, [user.uid, profile.office, isAdmin, isHead, canManageUsers]);
+  }, [user.uid, profile.office, isAdmin, isHead, canManageUsers, live]);
 
   const mine = docs.filter((d) => d.createdBy === user.uid);
   const routed = docs.filter((d) => d.workflow).map((d) => ({ d, state: stateOf(d, profile.office, user.uid) }));

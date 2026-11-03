@@ -1,3 +1,4 @@
+import { useLiveRefresh } from '../lib/useLiveRefresh.js';
 import { DOC_STAGES, docStage } from '../lib/docStatus.js';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -24,9 +25,11 @@ export default function Documents() {
   const [filters, setFilters] = useState({ q: '', status: '', type: '', office: '' });
   const [zipOpen, setZipOpen] = useState(false);
 
+  // (Reloaded by itself when a new notification arrives: a document sent to them, signed…)
+  const live = useLiveRefresh(user.uid);
   useEffect(() => {
     listDocuments({ uid: user.uid, office: profile.office, all: isAdmin, head: isHead, granted: true }).then(setDocs).catch((e) => setError(e.message));
-  }, [user.uid, profile.office, isAdmin, isHead]);
+  }, [user.uid, profile.office, isAdmin, isHead, live]);
   const offices = useMemo(() => [...new Set([...(settings.offices || []), ...(docs || []).map((d) => d.office).filter(Boolean)])].sort(), [settings.offices, docs]);
 
   const types = useMemo(() => [...new Set((docs || []).map((d) => d.typeCode))].sort(), [docs]);

@@ -1,3 +1,4 @@
+import { useLiveRefresh } from '../lib/useLiveRefresh.js';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { matchesSearch } from '../lib/docSearch.js';
@@ -27,7 +28,8 @@ export default function Archive() {
 
   const load = () => (keeper ? listArchive() : listDocuments({ uid: user.uid, office: profile.office, head: isHead, granted: true }).then((l) => l.filter(isArchived)))
     .then(setDocs).catch((e) => setError(e.message));
-  useEffect(() => { load(); }, [keeper, user.uid, profile.office, isHead]);
+  const live = useLiveRefresh(user.uid); // reload on a new notification (a document processed)
+  useEffect(() => { load(); }, [keeper, user.uid, profile.office, isHead, live]);
 
   const types = useMemo(() => [...new Set((docs || []).map((d) => d.typeCode))].sort(), [docs]);
   const offices = useMemo(() => [...new Set((docs || []).map((d) => d.office).filter(Boolean))].sort(), [docs]);

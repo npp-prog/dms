@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed } from '../lib/api.js';
+import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed, watchDocument } from '../lib/api.js';
 import SignRequestCard from '../components/SignRequestCard.jsx';
 import { currentSigner, isMyTurn, markInBox } from '../lib/signRequest.js';
 import { assignPending, canAct, editableByPreparer, holdsPosition, isPreparer, isReceived, linkLocked, liveFiles, officeOf } from '../lib/workflow.js';
@@ -220,7 +220,8 @@ function DocumentPage({ docId }) {
 
   const assigning = useRef(new Set());
   const docRef = useRef(null); // the document as last opened (this docId)
-  const load = async () => {
+  // live: reloaded because someone else changed it (watchDocument), not after the user's own action.
+  const load = async ({ live = false } = {}) => {
     try {
       let d = await getDocument(docId);
       if (!d) throw new Error('Document not found.');
@@ -239,10 +240,12 @@ function DocumentPage({ docId }) {
           setActionError(`The reference no. could not be assigned: ${e.message}`);
         }
       }
+      const before = docRef.current;
       setDocData(d);
       docRef.current = d;
       ensureCheck(docId, d).catch(() => {}); // only those who may act on it can write it
-      setDraft(d.data || {});
+      // (What the user is typing into its fields stays, when someone else changed the document.)
+      setDraft((cur) => (live && before && JSON.stringify(cur || {}) !== JSON.stringify(before.data || {}) ? cur : (d.data || {})));
       setType(await getTypeForDocument(d));
     } catch (e) {
       // Opened a moment ago, no longer readable: the user routed it on (or returned it), so it has
@@ -257,6 +260,12 @@ function DocumentPage({ docId }) {
     }
   };
   useEffect(() => { docRef.current = null; load(); }, [docId]);
+  // Live: when someone else signs it, routes it, comments… the page follows without reloading.
+  useEffect(() => watchDocument(docId, (d) => {
+    const cur = docRef.current;
+    if (!cur || d.updatedAt?.toMillis?.() === cur.updatedAt?.toMillis?.()) return;
+    load({ live: true });
+  }), [docId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) return <div className="page"><div className="alert">{error}</div></div>;
   if (!docData) return <div className="page"><div className="spinner" /></div>;
