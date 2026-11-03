@@ -1705,3 +1705,11 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 /* A document's page: its buttons always under its title, in the same place whatever the view. */
 .page-head.doc-head { display: block; }
 .page-head.doc-head > .row { margin-top: .9rem; }
+/* DV pre-audit check (AI) */
+.precheck-list { list-style: none; margin: .4rem 0; padding: 0; display: grid; gap: .55rem; }
+.precheck-list li { display: flex; gap: .55rem; align-items: flex-start; font-size: .88rem; }
+.precheck-list li .badge { flex: none; margin-top: .1rem; }
+.precheck-meta summary { cursor: pointer; }
+.precheck-meta ul { margin: .3rem 0; padding-left: 1.1rem; }
+.spinner-inline { display: inline-block; width: .9em; height: .9em; border: 2px solid var(--line-2); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; vertical-align: -2px; margin-right: .3rem; }
+.precheck-list li .badge { min-width: 5.4rem; justify-content: center; }

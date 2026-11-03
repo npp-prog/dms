@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed, watchDocument } from '../lib/api.js';
 import SignRequestCard from '../components/SignRequestCard.jsx';
+import PrecheckCard from '../components/PrecheckCard.jsx';
 import { currentSigner, isMyTurn, markInBox } from '../lib/signRequest.js';
 import { assignPending, canAct, editableByPreparer, holdsPosition, isPreparer, isReceived, linkLocked, liveFiles, officeOf } from '../lib/workflow.js';
 import { readSignatures } from '../lib/signing.js';
@@ -434,6 +435,10 @@ function DocumentPage({ docId }) {
               onDecline={(remarks) => declineSignature(docId, remarks, actor).then(load)}
               onCancel={() => run(() => cancelSignRequest(docId, actor))}
               onProcessed={() => run(() => markProcessed(docId, actor))} />
+          )}
+          {/* DV pre-audit check (AI): possible issues for the Accounting Office (suggestions only). */}
+          {!isExternal && docData.typeCode === 'DV' && (docData.pdf?.files || []).length > 0 && docData.status !== 'cancelled' && (
+            <PrecheckCard docId={docId} version={(docData.pdf?.files || []).at(-1)?.path} />
           )}
           {/* Supplemental documents: between the PDF and the workflow. */}
           {type && !isExternal && (

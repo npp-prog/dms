@@ -10,7 +10,7 @@
     "local:reset": "node -e \"require('fs').rmSync('.emulator-data',{recursive:true,force:true});console.log('Local data cleared.')\"",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/lib/*.test.js",
+    "test": "node --test src/lib/*.test.js netlify/lib/*.test.mjs",
     "emulators": "npx -y firebase-tools@15.34.1 emulators:start --only auth,firestore --project demo-fts",
     "deploy:rules": "npx -y firebase-tools@15.34.1 deploy --only firestore:rules,firestore:indexes,storage"
   },
