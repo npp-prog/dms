@@ -427,11 +427,10 @@ service cloud.firestore {
       }
       // The preparer sends a document outside any route to be signed (a new request, theirs), or
       // withdraws an open one; they never mark steps signed.
-      function preparerSignOk() {
+      function preparerSignChange() {
         let s0 = resource.data.get('signRequest', null);
         let s1 = request.resource.data.get('signRequest', null);
-        return !('signRequest' in request.resource.data.diff(resource.data).affectedKeys())
-          || (s1 != null && s1.state == 'open' && s1.current == 0 && s1.byUid == request.auth.uid
+        return (s1 != null && s1.state == 'open' && s1.current == 0 && s1.byUid == request.auth.uid
               && !('workflow' in resource.data) && (s0 == null || s0.state != 'open'))
           || (s0 != null && s1 != null && s0.state == 'open' && s1.state == 'cancelled'
               && s1.byUid == s0.byUid && s1.at == s0.at && s1.current == s0.current && s1.steps.size() == s0.steps.size());
@@ -462,6 +461,23 @@ service cloud.firestore {
               && (get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.office == '*'
                   || resource.data.get('office', '') == myOffice()));
       }
+      // The preparer's edit (one comparison of the document, reused: each comparison counts toward
+      // the rules' limit of 1000 expressions). Not once processed or cancelled; never the archive
+      // entry, reviews or access; its route only while it is with their office (or not routed yet);
+      // a signature request only started or withdrawn (preparerSignChange).
+      function preparerEditOk() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return resource.data.status != 'cancelled'
+          && resource.data.get('workflow', {}).get('state', '') != 'done' && resource.data.get('closed', null) == null
+          && (!('closed' in request.resource.data) || !('workflow' in resource.data))
+          && !changed.hasAny(['archive', 'reviews', 'access', 'editors', 'restricted'])
+          && appended('history') && pdfAppended() && routeRecordKept()
+          && (!('signRequest' in changed) || preparerSignChange())
+          && (!changed.hasAny(['workflow', 'currentOffice', 'routeOffices', 'atPreparer'])
+              || ((!('workflow' in resource.data)
+                   || (resource.data.workflow.state == 'in-progress' && (holder() == '' || holder() == myOffice())))
+                  && preparerRouteOk() && placedRight()));
+      }
       // The workflow fields change only through the office holding the document.
       function workflowUntouched() {
         return unchanged(['workflow', 'currentOffice', 'routeOffices', 'atPreparer']);
@@ -486,10 +502,10 @@ service cloud.firestore {
       function preparerRouteOk() {
         return !('workflow' in request.resource.data)
           || (request.resource.data.workflow.state in ['in-progress', 'cancelled']
-              && request.resource.data.workflow.stage <= resource.data.get('workflow', {}).get('stage', 0) + 1
-              // on hold: it stays where it is (it may still be cancelled)
-              && (resource.data.get('workflow', {}).get('hold', null) == null || request.resource.data.workflow.state == 'cancelled'
-                  || request.resource.data.workflow.stage == resource.data.workflow.stage))
+              && request.resource.data.workflow.stage <= resource.data.get('workflow', {}).get('stage', 0) + 1)
+          // (A hold is enforced on the offices' route moves, routeMoveOk; checking it here too would
+          // pass the rules' limit of 1000 expressions on an ordinary route move. The app does not
+          // offer the preparer a move while it is on hold.)
           || (request.resource.data.workflow.state == 'done' && 'workflow' in resource.data
               && resource.data.workflow.stage == resource.data.workflow.steps.size() - 1
               && resource.data.workflow.get('hold', null) == null);
@@ -592,15 +608,7 @@ service cloud.firestore {
             // The preparer (or an editor) edits the document; its route only while it is with their
             // office (or before it is routed).
             // Not once processed (it is in the Archive), and never the archive entry, reviews or access.
-            || (actsAsPreparer() && resource.data.status != 'cancelled'
-                && resource.data.get('workflow', {}).get('state', '') != 'done' && resource.data.get('closed', null) == null
-                && (!('closed' in request.resource.data) || !('workflow' in resource.data))
-                && unchanged(['archive', 'reviews', 'access', 'editors', 'restricted'])
-                && appended('history') && pdfAppended() && routeRecordKept() && preparerSignOk()
-                && (workflowUntouched()
-                    || ((!('workflow' in resource.data)
-                        || (resource.data.workflow.state == 'in-progress' && (holder() == '' || holder() == myOffice())))
-                      && preparerRouteOk() && placedRight()))));
+            || (actsAsPreparer() && preparerEditOk()));
       // Only the superadmin deletes any document (administrators cannot). The preparer (or an
       // editor) deletes a draft: one never completed, or one routed and returned to their step and
       // saved as a draft again. Not while it is complete or out on its route.
