@@ -9,7 +9,7 @@ const STATE = { open: 'Out for signature', done: 'Signed by everyone', declined:
 // signs it, in what order, and taps the PDF where each one signs; each in turn is notified and signs
 // in their box (PDF and digital signatures), or declines. lib/signRequest.js.
 // placements / onPlacing: the PDF viewer's tap-to-place (keys req:<uid>).
-export default function SignRequestCard({ doc, me, canRequest, busy, placements = {}, onPlacing, onSend, onDecline, onCancel }) {
+export default function SignRequestCard({ doc, me, canRequest, busy, placements = {}, onPlacing, onSend, onDecline, onCancel, onProcessed }) {
   const r = doc.signRequest;
   const [rows, setRows] = useState(null); // null: not composing; [] while choosing who signs
   const [note, setNote] = useState('');
@@ -85,10 +85,18 @@ export default function SignRequestCard({ doc, me, canRequest, busy, placements 
         <button type="button" className="link small" disabled={busy} onClick={() => window.confirm('Withdraw the request? Signatures already on the PDF stay.') && onCancel()}>Withdraw the request</button>
       )}
 
+      {doc.closed && <p className="small muted">Marked processed by {doc.closed.by}, {when(doc.closed.at)}: it is in the Archive.</p>}
+      {canRequest && r?.state === 'done' && rows === null && (
+        <div className="row gap wrap" style={{ marginBottom: '.5rem' }}>
+          <button type="button" className="btn btn-primary btn-sm" disabled={busy}
+            onClick={() => window.confirm('Mark it processed? It moves to the Archive and can no longer be changed.') && onProcessed()}>Mark processed</button>
+          <span className="xs muted">Everyone has signed: it goes to the Archive.</span>
+        </div>
+      )}
       {canRequest && r?.state !== 'open' && rows === null && (
         <>
           {!r && <p className="small muted">This document follows no route: ask the people who must sign it, in order, and show each one where to sign on the PDF.</p>}
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setRows([])}>{r ? 'Ask for signatures again' : 'Ask for signatures'}</button>
+          <button type="button" className={`btn btn-sm ${r?.state === 'done' ? 'btn-ghost' : 'btn-primary'}`} onClick={() => setRows([])}>{r ? 'Ask for more signatures' : 'Ask for signatures'}</button>
         </>
       )}
 

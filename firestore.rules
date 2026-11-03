@@ -567,7 +567,7 @@ service cloud.firestore {
                 && request.resource.data.get('supplements', []).hasAll(resource.data.get('supplements', []))
                 && appended('history'))
             // The Records Officer files a processed document in the Archive (where it is kept).
-            || (isRecords() && resource.data.get('workflow', {}).get('state', '') == 'done' && appended('history')
+            || (isRecords() && (resource.data.get('workflow', {}).get('state', '') == 'done' || resource.data.get('closed', null) != null) && appended('history')
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archive', 'updatedAt', 'history']))
             // The head of the office that prepared it (or the Records Officer) gives people of the
             // office access to it (viewer, or editor: also in editors), takes it back, or restricts
@@ -589,7 +589,8 @@ service cloud.firestore {
             // office (or before it is routed).
             // Not once processed (it is in the Archive), and never the archive entry, reviews or access.
             || (actsAsPreparer() && resource.data.status != 'cancelled'
-                && resource.data.get('workflow', {}).get('state', '') != 'done'
+                && resource.data.get('workflow', {}).get('state', '') != 'done' && resource.data.get('closed', null) == null
+                && (!('closed' in request.resource.data) || !('workflow' in resource.data))
                 && unchanged(['archive', 'reviews', 'access', 'editors', 'restricted'])
                 && appended('history') && pdfAppended() && routeRecordKept() && preparerSignOk()
                 && (workflowUntouched()

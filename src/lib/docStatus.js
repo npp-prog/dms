@@ -29,7 +29,7 @@ export function docStage(d) {
   const sr = d.signRequest;
   if (!wf && sr?.state === 'open') return 'signing';
   if (!wf && sr?.state === 'declined') return 'returned';
-  if (!wf && sr?.state === 'done') return 'complete';
+  // (signed by everyone: for processing until its preparer marks it processed, then Complete)
   if (wf?.state === 'in-progress' && wf.hold) return 'hold';
   // Returned: the route's last move was a return (holding, resuming or referring it does not change that).
   if (wf?.state === 'in-progress' && [...(wf.events || [])].reverse().find((e) => ['released', 'returned', 'started'].includes(e.type))?.type === 'returned') return 'returned';

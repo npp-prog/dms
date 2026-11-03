@@ -26,6 +26,15 @@ export async function listArchive(page = 500) {
     if (snap.size < page) break;
     last = snap.docs[snap.docs.length - 1];
   }
+  // Documents outside any route that their preparer marked processed (closed).
+  let lastC = null;
+  for (;;) {
+    const snap = await getDocs(query(collection(db, 'documents'), where('closed.at', '>', ''), orderBy('closed.at'),
+      ...(lastC ? [startAfter(lastC)] : []), limit(page)));
+    snap.docs.forEach((d) => all.push({ id: d.id, ...d.data() }));
+    if (snap.size < page) break;
+    lastC = snap.docs[snap.docs.length - 1];
+  }
   // And the supporting documents of those (they have no route of their own; they follow it).
   const supporting = [];
   let lastS = null;

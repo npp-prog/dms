@@ -20,7 +20,8 @@ test('a signature request: built, signed in order, done', () => {
   assert.equal(r1.current, 1); assert.equal(r1.state, 'open'); assert.equal(r1.steps[0].status, 'signed');
   const r2 = afterSigned(r1, 't2');
   assert.equal(r2.state, 'done');
-  assert.equal(docStage({ ...d, signRequest: r2 }), 'complete');
+  assert.equal(docStage({ ...d, signRequest: r2 }), 'processing'); // signed: Complete once marked processed
+  assert.equal(docStage({ ...d, signRequest: r2, closed: { at: 't3' } }), 'complete');
   assert.equal(isMyTurn({ ...d, signRequest: r2 }, 'mayor'), false);
 });
 
@@ -31,4 +32,13 @@ test('declining a signature request, and the mark in its box', () => {
   assert.equal(x.state, 'declined'); assert.equal(x.steps[0].status, 'declined');
   assert.equal(docStage({ status: 'complete', pdf: { files: [{}] }, signRequest: x }), 'returned');
   assert.deepEqual(markInBox({ page: 2, rect: [100, 100, 250, 148] }, 100, 40), { page: 2, rect: [125, 104, 225, 144] });
+});
+
+test('a document outside any route marked processed goes to the Archive', async () => {
+  const { isArchived, processedAt } = await import('./archiveFiles.js');
+  const d = { status: 'complete', pdf: { files: [{}] }, signRequest: { state: 'done', steps: [] }, closed: { at: '2026-11-03T07:00:00Z', by: 'Neil' } };
+  assert.equal(isArchived(d), true);
+  assert.equal(processedAt(d), '2026-11-03T07:00:00Z');
+  assert.equal(docStage(d), 'complete');
+  assert.equal(isArchived({ ...d, closed: undefined }), false);
 });

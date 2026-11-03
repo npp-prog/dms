@@ -1175,6 +1175,20 @@ export async function declineSignature(id, remarks, user) {
   });
   tellPreparer(d, id, `${user.displayName || user.email} declined to sign it — ${String(remarks).trim()}.`, user);
 }
+// A document outside any route, signed by everyone asked: its preparer marks it processed, and it
+// goes to the Archive (closed: { at, by, uid }), as a routed document does when its route is done.
+export async function markProcessed(id, user) {
+  const ref = doc(db, 'documents', id);
+  await runTransaction(db, async (tx) => {
+    const d = (await tx.get(ref)).data();
+    if (d.workflow) throw new Error('This document follows a route: its last office marks it processed.');
+    if (d.signRequest?.state === 'open') throw new Error('It is still out for signature.');
+    if (d.closed) return;
+    const at = new Date().toISOString();
+    tx.update(ref, { closed: { at, by: user.displayName || user.email, uid: user.uid }, updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('processed', user, 'moved to the Archive')] });
+  });
+}
+
 // The preparer withdraws the request (those who signed stay on the PDF).
 export async function cancelSignRequest(id, user) {
   const ref = doc(db, 'documents', id);

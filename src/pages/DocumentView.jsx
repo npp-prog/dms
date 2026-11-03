@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest } from '../lib/api.js';
+import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed } from '../lib/api.js';
 import SignRequestCard from '../components/SignRequestCard.jsx';
 import { currentSigner, isMyTurn, markInBox } from '../lib/signRequest.js';
 import { assignPending, canAct, editableByPreparer, holdsPosition, isPreparer, isReceived, linkLocked, liveFiles, officeOf } from '../lib/workflow.js';
@@ -263,7 +263,7 @@ function DocumentPage({ docId }) {
 
   const editable = docData.status !== 'cancelled';
   // Processed (its route is done, it is in the Archive): the preparer no longer changes it.
-  const notDone = docData.workflow?.state !== 'done';
+  const notDone = docData.workflow?.state !== 'done' && !docData.closed;
   const isOwner = isPreparer(docData, { uid: user.uid, office: profile.office, grant: folderGrant });
   const wf = docData.workflow;
   // Once the document has left the preparer's office, only the offices on its route move it.
@@ -414,7 +414,7 @@ function DocumentPage({ docId }) {
           {/* Signature requests: a document outside any route, signed by people its preparer chooses. */}
           {type && !isExternal && !wf && (docData.pdf?.files || []).length > 0 && (
             <SignRequestCard doc={docData} me={user.uid} busy={busy} placements={placements}
-              canRequest={editable && (isOwner || isAdmin)}
+              canRequest={editable && !docData.closed && (isOwner || isAdmin)}
               onPlacing={(p) => {
                 setPlacing(p);
                 if (!p) { setPlacements((cur) => Object.fromEntries(Object.entries(cur).filter(([k]) => !k.startsWith('req:')))); return; }
@@ -422,7 +422,8 @@ function DocumentPage({ docId }) {
               }}
               onSend={(steps, note) => requestSignatures(docId, steps, note, actor).then(load)}
               onDecline={(remarks) => declineSignature(docId, remarks, actor).then(load)}
-              onCancel={() => run(() => cancelSignRequest(docId, actor))} />
+              onCancel={() => run(() => cancelSignRequest(docId, actor))}
+              onProcessed={() => run(() => markProcessed(docId, actor))} />
           )}
           {/* Supplemental documents: between the PDF and the workflow. */}
           {type && !isExternal && (
