@@ -80,6 +80,7 @@ export function precheckError(e) {
   if (e instanceof Anthropic.AuthenticationError) return 'The Anthropic API key in Netlify (ANTHROPIC_API_KEY) was not accepted: an administrator must check it.';
   if (e instanceof Anthropic.RateLimitError) return 'The AI service is busy. Please try again in a minute.';
   if (e instanceof Anthropic.BadRequestError && /credit balance/i.test(detail)) return 'The Anthropic account has no credits left: an administrator must add credits.';
+  if (/identity verification/i.test(detail)) return 'Anthropic asks the owner of the API key\'s account to verify their identity first: an administrator signs in at console.anthropic.com and completes the identity verification it asks for, then runs the check again.';
   if (e instanceof Anthropic.APIError) return `The AI service could not check it (error ${e.status}): ${detail}`;
   return detail || 'The check could not finish. Please try again.';
 }
