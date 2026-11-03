@@ -23,7 +23,8 @@ export default function PrecheckCard({ docId, version }) {
     return () => clearTimeout(timer.current);
   }, [s]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (s && (s.configured === false || s.supported === false)) return null;
+  // Only the Accounting Office runs it; others see a result once there is one.
+  if (s && (s.configured === false || s.supported === false || (!s.canRun && !s.result && s.state !== 'running'))) return null;
   const run = async () => {
     setStarting(true); setError('');
     try { await startPrecheck(docId); setS((x) => ({ ...(x || {}), state: 'running', error: '' })); setTimeout(load, 2500); } catch (e) { setError(e.message); } finally { setStarting(false); }
@@ -64,7 +65,8 @@ export default function PrecheckCard({ docId, version }) {
           </details>
         </>
       )}
-      {s && !running && (
+      {s && !running && !s.canRun && <p className="xs muted">Only the Municipal Accounting Office runs this check.</p>}
+      {s && !running && s.canRun && (
         <div className="row gap wrap" style={{ marginTop: '.5rem' }}>
           <button type="button" className={`btn btn-sm ${r && !s.stale ? 'btn-ghost' : 'btn-primary'}`} disabled={starting} onClick={run}>{r ? 'Check again' : 'Run pre-audit check'}</button>
         </div>

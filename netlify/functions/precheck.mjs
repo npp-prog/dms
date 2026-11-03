@@ -1,7 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import { userFromRequest } from '../lib/fb.mjs';
 import { readDocument } from '../lib/precheckRun.mjs';
-import { PRECHECK_TYPES, precheckBasis } from '../../src/lib/precheck.js';
+import { PRECHECK_TYPES, canRunPrecheck, precheckBasis } from '../../src/lib/precheck.js';
 
 // The DV pre-audit check's latest result for a document (POST { docId }), for someone who may open
 // that document (read with their own token): { state, result, read, skipped, at, byName, stale }.
@@ -23,7 +23,7 @@ export default async (req) => {
   const r = await getStore({ name: 'prechecks', consistency: 'strong' }).get(docId, { type: 'json' }).catch(() => null);
   const running = r?.state === 'running' && Date.now() - Date.parse(r.startedAt) < 8 * 60 * 1000;
   return json(200, {
-    configured: true, supported: true,
+    configured: true, supported: true, canRun: canRunPrecheck(user.profile),
     state: running ? 'running' : r?.state === 'running' ? 'error' : r?.state || 'none',
     error: r?.state === 'running' && !running ? 'The check did not finish. Please run it again.' : r?.error || '',
     result: r?.result || null, read: r?.read || [], skipped: r?.skipped || [], pages: r?.pages || 0,

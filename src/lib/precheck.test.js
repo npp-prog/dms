@@ -39,3 +39,13 @@ test('pre-audit: reading the answer', () => {
   assert.deepEqual(parsePrecheck('{"summary":"Fine","findings":[]}').verdict, 'no_issues');
   assert.throws(() => parsePrecheck('no json here'), /no readable answer/);
 });
+
+test('only the Accounting Office runs the pre-audit check', async () => {
+  const { canRunPrecheck } = await import('./precheck.js');
+  assert.equal(canRunPrecheck({ office: 'Municipal Accounting Office', role: 'user' }), true);
+  assert.equal(canRunPrecheck({ office: 'Municipal Accounting Office', role: 'user', head: true }), true);
+  assert.equal(canRunPrecheck({ office: 'Municipal Engineering Office', role: 'user' }), false);
+  assert.equal(canRunPrecheck({ office: '', role: 'superadmin' }), false);
+  assert.equal(canRunPrecheck({ office: 'Municipal Accounting Office', role: 'payee' }), false);
+  assert.equal(canRunPrecheck({ office: 'Municipal Accounting Office', active: false }), false);
+});

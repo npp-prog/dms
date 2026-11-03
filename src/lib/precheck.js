@@ -8,6 +8,11 @@ export const PRECHECK_MODEL = 'claude-sonnet-5-5';
 export const PRECHECK_LIMITS = { files: 15, pages: 80, bytes: 24 * 1024 * 1024 };
 export const SEVERITIES = { high: 'Must fix', medium: 'Check', low: 'Note' };
 
+// Who may run it: the Accounting Office only (its staff, and its head), acting for that office
+// (someone with more than one office switches to it first). Not third parties.
+export const isAccountingOffice = (office) => /\baccounting\b/i.test(String(office || ''));
+export const canRunPrecheck = (profile) => Boolean(profile?.active !== false && profile?.role !== 'payee' && isAccountingOffice(profile?.office));
+
 const s = (v) => (v === undefined || v === null ? '' : String(v));
 
 // The PDFs to read, in order: the DV's current PDF, then each checklist item's attachments, the step

@@ -2,7 +2,7 @@ import { getStore } from '@netlify/blobs';
 import { userFromRequest } from '../lib/fb.mjs';
 import { takeQuestion } from '../lib/askLimit.mjs';
 import { precheckError, readDocument, runPrecheck } from '../lib/precheckRun.mjs';
-import { PRECHECK_MODEL, PRECHECK_TYPES } from '../../src/lib/precheck.js';
+import { PRECHECK_MODEL, PRECHECK_TYPES, canRunPrecheck } from '../../src/lib/precheck.js';
 
 // The DV pre-audit check (AI), run in the background (it reads every PDF of the DV, which can take a
 // minute or more). The browser starts it with the signed-in user's Firebase ID token, then asks
@@ -14,7 +14,8 @@ const RUNNING_FOR = 8 * 60 * 1000; // a check still "running" after this is trea
 export default async (req) => {
   if (req.method !== 'POST' || !process.env.ANTHROPIC_API_KEY) return;
   const user = await userFromRequest(req);
-  if (!user || user.profile.role === 'payee') return;
+  // Only the Accounting Office runs it (checked here, not only in the browser).
+  if (!user || !canRunPrecheck(user.profile)) return;
   let body;
   try { body = await req.json(); } catch { return; }
   const docId = String(body?.docId || '');
