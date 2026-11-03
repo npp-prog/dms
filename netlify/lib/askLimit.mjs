@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-// Ask DMS: questions per person per day (Philippine time), so no one account can run up the
+// A daily limit per person (Philippine time), so no one account can run up the
 // Anthropic bill. ASK_DAILY_LIMIT in Netlify changes it (default 50).
 export const DEFAULT_DAILY_LIMIT = 50;
 

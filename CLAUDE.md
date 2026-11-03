@@ -10,6 +10,6 @@
   A placeholder may only say what to do (e.g. "Search…"); explanations go in help text under the field.
 - **Funds:** only those in Settings (`fundsOf(settings)`, default General Fund, Special Education Fund, Trust Fund);
   admins add more there. Every Fund field and the Upload form use that list.
-- **Ask DMS** (`netlify/functions/assistant.mjs`) answers from `docs/LOCALHOST.md` sections 4 and 5: when a feature
+- **User guide** (`docs/LOCALHOST.md` sections 4 and 5): when a feature
   changes, update those sections too.
 - **No description under page titles:** a page shows its title (and actions) only, no explanatory line below it.

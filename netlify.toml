@@ -32,7 +32,5 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
 
-# Ask DMS (netlify/functions/assistant.mjs) answers from the user guide.
 [functions]
   node_bundler = "esbuild"
-  included_files = ["docs/LOCALHOST.md"]

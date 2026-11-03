@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext.jsx';
 import UpdateBar from './UpdateBar.jsx';
 import Icon, { Avatar } from './Icon.jsx';
 import BackButton from './BackButton.jsx';
-import AskDms from './AskDms.jsx';
 import { isUnread, listInbox, watchConversations } from '../lib/api.js';
 import { listCirculars, toReceive, watchCommunities, watchNotifications } from '../lib/social.js';
 import { watchIdle } from '../lib/idle.js';
@@ -181,7 +180,6 @@ export default function Layout() {
           {isExternal && !EXTERNAL_PAGES.test(location.pathname) ? <Navigate to="/notifications" replace /> : <Outlet />}
         </main>
       </div>
-      {profile?.active && <AskDms />}
     </div>
   );
 }

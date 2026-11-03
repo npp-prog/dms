@@ -11,7 +11,7 @@ const memoryStore = () => {
   };
 };
 
-test('Ask DMS daily limit: counts per person per day, refuses past the limit', async () => {
+test('Daily limit: counts per person per day, refuses past the limit', async () => {
   const store = memoryStore();
   for (let i = 1; i <= 3; i++) {
     const r = await takeQuestion(store, 'a', { limit: 3, day: '2026-10-31', id: `q${i}` });
@@ -24,7 +24,7 @@ test('Ask DMS daily limit: counts per person per day, refuses past the limit', a
   assert.equal(manilaDay(new Date('2026-10-31T17:00:00Z')), '2026-11-01'); // 1 AM in Manila
 });
 
-test('Ask DMS daily limit: many questions sent at once do not get past it', async () => {
+test('Daily limit: many questions sent at once do not get past it', async () => {
   const store = memoryStore();
   const results = await Promise.all(Array.from({ length: 30 }, (_, i) => takeQuestion(store, 'a', { limit: 5, day: '2026-10-31', id: `p${String(i).padStart(2, '0')}` })));
   assert.equal(results.filter((r) => r.ok).length, 5);

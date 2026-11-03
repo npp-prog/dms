@@ -7,7 +7,7 @@ what, by when, and which documents the work is about.
 ## 1. Integration assessment
 
 **Stack (unchanged):** React 18 + Vite, Firebase Auth / Firestore / Storage, Netlify (static site,
-SPA redirect, Netlify Functions for Ask DMS and the Drive backup). Tests: `node --test` on
+SPA redirect, Netlify Functions for the Drive backup, email and the DV pre-audit check). Tests: `node --test` on
 `src/lib/*.test.js`; security rules tested against the Firebase emulators (`npm run local`).
 
 ### Reused as is
