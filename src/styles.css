@@ -1702,3 +1702,6 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .sr-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
 .sr-rows li { display: grid; gap: .35rem; padding: .6rem .7rem; border: 1px solid var(--line); border-radius: 10px; }
 .sr-row-head { display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; }
+/* A document's page: its buttons always under its title, in the same place whatever the view. */
+.page-head.doc-head { display: block; }
+.page-head.doc-head > .row { margin-top: .9rem; }

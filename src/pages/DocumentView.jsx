@@ -328,7 +328,7 @@ function DocumentPage({ docId }) {
         <div className="alert action-toast no-print" role="alert">{actionError}
           <button type="button" className="btn-icon" aria-label="Close" onClick={() => setActionError('')}>×</button></div>
       )}
-      <div className="page-head no-print">
+      <div className="page-head doc-head no-print">
         <div>
           <div className="crumbs">{isExternal ? <Link to="/notifications">Documents for you</Link> : <Link to="/documents">Documents</Link>} / {docData.controlNo}</div>
           <h1>{docData.typeName} <StatusBadge doc={docData} /></h1>
@@ -340,7 +340,6 @@ function DocumentPage({ docId }) {
           )}
         </div>
         <div className="row gap wrap">
-          {view !== 'pdf' && <button className="btn btn-primary" onClick={() => window.print()}>Print {view === 'checklist' ? 'checklist' : 'document'}</button>}
           {type && !isExternal && (type.bulkDownload || docData.typeCode === 'DV') && <BulkDownload docData={docData} type={type} settings={settings} />}
           {canChange && <Link className="btn btn-ghost" to={`/documents/${docId}/edit`}>Edit</Link>}
           {canCopy && (
@@ -358,6 +357,8 @@ function DocumentPage({ docId }) {
             </button>
           )}
           {(isSuper || (isOwner && docData.status === 'draft' && editableByPreparer(docData))) && <button className="btn btn-danger" disabled={busy} onClick={remove}>Delete</button>}
+          {/* (Last: it shows only outside the PDF view, so the other buttons never move.) */}
+          {view !== 'pdf' && <button className="btn btn-primary" onClick={() => window.print()}>Print {view === 'checklist' ? 'checklist' : 'document'}</button>}
         </div>
       </div>
 
