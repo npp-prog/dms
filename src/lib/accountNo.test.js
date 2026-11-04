@@ -14,12 +14,19 @@ test('account numbers: six digits, next one skips taken numbers', () => {
 });
 
 test('person fields: chosen from DMS, with the DMS account number', () => {
-  assert.deepEqual(personValue('name', { uid: 'u1', displayName: 'Juan', accountNo: '000007' }), { name: 'Juan', nameDmsNo: '000007', nameUid: 'u1', nameHead: false });
-  assert.deepEqual(personValue('name', null), { name: '', nameDmsNo: '', nameUid: '', nameHead: false });
+  assert.deepEqual(personValue('name', { uid: 'u1', displayName: 'Juan', accountNo: '000007' }), { name: 'Juan', nameDmsNo: '000007', nameUid: 'u1', nameHead: false, namePositions: [] });
+  assert.deepEqual(personValue('name', null), { name: '', nameDmsNo: '', nameUid: '', nameHead: false, namePositions: [] });
   const fields = [
     { key: 'name', label: 'Name', type: 'person' },
     { key: 'travelers', label: 'Travelers', type: 'table', columns: [{ key: 'name', label: 'Name', type: 'person' }, { key: 'position', label: 'Position', type: 'text' }] },
   ];
   assert.deepEqual(unlinkedPeople(fields, { name: 'JUAN', nameDmsNo: '000007', travelers: [{ name: 'ANA', nameDmsNo: '000002' }, { name: '', position: '' }] }), []);
   assert.deepEqual(unlinkedPeople(fields, { name: 'JUAN', travelers: [{ name: 'ANA', nameDmsNo: '000002' }, { name: 'PEDRO' }] }), ['Name', 'Travelers, line 2: Name']);
+});
+
+test('the positions a person holds: job title and the positions given in Users, each once', async () => {
+  const { positionsOf, personValue } = await import('./accountNo.js');
+  assert.deepEqual(positionsOf({ position: 'Engineer II', positions: ['OIC, MPDO', 'Engineer II'] }), ['Engineer II', 'OIC, MPDO']);
+  assert.deepEqual(positionsOf({ position: '', positions: [] }), []);
+  assert.deepEqual(personValue('name', { uid: 'u', displayName: 'A', accountNo: '000001', position: 'Clerk', positions: ['Reviewer'] }).namePositions, ['Clerk', 'Reviewer']);
 });

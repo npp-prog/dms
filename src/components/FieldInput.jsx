@@ -5,7 +5,7 @@ import Select from './Select.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fundsOf } from '../lib/defaults.js';
 import PersonPicker from './PersonPicker.jsx';
-import { dmsNoKey, isAccountNo, personValue } from '../lib/accountNo.js';
+import { dmsNoKey, isAccountNo, personValue, positionsKey, positionsOf } from '../lib/accountNo.js';
 import { dateRangeValue, dayCount, fromKey, toKey } from '../lib/dateRange.js';
 
 // One day, or several days, chosen on the calendar (lib/dateRange.js): the form prints them as
@@ -54,6 +54,27 @@ function PersonField({ id, name, dmsNo, disabled, onPick }) {
   );
 }
 
+// The Position of a person chosen from DMS: from their DMS profile. One position: shown as it is;
+// several: a dropdown of the positions they hold; none in their profile: typed. list: their
+// positions, or null when no person is chosen yet.
+function PositionField({ id, value, list, disabled, keepCase, onChange }) {
+  if (list && list.length > 1) {
+    const options = value && !list.includes(value) ? [...list, value] : list;
+    return (
+      <Select id={id} value={value || ''} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— Select —</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </Select>
+    );
+  }
+  if (list && list.length === 1) return <input id={id} value={value || list[0]} readOnly className="computed" title="From their DMS profile" />;
+  return (
+    <input id={id} value={value ?? ''} disabled={disabled || list === null} className={keepCase ? '' : 'caps'}
+      title={list === null ? 'Choose the person first' : 'No position in their DMS profile: type it'}
+      onChange={(e) => onChange(keepCase ? e.target.value : toCaps(e.target.value))} />
+  );
+}
+
 // The value to store for a chosen person: the name (in capitals unless printed as typed), their
 // DMS account no. and user.
 const pick = (key, p, keepCase) => {
@@ -70,6 +91,7 @@ function inputType(type) {
 function TableInput({ field, value, onChange, disabled }) {
   const rows = Array.isArray(value) ? value : [];
   const columns = field.columns || [];
+  const personCol = columns.find((c) => c.type === 'person');
   const blank = () => Object.fromEntries(columns.map((c) => [c.key, '']));
   const setRow = (i, key, v) => {
     const next = rows.map((r, idx) => (idx === i ? computeRow(columns, { ...r, [key]: v }) : r));
@@ -95,9 +117,13 @@ function TableInput({ field, value, onChange, disabled }) {
                     <PersonField name={row[c.key] ?? ''} dmsNo={row[dmsNoKey(c.key)]} disabled={disabled}
                       onPick={(p) => onChange(rows.map((r, idx) => (idx === i ? computeRow(columns, {
                         ...r, ...pick(c.key, p, c.keepCase),
-                        // Their position (My Profile) fills an empty Position column.
-                        ...(p?.position && columns.some((x) => x.key === 'position') && !r.position ? { position: p.position } : {}),
+                        // The Position column follows their DMS profile (the first of their positions).
+                        ...(columns.some((x) => x.key === 'position') ? { position: positionsOf(p)[0] || '' } : {}),
                       }) : r)))} />
+                  ) : c.key === 'position' && personCol ? (
+                    <PositionField value={row.position} disabled={disabled} keepCase={c.keepCase}
+                      list={isAccountNo(row[dmsNoKey(personCol.key)]) ? (Array.isArray(row[positionsKey(personCol.key)]) ? row[positionsKey(personCol.key)] : []) : null}
+                      onChange={(v) => setRow(i, 'position', v)} />
                   ) : c.type === 'textarea' ? (
                     <textarea rows={3} value={row[c.key] ?? ''} disabled={disabled} className={c.keepCase ? '' : 'caps'}
                       onChange={(e) => setRow(i, c.key, c.keepCase ? e.target.value : toCaps(e.target.value))} />
@@ -145,7 +171,9 @@ function TableInput({ field, value, onChange, disabled }) {
 }
 
 // onPatch(values, person): a person field sets several keys at once (the name, DMS no. and user).
-export default function FieldInput({ field, value, onChange, onPatch, data = {}, disabled, invalid }) {
+// positions: for a Position field that follows a person field of the form, the person's positions
+// (null: no person chosen yet; undefined: an ordinary field).
+export default function FieldInput({ field, value, onChange, onPatch, data = {}, positions, disabled, invalid }) {
   const funds = fundsOf(useAuth().settings);
   const label = (
     <label className="field-label" htmlFor={`f-${field.key}`}>
@@ -155,6 +183,8 @@ export default function FieldInput({ field, value, onChange, onPatch, data = {},
   let control;
   if (field.type === 'table') {
     control = <TableInput field={field} value={value} onChange={onChange} disabled={disabled} />;
+  } else if (positions !== undefined) {
+    control = <PositionField id={`f-${field.key}`} value={value} list={positions} disabled={disabled} keepCase={field.keepCase} onChange={onChange} />;
   } else if (field.type === 'person') {
     control = <PersonField id={`f-${field.key}`} name={value ?? ''} dmsNo={data[dmsNoKey(field.key)]} disabled={disabled}
       onPick={(p) => (onPatch ? onPatch(pick(field.key, p, field.keepCase), p) : onChange(pick(field.key, p, field.keepCase)[field.key]))} />;

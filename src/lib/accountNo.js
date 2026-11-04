@@ -19,12 +19,17 @@ export function nextAccountNo(last, taken = () => false) {
 export const dmsNoKey = (key) => `${key}DmsNo`;
 export const uidKey = (key) => `${key}Uid`;
 export const headKey = (key) => `${key}Head`;
+export const positionsKey = (key) => `${key}Positions`;
+// The positions a person holds in DMS: their job title (My Profile) and the positions given in
+// Users, each once.
+export const positionsOf = (p) => [...new Set([p?.position, ...(Array.isArray(p?.positions) ? p.positions : [])].map((x) => String(x || '').trim()).filter(Boolean))];
 export const personValue = (key, p) => ({
   [key]: p ? String(p.displayName || p.email || '') : '',
   [dmsNoKey(key)]: p?.accountNo || '',
   [uidKey(key)]: p?.uid || '',
   // an office head (of the office they act for)
   [headKey(key)]: Boolean(p?.head),
+  [positionsKey(key)]: positionsOf(p),
 });
 
 // The person fields not chosen from DMS (a name with no DMS account number), as labels: a required

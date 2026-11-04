@@ -120,6 +120,8 @@ export const directoryEntry = (p) => ({
   displayName: p.displayName || '', office: p.office || '', email: p.email || '', external: p.role === 'payee',
   position: p.position || '', idNo: p.idNo || '', photo: p.photo || '', accountNo: p.accountNo || '',
   head: p.role !== 'payee' && Boolean(p.head),
+  // the positions they hold (Users → Position), besides their job title (position)
+  positions: Array.isArray(p.positions) ? p.positions.map(String) : [],
 });
 
 // ---------- DMS account numbers (lib/accountNo.js) ----------

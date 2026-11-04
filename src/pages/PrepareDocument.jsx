@@ -5,6 +5,7 @@ import {
   createDocument, getDocument, getDocumentType, getTypeForDocument, listDocumentTypes, updateDocument,
 } from '../lib/api.js';
 import { buildSteps, computeFields, initialData, missingFields, byOffice } from '../lib/forms.js';
+import { isAccountNo, positionsKey, positionsOf } from '../lib/accountNo.js';
 import { editableByPreparer } from '../lib/workflow.js';
 import { carryOver, effectiveChecklist, missingRequired } from '../lib/checklists.js';
 import ChecklistStep from '../components/ChecklistStep.jsx';
@@ -155,6 +156,15 @@ function Wizard({ typeId, docId }) {
   if (!type) return <div className="page"><div className="spinner" /></div>;
 
   const step = steps[stepIndex];
+  // A Position field next to a person field (the Itinerary's traveler) follows that person's DMS
+  // profile: their positions, or null until the person is chosen.
+  const personField = type.fields.find((x) => x.type === 'person');
+  const positionsFor = (f) => {
+    if (f.key !== 'position' || f.type === 'table' || !personField) return undefined;
+    if (!isAccountNo(data[`${personField.key}DmsNo`])) return null;
+    const list = data[positionsKey(personField.key)];
+    return Array.isArray(list) ? list : [];
+  };
   const stepMissing = step.fields ? missingFields(step.fields, data) : [];
   const allMissing = missingFields(type.fields.filter((f) => !byOffice(f)), data);
   const library = type.checklistSource && type.checklistSource !== 'own';
@@ -219,10 +229,11 @@ function Wizard({ typeId, docId }) {
                   invalid={showErrors && stepMissing.includes(f)}
                   onChange={(v) => setData((d) => computeFields(type.fields, { ...d, [f.key]: v }))}
                   data={data}
+                  positions={positionsFor(f)}
                   onPatch={(values, p) => setData((d) => computeFields(type.fields, {
                     ...d, ...values,
-                    // Their position (My Profile) fills an empty Position field.
-                    ...(p?.position && type.fields.some((x) => x.key === 'position' && x.type !== 'table') && !d.position ? { position: p.position } : {}),
+                    // The Position field follows their DMS profile (the first of their positions).
+                    ...(p !== undefined && f.type === 'person' && type.fields.some((x) => x.key === 'position' && x.type !== 'table') ? { position: positionsOf(p)[0] || '' } : {}),
                   }))} />
               ))}
             </div>
