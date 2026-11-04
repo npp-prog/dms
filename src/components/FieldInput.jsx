@@ -142,7 +142,7 @@ export default function FieldInput({ field, value, onChange, onPatch, data = {},
     control = (
       <Select id={`f-${field.key}`} value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
         <option value="">— Select —</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        {options.map((o) => <option key={o} value={o}>{field.optionLabels?.[o] || o}</option>)}
       </Select>
     );
   } else {

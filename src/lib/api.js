@@ -923,7 +923,10 @@ export async function assignRefNo(id, user) {
     const field = (d.typeSnapshot?.fields || []).find((f) => f.key === assign.field);
     const now = new Date();
     const series = refNumber(assign.pattern || DEFAULT_REF_PATTERN, { fund: d.data?.fund, date: now });
-    const counterRef = doc(db, 'counters', `${d.typeCode}_${series.counterId}`.slice(0, 140));
+    // An alternate office handling the step (the Vice Mayor's instead of the Mayor's) numbers in its
+    // own series.
+    const byAlternate = step.routedTo && step.routedTo !== step.office ? `${step.routedTo.replace(/[^A-Za-z0-9]+/g, '')}_` : '';
+    const counterRef = doc(db, 'counters', `${d.typeCode}_${byAlternate}${series.counterId}`.slice(0, 140));
     const counter = await tx.get(counterRef);
     const value = (counter.exists() ? counter.data().value : 0) + 1;
     const number = series.format(value);

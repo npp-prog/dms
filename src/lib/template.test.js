@@ -606,3 +606,25 @@ test('person fields print the DMS account no. under the name', () => {
   const table = renderTable({ columns: [{ key: 'name', label: 'Name', type: 'person' }] }, [{ name: 'ANA', nameDmsNo: '000003' }]);
   assert.match(table, /ANA<span class="dms-no">DMS No\. 000003<\/span>/);
 });
+
+test('Travel Order: Executive (Mayor) or Legislative (Vice Mayor) letterhead and route', async () => {
+  const { officeLetterhead } = await import('./letterhead.js');
+  const to = STARTER_TYPES.find((t) => t.code === 'TO');
+  const settings = { offices: DEFAULT_SETTINGS.offices, officeContacts: DEFAULT_SETTINGS.officeContacts };
+  assert.equal(officeLetterhead(settings, to, '', { approver: 'Municipal Mayor' }).name, 'Office of the Municipal Mayor');
+  assert.equal(officeLetterhead(settings, to, '', { approver: 'MUNICIPAL VICE MAYOR' }).name, 'Office of the Municipal Vice Mayor');
+  assert.equal(to.fields.find((f) => f.key === 'approver').optionLabels['Municipal Vice Mayor'], 'Legislative (Municipal Vice Mayor)');
+  const juan = { uid: 'u1', displayName: 'Juan' };
+  const base = { createdBy: 'u1', office: 'Municipal Engineering Office', pdf: { files: [{ kind: 'generated' }] } };
+  const mayorStep = (wf) => wf.steps.find((s) => s.assign?.field === 'toNo');
+  const exec = buildWorkflow(to, { ...base, data: { approver: 'Municipal Mayor' } }, DEFAULT_SETTINGS.offices, juan, 't0').workflow;
+  assert.equal(mayorStep(exec).routedTo, 'Office of the Municipal Mayor');
+  assert.ok(!exec.choose, 'no office to choose: it follows the signatory');
+  const leg = buildWorkflow(to, { ...base, data: { approver: 'Municipal Vice Mayor' } }, DEFAULT_SETTINGS.offices, juan, 't0').workflow;
+  assert.equal(mayorStep(leg).routedTo, 'Office of the Municipal Vice Mayor');
+  assert.ok(!leg.choose);
+  // other formats are not changed
+  const dv = STARTER_TYPES.find((t) => t.code === 'DV');
+  const dvWf = buildWorkflow(dv, { ...base, data: { approver: 'Municipal Vice Mayor' } }, DEFAULT_SETTINGS.offices, juan, 't0').workflow;
+  assert.ok(dvWf.steps.every((s) => !s.bySignatory));
+});

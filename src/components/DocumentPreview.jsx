@@ -21,7 +21,7 @@ export default function DocumentPreview({ type, data = {}, checklist = {}, contr
     fields: type?.fields,
     signatories: signatories || signatoriesFrom(settings),
     docType: { code: type?.code, name: type?.name },
-    office: officeLetterhead(settings, type, office),
+    office: officeLetterhead(settings, type, office, data),
     lgu: {
       name: settings.lguName || 'Municipal Government of Candoni',
       address: settings.lguAddress || '',

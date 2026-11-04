@@ -735,13 +735,13 @@ const TO = {
   orientation: 'portrait',
   active: true,
   checklistSource: 'own',
-  starterVersion: 5,
+  starterVersion: 6,
   // The letterhead (title, email, contact no.) of the issuing office, from Settings.
   headerOffice: 'Office of the Municipal Mayor',
   steps: [
     { id: 's1', title: 'Travelers', instructions: 'One line per person directed to travel: choose them from DMS (by name, email or DMS account no.), then their position.' },
     { id: 's2', title: 'Travel', instructions: 'The destination, the date or dates of travel as they should read on the order, and one line per purpose, in the order they are listed. The Travel Order No. is assigned by the Office of the Mayor.' },
-    { id: 's3', title: 'Issue', instructions: 'The date the order is given and signed, and who approves: the Mayor or, in their place, the Vice Mayor (names from Settings).' },
+    { id: 's3', title: 'Issue', instructions: 'The date the order is given and signed, and its signatory: Executive (the Mayor) or Legislative (the Vice Mayor). Legislative: the order carries the Office of the Vice Mayor\'s letterhead, goes to that office, and its Travel Order No. is from the Vice Mayor\'s series.' },
   ],
   fields: [
     { key: 'toNo', label: 'Travel Order No.', type: 'text', filledBy: 'mayor' },
@@ -762,6 +762,9 @@ const TO = {
       columns: [{ key: 'purpose', label: 'Purpose', type: 'textarea', keepCase: true }],
     },
     { key: 'givenDate', label: 'Given and signed on', type: 'date', required: true, keepCase: true, step: 's3' },
+    { key: 'approver', label: 'Signatory', type: 'select', options: ['Municipal Mayor', 'Municipal Vice Mayor'], default: 'Municipal Mayor', required: true, step: 's3',
+      optionLabels: { 'Municipal Mayor': 'Executive (Municipal Mayor)', 'Municipal Vice Mayor': 'Legislative (Municipal Vice Mayor)' },
+      help: 'Executive: the Office of the Mayor\'s letterhead and Travel Order No. Legislative: the Office of the Vice Mayor\'s.' },
   ],
   checklist: [],
   processing: [

@@ -23,3 +23,13 @@ export function withApprover(type) {
 export function approverSignatories(sig = {}, data = {}) {
   return viceApproves(data) ? { ...sig, mayor: sig.viceMayor || '', mayorPosition: sig.viceMayorPosition || 'Municipal Vice Mayor' } : sig;
 }
+
+// A format issued by the Mayor's office (documentType.headerOffice, e.g. the Travel Order) follows
+// its signatory: Executive (the Mayor) or Legislative (the Vice Mayor). Legislative: the Vice
+// Mayor's letterhead, and the Vice Mayor's office handles the Mayor's steps of its route and
+// assigns its number (its own series).
+export const APPROVER_LABELS = { 'Municipal Mayor': 'Executive (Municipal Mayor)', 'Municipal Vice Mayor': 'Legislative (Municipal Vice Mayor)' };
+export const isMayorOffice = (o) => /mayor/i.test(String(o || '')) && !/vice/i.test(String(o || ''));
+export const issuedByMayor = (type) => isMayorOffice(type?.headerOffice);
+// The Vice Mayor's office as listed in Settings (or its usual name).
+export const viceMayorOffice = (offices = []) => (offices || []).find((o) => /vice mayor/i.test(o)) || 'Office of the Municipal Vice Mayor';

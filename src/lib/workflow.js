@@ -22,7 +22,7 @@
 // document.routeOffices: the offices on the route the document has reached so far (their office
 // heads can open the document).
 
-import { viceApproves } from './approver.js';
+import { isMayorOffice, issuedByMayor, viceApproves, viceMayorOffice } from './approver.js';
 
 // Steps done by the preparer's own office (or by people it deals with directly).
 const PREPARER = /requesting|claimant|supervisor|payee|custodian|traveler|supplier|end[- ]?user/i;
@@ -122,15 +122,21 @@ export function approverMismatch(doc) {
 
 export function buildWorkflow(type, doc, offices, user, at = new Date().toISOString()) {
   // The Vice Mayor approves: their office is chosen already where it is an alternate.
+  const vm = viceMayorOffice(offices);
   const steps = routeSteps(type, offices).map((s) => {
-    const vice = viceApproves(doc?.data) && s.alternates?.find((o) => /vice mayor/i.test(o));
-    return vice ? { ...s, routedTo: vice } : s;
+    // Issued by the Mayor's office (the Travel Order): the Vice Mayor's office may take the Mayor's
+    // steps (Legislative), chosen by the signatory on the form.
+    const step = issuedByMayor(type) && isMayorOffice(s.office) && !(s.alternates || []).some((o) => /vice mayor/i.test(o))
+      ? { ...s, alternates: [...(s.alternates || []), vm], bySignatory: true } : s;
+    const vice = viceApproves(doc?.data) && step.alternates?.find((o) => /vice mayor/i.test(o));
+    return vice ? { ...step, routedTo: vice } : step;
   });
   if (!steps.length) return null;
   const workflow = {
     state: 'in-progress', stage: 0, received: true, steps,
     // Steps with alternate offices, or for a third party: the preparer chooses before routing it.
-    ...(steps.some((s) => s.alternates?.length || isThirdParty(s)) ? { choose: true } : {}),
+    // (Not the steps whose office follows the signatory chosen on the form: bySignatory.)
+    ...(steps.some((s) => (s.alternates?.length && !s.bySignatory) || isThirdParty(s)) ? { choose: true } : {}),
     events: [{ type: 'started', stage: 0, office: officeOf(steps[0], doc), by: user.displayName || user.email, uid: user.uid, at, remarks: '' }],
   };
   return { workflow, ...placement(workflow, doc) };
