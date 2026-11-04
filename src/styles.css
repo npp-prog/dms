@@ -443,9 +443,10 @@ details summary { cursor: pointer; font-weight: 600; margin-top: .8rem; }
 .doc-render .to-list td { padding: 0 0 2px; vertical-align: top; }
 .doc-render .to-no { width: 22px; }
 .doc-render .to-gap { margin-top: 30px !important; }
-.doc-render .to .to-sign { width: 100%; border-collapse: collapse; margin-top: 30px; }
-.doc-render .to-appr { width: 50%; padding-left: 120px; vertical-align: top; }
-.doc-render .to-signer { padding-left: 40px; }
+/* The label (Approved:, Recommending Approval:) and the signatory's name close together. */
+.doc-render .to .to-sign { width: auto; border-collapse: collapse; margin: 30px 0 0 120px; }
+.doc-render .to-appr { width: 165px; padding: 0; vertical-align: top; white-space: nowrap; }
+.doc-render .to-signer { padding-left: 6px; }
 .doc-render .to-space { height: 46px; }
 .doc-render .to-line { display: inline-block; min-width: 200px; border-top: 1px solid #000; padding-top: 2px; text-align: center; }
 .doc-render .to .to-rec { margin-top: 18px; }
