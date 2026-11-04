@@ -83,6 +83,8 @@ input[type=checkbox], input[type=radio] { width: 17px; height: 17px; vertical-al
 .field.invalid input, .field.invalid select, .field.invalid textarea, .field.invalid .table-input { border-color: var(--bad); background-color: #fffafa; }
 .help { font-size: .79rem; color: var(--muted); margin-top: .25rem; }
 .check { display: flex; gap: .45rem; align-items: center; font-size: .87rem; font-weight: 500; color: var(--text); white-space: nowrap; margin: 0; }
+.field > .check { white-space: normal; align-items: flex-start; line-height: 1.35; min-width: 0; }
+.field > .check input { flex: none; margin-top: .15rem; }
 
 /* Cards and layout */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem 1.4rem; margin-bottom: 1.1rem; box-shadow: var(--shadow); }
