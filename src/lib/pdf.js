@@ -35,6 +35,19 @@ export async function renderPages(element, paperSize, orientation) {
       fit.style.transform = `scale(${zoom})`;
       fit.style.height = `${(fit.offsetHeight || h) * zoom}px`;
     }
+    // A footer that prints at the bottom of every page (data-page-foot, e.g. the Travel Order's
+    // #CandoniSHINE bar): over more than one page, drawn on its own at the bottom of each.
+    const pageW0 = pageSize(paperSize, orientation);
+    const onePagePx = paper.getBoundingClientRect().width * (pageW0.h / pageW0.w);
+    const footEl = paper.getBoundingClientRect().height > onePagePx * 1.15 ? fit.querySelector('[data-page-foot]') : null;
+    let foot = null;
+    if (footEl) {
+      const r = footEl.getBoundingClientRect();
+      const pr = paper.getBoundingClientRect();
+      foot = { canvas: await html2canvas(footEl, { scale: 2, backgroundColor: null, useCORS: true, logging: false }), left: r.left - pr.left, w: r.width, h: r.height,
+        gap: parseFloat(getComputedStyle(footEl).marginBottom) || 0 };
+      footEl.style.display = 'none';
+    }
     // Where a page may break: under a table row, a paragraph, a list item or a signature block
     // (never through a line of text), in px from the top of the paper.
     const top = paper.getBoundingClientRect().top;
@@ -55,7 +68,8 @@ export async function renderPages(element, paperSize, orientation) {
     // the margins, cut under the last row, paragraph or signature block that fits.
     const k = canvas.width / paperW;
     const margin = Math.round(canvas.width * (PRINT_MARGIN_MM / page.w));
-    const room = pageHpx - 2 * margin;
+    const footH = foot ? Math.round((foot.h + foot.gap) * k) + Math.round(4 * k) : 0;
+    const room = pageHpx - 2 * margin - footH;
     const end = Math.min(canvas.height, Math.ceil(contentEnd * k) + 2);
     const cuts = breaks.map((y) => Math.round(y * k)).filter((y) => y > margin && y < end).sort((a, b) => a - b);
     const images = [];
@@ -72,6 +86,7 @@ export async function renderPages(element, paperSize, orientation) {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, slice.width, slice.height);
       ctx.drawImage(canvas, 0, start, canvas.width, cut - start, 0, margin, canvas.width, cut - start);
+      if (foot) ctx.drawImage(foot.canvas, foot.left * k, pageHpx - margin - (foot.h + foot.gap) * k, foot.w * k, foot.h * k);
       images.push({ data: slice.toDataURL('image/jpeg', 0.92), x: 0, y: 0, w: page.w, h: page.h });
       start = cut;
     }

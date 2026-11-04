@@ -74,6 +74,8 @@ export default function PrintPage({ paperSize, orientation, minScale = 0.8, maxP
       }
     }
     el.style.zoom = scale === 1 ? '' : String(scale);
+    // More than one page: a footer marked data-page-foot prints at the bottom of every page.
+    if (el.scrollHeight * scale / PX_PER_MM > printableH + 1) el.setAttribute('data-multipage', ''); else el.removeAttribute('data-multipage');
     preview();
   };
 
