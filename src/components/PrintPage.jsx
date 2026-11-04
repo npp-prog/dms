@@ -9,7 +9,10 @@ const PX_PER_MM = 96 / 25.4;
 //  - fill the page: if there is room left, the empty rows of the table marked
 //    data-grow grow taller so the form uses the whole sheet, like a pre-printed form;
 //  - the on-screen preview is the same page, scaled down to fit the column.
-export default function PrintPage({ paperSize, orientation, minScale = 0.5, children }) {
+// A form that would shrink below minScale (80%) to fit one page runs onto more pages instead, at
+// full size, up to maxPages (5); beyond that it is scaled down to fit 5 pages.
+export const MAX_PAGES = 5;
+export default function PrintPage({ paperSize, orientation, minScale = 0.8, maxPages = MAX_PAGES, children }) {
   const areaRef = useRef(null);
   const holderRef = useRef(null);
   const paperRef = useRef(null);
@@ -43,7 +46,7 @@ export default function PrintPage({ paperSize, orientation, minScale = 0.5, chil
       el.style.width = `${widthMm}mm`;
       return { w: el.scrollWidth / PX_PER_MM, h: el.scrollHeight / PX_PER_MM };
     };
-    const { scale, width } = fitPage(measure, printableW, printableH, minScale);
+    const { scale, width } = fitPage(measure, printableW, printableH, minScale, maxPages);
     el.style.width = `${width}mm`;
     // Room left on the page (in unscaled mm) goes to the empty rows of the main table.
     // If every row is filled in, one empty row is added to take up the room instead.

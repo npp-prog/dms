@@ -448,8 +448,11 @@ details summary { cursor: pointer; font-weight: 600; margin-top: .8rem; }
 .doc-render .to-appr { width: 165px; padding: 0; vertical-align: top; white-space: nowrap; }
 .doc-render .to-signer { padding-left: 6px; }
 .doc-render .to-space { height: 46px; }
+/* The signature blocks (Recommending Approval, Approved): label, space to sign and name, centred. */
+.doc-render .to-sigblk { text-align: center; margin-top: 26px; break-inside: avoid; page-break-inside: avoid; }
+.doc-render .to-sigblk .to-space { height: 46px; }
 .doc-render .to-line { display: inline-block; min-width: 200px; border-top: 1px solid #000; padding-top: 2px; text-align: center; }
-.doc-render .to .to-rec { margin-top: 18px; }
+.doc-render .to .to-rec { margin-top: 22px; }
 .doc-render .to .to-fill { width: 100%; border-collapse: collapse; }
 .doc-render .to-fill td { height: 16px; padding: 0; }
 .doc-render .to-foot { margin-bottom: 12mm; background: #1f4e79; color: #fff !important; text-align: center; font-size: 11.5px; padding: 1px 0; }
@@ -1732,3 +1735,6 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .chat-replying .grow { display: grid; min-width: 0; flex: 1; }
 .chat-pick { padding: .6rem .7rem 0; border-top: 1px solid var(--line); max-height: 300px; overflow: auto; }
 .chat-attach { font-size: 1.1rem; }
+
+/* Printed over several pages: never break through a row, a paragraph or a signature block. */
+@media print { .doc-render tr, .doc-render p, .doc-render li, .doc-render .to-sigblk { break-inside: avoid; page-break-inside: avoid; } }

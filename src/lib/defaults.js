@@ -735,7 +735,7 @@ const TO = {
   orientation: 'portrait',
   active: true,
   checklistSource: 'own',
-  starterVersion: 7,
+  starterVersion: 8,
   // The letterhead (title, email, contact no.) of the issuing office, from Settings.
   headerOffice: 'Office of the Municipal Mayor',
   steps: [
@@ -792,8 +792,8 @@ const TO = {
   <table class="to-list">{{#each purposes}}<tr><td class="to-no">{{@no}}.</td><td>{{purpose}}</td></tr>{{/each}}</table>
   <p class="to-gap">This travel order is issued for the good public service.</p>
   <p>Given and signed this {{givenDate|day}}<sup>{{givenDate|ord}}</sup> day of {{givenDate|monthyear}} at Candoni, {{lgu.province}}.</p>
-  {{#if !headTravels}}<table class="to-sign to-rec"><tr><td class="to-appr">Recommending Approval:</td><td class="to-signer"><div class="to-space"></div><div class="to-line">Head of Office</div></td></tr></table>{{/if}}
-  <table class="to-sign"><tr><td class="to-appr">Approved:</td><td class="to-signer"><div class="to-space"></div><b>{{sig.mayor|upper}}</b><div>{{#if approver=Municipal Vice Mayor}}Vice Mayor{{/if}}{{#if !approver}}Mayor{{/if}}{{#if approver=Municipal Mayor}}Mayor{{/if}}</div></td></tr></table>
+  {{#if !headTravels}}<div class="to-sigblk to-rec"><div>Recommending Approval:</div><div class="to-space"></div><div class="to-line">Head of Office</div></div>{{/if}}
+  <div class="to-sigblk"><div>Approved:</div><div class="to-space"></div><b>{{sig.mayor|upper}}</b><div>{{#if approver=Municipal Vice Mayor}}Vice Mayor{{/if}}{{#if !approver}}Mayor{{/if}}{{#if approver=Municipal Mayor}}Mayor{{/if}}</div></div>
   <table class="to-fill" data-grow><tr class="blank"><td></td></tr></table>
   <div class="to-foot">#CandoniSHINE &nbsp;|&nbsp; Experience Rural Tranquility</div>
 </div>`,

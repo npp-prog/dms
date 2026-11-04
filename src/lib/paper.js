@@ -23,7 +23,19 @@ export function pageSize(paperSize, orientation) {
 // scaled, it fills the printable width; if it needs more width than that (too many
 // columns), it is laid out at the width it needs and scaled down to fit.
 // Returns { scale, width } where width is the layout width in mm.
-export function fitPage(measure, printableW, printableH, minScale = 0) {
+// maxPages: content that would shrink below minScale on one page goes onto more pages, at its full
+// size, up to maxPages (scaled down only as much as it needs to fit in maxPages).
+export function fitPage(measure, printableW, printableH, minScale = 0, maxPages = 0) {
+  const one = fitOnto(measure, printableW, printableH);
+  if (one.scale >= minScale) return one;
+  if (maxPages > 1) return fitOnto(measure, printableW, printableH * maxPages);
+  // Too tall to fit one page without going below minScale (e.g. a long checklist): keep it
+  // readable at minScale, laid out exactly one page wide at that scale, and let it continue
+  // on the next page. (The width found above was for the smaller scale and would overflow.)
+  return { scale: minScale, width: printableW / minScale };
+}
+
+function fitOnto(measure, printableW, printableH) {
   let s = 1;
   let width = printableW;
   for (let i = 0; i < 6; i++) {
@@ -40,9 +52,5 @@ export function fitPage(measure, printableW, printableH, minScale = 0) {
   }
   // About 1.5% of slack: print layout can come out a little taller than on screen.
   const scale = s < 1 ? s * 0.985 : 1;
-  if (scale >= minScale) return { scale, width: Math.max(width, printableW / scale) };
-  // Too tall to fit one page without going below minScale (e.g. a long checklist): keep it
-  // readable at minScale, laid out exactly one page wide at that scale, and let it continue
-  // on the next page. (The width found above was for the smaller scale and would overflow.)
-  return { scale: minScale, width: printableW / minScale };
+  return { scale, width: Math.max(width, printableW / scale) };
 }

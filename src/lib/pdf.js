@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { pageSize } from './paper.js';
+import { PRINT_MARGIN_MM, pageSize } from './paper.js';
 
 // Printable pages (a document, its checklist) drawn into a PDF, as they print: used by
 // "Download all" and by "Convert to PDF" (the PDF that is then digitally signed).
@@ -35,6 +35,12 @@ export async function renderPages(element, paperSize, orientation) {
       fit.style.transform = `scale(${zoom})`;
       fit.style.height = `${(fit.offsetHeight || h) * zoom}px`;
     }
+    // Where a page may break: under a table row, a paragraph, a list item or a signature block
+    // (never through a line of text), in px from the top of the paper.
+    const top = paper.getBoundingClientRect().top;
+    const paperW = paper.getBoundingClientRect().width;
+    const breaks = [...fit.querySelectorAll('tr, p, li, table, .to-sigblk, [data-break]')].map((el) => el.getBoundingClientRect().bottom - top);
+    const contentEnd = fit.getBoundingClientRect().bottom - top;
     const canvas = await html2canvas(paper, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
     const page = pageSize(paperSize, orientation);
     const pageHpx = Math.round(canvas.width * (page.h / page.w));
@@ -45,17 +51,29 @@ export async function renderPages(element, paperSize, orientation) {
       const w = page.w * k;
       return { page, images: [{ data: canvas.toDataURL('image/jpeg', 0.92), x: (page.w - w) / 2, y: 0, w, h: (canvas.height / canvas.width) * w }] };
     }
+    // More than one page (at most 5: PrintPage): each page shows the next part of the content within
+    // the margins, cut under the last row, paragraph or signature block that fits.
+    const k = canvas.width / paperW;
+    const margin = Math.round(canvas.width * (PRINT_MARGIN_MM / page.w));
+    const room = pageHpx - 2 * margin;
+    const end = Math.min(canvas.height, Math.ceil(contentEnd * k) + 2);
+    const cuts = breaks.map((y) => Math.round(y * k)).filter((y) => y > margin && y < end).sort((a, b) => a - b);
     const images = [];
-    const pages = Math.ceil(canvas.height / pageHpx - 0.02);
-    for (let i = 0; i < pages; i++) {
+    for (let start = margin; start < end - 2 && images.length < 12;) {
+      let cut = start + room;
+      if (cut < end) {
+        const best = cuts.filter((y) => y > start + room * 0.5 && y <= cut).at(-1);
+        if (best) cut = best;
+      } else cut = end;
       const slice = document.createElement('canvas');
       slice.width = canvas.width;
       slice.height = pageHpx;
       const ctx = slice.getContext('2d');
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, slice.width, slice.height);
-      ctx.drawImage(canvas, 0, i * pageHpx, canvas.width, pageHpx, 0, 0, canvas.width, pageHpx);
+      ctx.drawImage(canvas, 0, start, canvas.width, cut - start, 0, margin, canvas.width, cut - start);
       images.push({ data: slice.toDataURL('image/jpeg', 0.92), x: 0, y: 0, w: page.w, h: page.h });
+      start = cut;
     }
     return { page, images };
   } finally {

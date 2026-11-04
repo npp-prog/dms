@@ -313,6 +313,10 @@ test('paper sizes and fit to page', () => {
   assert.ok(Math.abs(d.scale - (190 / 260) * 0.985) < 0.01);
   assert.ok(d.width >= 260 && d.width * d.scale <= 190.5);
   // Never below the minimum scale.
+  // up to 5 pages at full size, then scaled to fit 5
+  assert.deepEqual(fitPage((w) => ({ w, h: 700 }), 190, 277, 0.8, 5), { scale: 1, width: 190 }, 'three pages, full size');
+  assert.ok(fitPage((w) => ({ w, h: 2000 }), 190, 277, 0.8, 5).scale < 0.7, 'over 5 pages: scaled to fit 5');
+  assert.equal(fitPage((w) => ({ w, h: 300 }), 190, 277, 0.8, 5).scale < 1, true, 'a little too tall: shrunk onto one page');
   const long = fitPage((w) => ({ w, h: 400 * (190 / w) }), 190, 277, 0.8);
   assert.equal(long.scale, 0.8);
   // Kept at the minimum scale, it must still fit the page width (no running off the right edge).
