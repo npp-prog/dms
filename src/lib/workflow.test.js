@@ -52,3 +52,15 @@ test('a reference no. already on the document: assigned, not stamped', () => {
   doc.workflow.steps[1].assign.noStamp = false;
   assert.equal(refStampMissing(doc).value, '0001');
 });
+
+test('a step that attaches a document by link (the JEV): required before routing', async () => {
+  const { attachMissing, applyAction, routeSteps } = await import('./workflow.js');
+  const steps = routeSteps({ route: [{ office: '' }, { office: 'Municipal Accounting Office', attach: { label: 'JEV', required: true } }, { office: "Municipal Treasurer's Office" }] });
+  assert.deepEqual(steps[1].attach, { label: 'JEV', required: true });
+  const doc = { workflow: { state: 'in-progress', stage: 1, steps, events: [] }, pdf: { files: [{ kind: 'generated' }] }, stepFiles: [] };
+  assert.equal(attachMissing(doc), 'JEV');
+  assert.throws(() => applyAction(doc, 'release', { uid: 'a', displayName: 'A' }), /Attach the JEV/);
+  doc.stepFiles.push({ kind: 'fts', id: 'j1', stage: 1, label: 'JEV' });
+  assert.equal(attachMissing(doc), '');
+  assert.doesNotThrow(() => applyAction(doc, 'release', { uid: 'a', displayName: 'A' }));
+});

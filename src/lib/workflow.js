@@ -75,6 +75,7 @@ export function routeFromGuide(type, offices = []) {
     sign: p.signUnless !== undefined && Boolean(p.sign),
     ...(p.assign ? { assign: p.assign } : {}), ...(p.fills?.length ? { fills: p.fills } : {}), ...(p.upload ? { upload: p.upload } : {}),
     ...(p.headOnly ? { headOnly: true } : {}), ...(p.signUnless ? { signUnless: p.signUnless } : {}),
+    ...(p.attach?.label ? { attach: { label: p.attach.label, required: Boolean(p.attach.required) } } : {}),
     ...(typeof p.approval === 'boolean' ? { approval: p.approval } : {}),
   }));
 }
@@ -99,6 +100,9 @@ export function routeSteps(type, offices = []) {
     ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '', ...(s.assign.altPattern ? { altPattern: s.assign.altPattern } : {}), ...(s.assign.noStamp ? { noStamp: true } : {}) } } : {}),
     // The head of the preparer's office only (e.g. the Travel Order's recommending approval).
     ...(s.headOnly ? { headOnly: true } : {}),
+    // A DMS document this office attaches by link (e.g. the JEV, after the DV No.), shown as a tab;
+    // required: before it routes the document on.
+    ...(s.attach?.label ? { attach: { label: String(s.attach.label), required: Boolean(s.attach.required) } } : {}),
     // It signs, except when this field of the form has a value (e.g. an office head travels).
     ...(s.signUnless ? { signUnless: s.signUnless } : {}),
     // Fields this office fills in (e.g. Check/ADA No., date, bank) and a file it must upload
@@ -311,6 +315,9 @@ export function applyAction(doc, action, user, remarks = '', at = new Date().toI
   if ((action === 'release' || action === 'complete') && (doc.pdf?.files || []).at(-1)?.kind === 'disapproved') {
     throw new Error('The PDF is stamped DISAPPROVED: disapprove the document (it cannot go on).');
   }
+  if ((action === 'release' || action === 'complete') && attachMissing(doc)) {
+    throw new Error(`Attach the ${attachMissing(doc)} (Workflow card) before routing it.`);
+  }
   if ((action === 'release' || action === 'complete') && fillsMissing(doc).length) {
     throw new Error('Fill in this step\'s details (in the Workflow card) before routing it.');
   }
@@ -483,3 +490,12 @@ export function daysWaiting(d, now = new Date()) {
   return Math.max(0, Math.floor((new Date(now) - new Date(at)) / 864e5));
 }
 export const isOverdue = (d, now = new Date()) => (daysWaiting(d, now) ?? 0) > OVERDUE_DAYS;
+
+// The DMS document the current step must attach by link (step.attach, required) and has not yet:
+// its label (e.g. "JEV"), or ''. The documents attached at a step are in stepFiles (kind 'fts').
+export function attachMissing(doc) {
+  const wf = doc?.workflow;
+  const step = wf?.state === 'in-progress' && !wf.referral ? wf.steps[wf.stage] : null;
+  if (!step?.attach?.required) return '';
+  return (doc.stepFiles || []).some((f) => f.kind === 'fts' && f.stage === wf.stage) ? '' : step.attach.label;
+}

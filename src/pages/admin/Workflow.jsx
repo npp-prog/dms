@@ -17,6 +17,7 @@ const clean = (route) => route.map((s) => ({
   ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '', ...(s.assign.altPattern ? { altPattern: s.assign.altPattern } : {}), ...(s.assign.noStamp ? { noStamp: true } : {}) } } : {}),
   ...(s.headOnly ? { headOnly: true } : {}),
   ...(s.signUnless ? { signUnless: s.signUnless } : {}),
+  ...(s.attach?.label !== undefined ? { attach: { label: s.attach.label, required: Boolean(s.attach.required) } } : {}),
   ...(s.fills?.length ? { fills: [...s.fills] } : {}),
   ...(s.upload !== undefined ? { upload: s.upload } : {}),
   ...(s.alternates?.length ? { alternates: [...s.alternates] } : {}),
@@ -189,6 +190,7 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                     {s.assign && <span className="badge badge-blue">Assigns {fieldLabel(s.assign.field)}</span>}
                     {s.fills?.length > 0 && <span className="badge badge-blue">Fills in {s.fills.length} detail{s.fills.length > 1 ? 's' : ''}</span>}
                     {s.upload !== undefined && <span className="badge badge-blue">Upload (optional)</span>}
+                    {s.attach && <span className="badge badge-blue">Attaches {s.attach.label || 'a document'}{s.attach.required ? '' : ' (optional)'}</span>}
                   </span>
                 </button>
                 {tools(i)}
@@ -261,6 +263,18 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                       <input type="checkbox" checked={isApprovalStep(s)} onChange={(e) => set(i, { approval: e.target.checked, ...(e.target.checked ? { sign: true } : {}) })} />
                       Approval: approve (sign) or disapprove
                     </label>
+                    <label className="check" title="This office attaches a document already in DMS (e.g. the JEV), by link; it shows as a tab of the document">
+                      <input type="checkbox" checked={Boolean(s.attach)} onChange={(e) => set(i, { attach: e.target.checked ? { label: '', required: true } : undefined })} />
+                      Attaches a document (link)
+                    </label>
+                    {s.attach && (
+                      <div className="attach-fields">
+                        <label className="field"><span className="field-label">What it attaches</span>
+                          <input value={s.attach.label} maxLength={80} onChange={(e) => set(i, { attach: { ...s.attach, label: e.target.value } })} />
+                          <span className="help">The name of the document the office links at this step (its tab shows this name).</span></label>
+                        <label className="check"><input type="checkbox" checked={Boolean(s.attach.required)} onChange={(e) => set(i, { attach: { ...s.attach, required: e.target.checked } })} /> Required before it routes the document on</label>
+                      </div>
+                    )}
                     <label className="check">
                       <input type="checkbox" checked={Boolean(s.assign)}
                         onChange={(e) => set(i, { assign: e.target.checked ? suggestAssign() : undefined })} />

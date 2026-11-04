@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Icon from '../components/Icon.jsx';
 import { tabLabel } from '../lib/tabLabel.js';
-import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed, watchDocument, linkedDocs, markLinked } from '../lib/api.js';
+import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, addStepLink, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed, watchDocument, linkedDocs, markLinked } from '../lib/api.js';
 import SignRequestCard from '../components/SignRequestCard.jsx';
 import PrecheckCard from '../components/PrecheckCard.jsx';
 import { currentSigner, isMyTurn, markInBox } from '../lib/signRequest.js';
@@ -498,7 +498,8 @@ function DocumentPage({ docId }) {
                 const link = await uploadSupporting({ parent: { ...docData, id: docId }, slot: `step-${wf.stage}`, label, file, actor });
                 await addStepFile(docId, wf.stage, link, actor);
               })}
-              onOpenFile={openFile}
+              onLink={(l) => run(() => addStepLink(docId, wf.stage, l, actor))}
+              onOpenFile={(f) => (f.kind === 'fts' ? openLinked(f, `steplink:${f.id}`) : openFile(f))}
               me={user.uid} canRefer={canRefer}
               onlyPositions={wf?.state === 'in-progress' && !wf.referral && !isAdmin && profile.office && officeOf(wf.steps[wf.stage], docData) === profile.office
                 && !holdsPosition(wf.steps[wf.stage], profile.positions || [], isHead) ? wf.steps[wf.stage].positions : null}
@@ -617,6 +618,14 @@ function DocumentPage({ docId }) {
                 {/* Files uploaded at a route step (e.g. the DV signed by the payee in Box E). */}
                 {(isExternal ? [] : docData.stepFiles || []).map((l, i) => {
                   const name = l.label || 'Uploaded file';
+                  // (a DMS document attached by link at a route step, e.g. the JEV)
+                  if (l.kind === 'fts') {
+                    return (
+                      <button key={`step:${i}`} title={`${name}: ${l.typeCode} ${l.controlNo}`}
+                        className={view === 'linked' && linkKey === `steplink:${l.id}` ? 'active' : ''}
+                        onClick={() => openLinked(l, `steplink:${l.id}`)}>{tabLabel(name)}</button>
+                    );
+                  }
                   return (
                     <button key={`step:${i}`} title={`${name}: ${l.dms?.controlNo || l.name}`}
                       className={view === 'file' && linkKey === `step:${i}` ? 'active' : ''}

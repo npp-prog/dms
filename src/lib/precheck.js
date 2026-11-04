@@ -30,7 +30,10 @@ export function precheckFiles(d) {
       else if (l?.path && /\.pdf$/i.test(l.path)) out.push({ label, path: l.path });
     }
   }
-  for (const f of d.stepFiles || []) if (f?.path && /\.pdf$/i.test(f.path)) out.push({ label: `Uploaded at a route step: ${f.label || f.name}`, path: f.path });
+  for (const f of d.stepFiles || []) {
+    if (f?.kind === 'fts' && f.id) out.push({ label: `Attached at a route step: ${f.label} (${f.typeCode || ''} ${f.controlNo || ''})`.trim(), docId: f.id });
+    else if (f?.path && /\.pdf$/i.test(f.path)) out.push({ label: `Uploaded at a route step: ${f.label || f.name}`, path: f.path });
+  }
   for (const f of d.supplements || []) {
     if (f?.kind === 'fts' && f.id) out.push({ label: `Supplemental: ${f.label || f.controlNo}`, docId: f.id });
     else if (f?.path && /\.pdf$/i.test(f.path)) out.push({ label: `Supplemental: ${f.label || f.name}`, path: f.path });

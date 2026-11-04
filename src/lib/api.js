@@ -344,6 +344,7 @@ const cleanSteps = (route) => route.map((s) => ({
   // the head of the preparer's office only; signs unless a field of the form is filled; an approval
   ...(s.headOnly ? { headOnly: true } : {}),
   ...(s.signUnless ? { signUnless: String(s.signUnless) } : {}),
+  ...(String(s.attach?.label || '').trim() ? { attach: { label: String(s.attach.label).trim().slice(0, 80), required: Boolean(s.attach.required) } } : {}),
   ...(typeof s.approval === 'boolean' ? { approval: s.approval } : {}),
   ...(s.fills?.length ? { fills: [...s.fills] } : {}),
   ...(String(s.upload || '').trim() ? { upload: String(s.upload).trim() } : {}),
@@ -649,9 +650,11 @@ async function linkOnceCodes() {
 }
 // Every DMS document linked from a document: checklist items and attachments (links), and
 // supplemental documents. [{ id, controlNo, typeCode }], one entry per link.
-export const linkedDocs = ({ links = {}, supplements = [] } = {}) => [
+export const linkedDocs = ({ links = {}, supplements = [], stepFiles = [] } = {}) => [
   ...Object.values(links || {}).flat(),
   ...(supplements || []),
+  // (documents attached by an office along the route, e.g. the JEV)
+  ...(stepFiles || []),
 ].filter((l) => l?.kind === 'fts' && l.id);
 
 // Before saving the document's links: claims each newly linked document of a link-once type
@@ -1352,6 +1355,26 @@ export async function addStepFile(id, stage, link, user) {
       history: [...(d.history || []), historyEntry('uploaded', user, `${label}: ${link.name}`)],
     });
   });
+}
+
+// A DMS document the current step attaches by link (step.attach, e.g. the JEV): kept with the
+// step's files (kind 'fts'), opens as a tab; the document records it is attached (linkedTo).
+export async function addStepLink(id, stage, link, user) {
+  const ref = doc(db, 'documents', id);
+  let label = '';
+  await runTransaction(db, async (tx) => {
+    const d = (await tx.get(ref)).data();
+    if (d.workflow?.stage !== stage) throw new Error('Someone else acted on this document first. Reload the page.');
+    if ((d.stepFiles || []).some((f) => f.kind === 'fts' && f.id === link.id)) throw new Error(`${link.controlNo} is attached already.`);
+    label = d.workflow.steps[stage].attach?.label || 'Attached document';
+    const at = new Date().toISOString();
+    tx.update(ref, {
+      stepFiles: [...(d.stepFiles || []), { kind: 'fts', id: link.id, controlNo: link.controlNo || '', typeCode: link.typeCode || '', title: link.title || '', stage, label, by: user.displayName || user.email, at }],
+      updatedAt: serverTimestamp(),
+      history: [...(d.history || []), historyEntry('attached', user, `${label}: ${link.typeCode || ''} ${link.controlNo || ''}`.trim())],
+    });
+  });
+  await markLinked(id, [link]);
 }
 
 // Forwards a document to a DMS user (e.g. the payment details to the payee's office): they can

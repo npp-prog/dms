@@ -569,7 +569,9 @@ service cloud.firestore {
         && request.resource.data.linkedTo is list && request.resource.data.linkedTo.size() <= 10
         && request.resource.data.linkedTo.hasAll(resource.data.get('linkedTo', []))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['linkedTo'])
-        && get(/databases/$(database)/documents/documents/$(request.resource.data.linkedTo[request.resource.data.linkedTo.size() - 1])).data.get('createdBy', '') == request.auth.uid
+        // by that document's preparer, or the office holding it (it attaches it at its step)
+        && (get(/databases/$(database)/documents/documents/$(request.resource.data.linkedTo[request.resource.data.linkedTo.size() - 1])).data.get('createdBy', '') == request.auth.uid
+            || (myOffice() != '' && get(/databases/$(database)/documents/documents/$(request.resource.data.linkedTo[request.resource.data.linkedTo.size() - 1])).data.get('currentOffice', '') == myOffice()))
         && readsItself();
       // A new document is not routed, shared or archived yet.
       allow create: if isStaff()

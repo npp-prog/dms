@@ -1,6 +1,7 @@
+import { LinkEditor } from './DocLinks.jsx';
 import { refFieldLabel } from '../lib/naming.js';
 import { useEffect, useState } from 'react';
-import { ACTION_LABELS, HIDDEN_EVENTS, approverMismatch, isThirdParty, assignPending, availableActions, fillsMissing, officeOf, refStampMissing, signatureMissing } from '../lib/workflow.js';
+import { ACTION_LABELS, HIDDEN_EVENTS, approverMismatch, attachMissing, isThirdParty, assignPending, availableActions, fillsMissing, officeOf, refStampMissing, signatureMissing } from '../lib/workflow.js';
 import PersonPicker from './PersonPicker.jsx';
 import Select from './Select.jsx';
 
@@ -80,7 +81,29 @@ function ReferPanel({ me, busy, onRefer, onCancel }) {
 // released it and when, and the actions open to the office holding it.
 // What the office holding the document does at its step before releasing it: fill in details
 // (e.g. Check/ADA No., date, bank) and upload a file (e.g. the DV signed by the payee in Box E).
-function StepTasks({ doc, step, busy, onFill, onUpload, onOpenFile, children }) {
+// The DMS document a step attaches by link (step.attach, e.g. the JEV): what is attached at this
+// step, and + Link document (a document of DMS the user may open). Upload a new one first if needed.
+function StepAttach({ doc, step, busy, onLink, onOpenFile }) {
+  const [linking, setLinking] = useState(false);
+  const linked = (doc.stepFiles || []).filter((f) => f.kind === 'fts' && f.stage === doc.workflow.stage);
+  return (
+    <div className="step-upload">
+      <div className="field-label">{step.attach.label} <span className="muted">({step.attach.required ? 'required before routing' : 'optional'})</span></div>
+      {linked.map((f) => <div key={f.id} className="small"><button type="button" className="link" onClick={() => onOpenFile(f)}>{f.typeCode} {f.controlNo}</button>{f.title ? ` — ${f.title}` : ''} · {f.by}</div>)}
+      {linking
+        ? <LinkEditor item={{ label: step.attach.label, any: true }} excludeId={doc.id} onCancel={() => setLinking(false)}
+          onAdd={(l) => { setLinking(false); onLink(l); }} />
+        : (
+          <div className="row gap wrap">
+            <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setLinking(true)}>+ Link document</button>
+            <a className="link small" href="/upload" target="_blank" rel="noreferrer">Not in DMS yet? Upload it (new tab), then link it</a>
+          </div>
+        )}
+    </div>
+  );
+}
+
+function StepTasks({ doc, step, busy, onFill, onUpload, onLink, onOpenFile, children }) {
   const fields = doc.typeSnapshot?.fields || [];
   const keys = step.fills || [];
   const [values, setValues] = useState(() => Object.fromEntries(keys.map((k) => [k, doc.data?.[k] ?? ''])));
@@ -89,7 +112,7 @@ function StepTasks({ doc, step, busy, onFill, onUpload, onOpenFile, children }) 
   const saved = JSON.stringify(keys.map((k) => doc.data?.[k] ?? ''));
   useEffect(() => setValues(Object.fromEntries(keys.map((k) => [k, doc.data?.[k] ?? '']))), [saved, keys.join()]);
   const changed = keys.some((k) => String(values[k] ?? '') !== String(doc.data?.[k] ?? ''));
-  const files = (doc.stepFiles || []).filter((f) => f.stage === doc.workflow.stage);
+  const files = (doc.stepFiles || []).filter((f) => f.stage === doc.workflow.stage && f.kind !== 'fts');
   return (
     <div className="step-tasks">
       {keys.length > 0 && (
@@ -121,12 +144,13 @@ function StepTasks({ doc, step, busy, onFill, onUpload, onOpenFile, children }) 
           </label>
         </div>
       )}
+      {step.attach && onLink && <StepAttach doc={doc} step={step} busy={busy} onLink={onLink} onOpenFile={onOpenFile} />}
       {children}
     </div>
   );
 }
 
-export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, onStart, onFill, onUpload, onOpenFile, sendPanel, me, canRefer, onRefer, onAssign, onChooseOffices, onlyPositions, onDisapprove }) {
+export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, onStart, onFill, onUpload, onOpenFile, sendPanel, me, canRefer, onRefer, onAssign, onChooseOffices, onlyPositions, onDisapprove, onLink }) {
   const wf = doc.workflow;
   const [returning, setReturning] = useState(false);
   const [referring, setReferring] = useState(false);
@@ -162,7 +186,7 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
   const refPending = refStampMissing(doc);
   const toAssign = canAct && assignPending(doc) ? wf.steps[wf.stage].assign.field : '';
   // (The step's upload is optional: it does not block routing.)
-  const blocked = fillsMissing(doc).length > 0 || Boolean(refPending) || Boolean(toAssign);
+  const blocked = fillsMissing(doc).length > 0 || Boolean(refPending) || Boolean(toAssign) || Boolean(attachMissing(doc));
   const act = (action) => onAction(action, remarks, () => { setRemarks(''); setReturning(false); setHolding(false); });
 
   return (
@@ -275,11 +299,12 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
                   <input id="wf-note" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
                 </div>
               )}
-              {(wf.steps[wf.stage].fills || wf.steps[wf.stage].upload) && (
-                <StepTasks doc={doc} step={wf.steps[wf.stage]} busy={busy} onFill={onFill} onUpload={onUpload} onOpenFile={onOpenFile}>
+              {(wf.steps[wf.stage].fills || wf.steps[wf.stage].upload || wf.steps[wf.stage].attach) && (
+                <StepTasks doc={doc} step={wf.steps[wf.stage]} busy={busy} onFill={onFill} onUpload={onUpload} onLink={onLink} onOpenFile={onOpenFile}>
                   {!fillsMissing(doc).length && sendPanel}
                 </StepTasks>
               )}
+              {attachMissing(doc) && <div className="alert-info small">Before routing: attach the <b>{attachMissing(doc)}</b> above (+ Link document).</div>}
               {fillsMissing(doc).length > 0 && (
                 <div className="alert-info small">Before routing: fill in and save the details above.</div>
               )}
