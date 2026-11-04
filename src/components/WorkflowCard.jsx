@@ -6,7 +6,7 @@ import Select from './Select.jsx';
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const EVENT_TEXT = {
   started: 'Started', released: 'Routed', returned: 'Returned', completed: 'Processed', cancelled: 'Cancelled', assigned: 'Assigned',
-  route: 'Offices chosen', referred: 'Referred', 'referral back': 'Sent back', held: 'Put on hold', resumed: 'Taken off hold',
+  route: 'Offices chosen', referred: 'Referred', 'referral back': 'Sent back', held: 'Put on hold', resumed: 'Taken off hold', disapproved: 'DISAPPROVED',
 };
 
 // The preparer chooses which office handles each step that has alternates (e.g. the Mayor or the
@@ -125,7 +125,7 @@ function StepTasks({ doc, step, busy, onFill, onUpload, onOpenFile, children }) 
   );
 }
 
-export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, onStart, onFill, onUpload, onOpenFile, sendPanel, me, canRefer, onRefer, onAssign, onChooseOffices, onlyPositions }) {
+export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, onStart, onFill, onUpload, onOpenFile, sendPanel, me, canRefer, onRefer, onAssign, onChooseOffices, onlyPositions, onDisapprove }) {
   const wf = doc.workflow;
   const [returning, setReturning] = useState(false);
   const [referring, setReferring] = useState(false);
@@ -168,13 +168,13 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
     <section className="card workflow-card">
       <div className="card-head">
         <h3>Workflow</h3>
-        <span className={`badge ${wf.state === 'done' ? 'badge-green' : wf.state === 'cancelled' ? 'badge-gray' : 'badge-blue'}`}>
-          {wf.state === 'done' ? 'Processed' : wf.state === 'cancelled' ? 'Cancelled' : `${wf.hold ? 'On hold · ' : ''}Step ${wf.stage + 1} of ${wf.steps.length}`}
+        <span className={`badge ${wf.state === 'done' ? 'badge-green' : wf.state === 'cancelled' ? 'badge-gray' : wf.state === 'disapproved' ? 'badge-red' : 'badge-blue'}`}>
+          {wf.state === 'done' ? 'Processed' : wf.state === 'cancelled' ? 'Cancelled' : wf.state === 'disapproved' ? 'Disapproved' : `${wf.hold ? 'On hold · ' : ''}Step ${wf.stage + 1} of ${wf.steps.length}`}
         </span>
       </div>
       <ol className="wf-steps">
         {wf.steps.map((step, i) => {
-          const state = wf.state === 'done' || i < wf.stage ? 'done' : i === wf.stage && wf.state === 'in-progress' ? 'current' : 'pending';
+          const state = wf.state === 'done' || i < wf.stage ? 'done' : i === wf.stage && wf.state === 'in-progress' ? 'current' : i === wf.stage && wf.state === 'disapproved' ? 'disapproved' : 'pending';
           const events = wf.events.filter((e) => e.stage === i && !HIDDEN_EVENTS.has(e.type));
           return (
             <li key={i} className={`wf-${state}`}>
@@ -182,7 +182,8 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
               <div>
                 <div className="wf-office">{nameOf(step)}{wf.choose && step.alternates?.length > 0 && <span className="small muted"> (or {step.alternates.map((o) => o || "Preparer's office").join(' or ')}: to choose)</span>}</div>
                 <div className="small"><b>{step.action}</b>{step.positions?.length > 0 && <span className="muted"> · by the {step.positions.join(' or ')}</span>}{step.sign && <span className="muted"> · signs the PDF</span>}
-                  {step.assign && <span className="muted"> · assigns the {fieldLabel(step.assign.field)}</span>}</div>
+                  {step.assign && <span className="muted"> · assigns the {fieldLabel(step.assign.field)}</span>}
+                  {step.approval && <span className="muted"> · approves or disapproves</span>}</div>
                 {state === 'current' && !referral && !wf.hold && <div className="small wf-now">Here now</div>}
                 {state === 'current' && wf.hold && <div className="small wf-hold">On hold at {wf.hold.office || nameOf(step)} since {when(wf.hold.at)}{wf.hold.reason && <> — <i>{wf.hold.reason}</i></>}</div>}
                 {state === 'current' && referral && (
@@ -291,12 +292,16 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
               {unsigned && (
                 <div className="alert-info small">This step requires a signature. Sign the PDF under <b>PDF and digital signatures</b>, then route it.</div>
               )}
+              {actions.includes('disapprove') && (
+                <div className="small muted">To approve: sign the PDF, then route it. To disapprove: <b>Disapprove…</b> stamps DISAPPROVED on the PDF and ends its route.</div>
+              )}
               <div className="wf-buttons">
                 {actions.includes('release') && <button className="btn btn-primary" disabled={busy || unsigned || blocked || (wf.stage === 0 && wf.choose)} onClick={() => act('release')}>Route to {nameOf(next)}</button>}
                 {actions.includes('complete') && <button className="btn btn-primary" disabled={busy || unsigned || blocked} onClick={() => act('complete')}>{ACTION_LABELS.complete}</button>}
                 {actions.includes('return') && <button className="btn btn-ghost" disabled={busy} onClick={() => setReturning(true)}>Return to {nameOf(prev)}</button>}
                 {canRefer && <button className="btn btn-ghost" disabled={busy} onClick={() => setReferring(true)}>Refer to a person…</button>}
                 {actions.includes('hold') && <button className="btn btn-ghost" disabled={busy} onClick={() => setHolding(true)}>Put on hold…</button>}
+                {actions.includes('disapprove') && onDisapprove && <button className="btn btn-danger" disabled={busy} onClick={onDisapprove}>Disapprove…</button>}
               </div>
             </>
           )}

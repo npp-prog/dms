@@ -1707,3 +1707,5 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .person-field { display: grid; gap: .3rem; min-width: 220px; }
 .person-field.person-chosen { padding: .4rem .6rem; }
 .warn-text { color: var(--warn, #9a6700); }
+.wf-disapproved .wf-dot { background: var(--bad); border-color: var(--bad); color: #fff; }
+.disapprove-box { border-color: var(--bad); }

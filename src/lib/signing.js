@@ -294,12 +294,34 @@ export function noteBox(lines, size = 10) {
   return { w: Math.ceil(longest * size * 0.52 + 6), h: Math.ceil(lines.length * size * 1.25 + 4) };
 }
 
+// A stamp (DISAPPROVED): its first line large and bold, the others (who, when) under it, in red in
+// a red frame. Its box: { w, h } in points.
+export function stampBox(lines, size = 10) {
+  const big = size * 1.8;
+  const [first = '', ...rest] = lines;
+  const w = Math.max(first.length * big * 0.72, ...rest.map((l) => l.length * size * 0.52)) + 12;
+  return { w: Math.ceil(w), h: Math.ceil(big + 8 + rest.length * size * 1.25) };
+}
+
 // A note: text on the page as a locked FreeText annotation (printed, read-only, locked: 4 + 64 + 128).
 function putNote(put, note, ids, pageRef, name, at) {
   const B = globalThis.Buffer;
   const fs = note.size || 10;
   const w = note.rect[2] - note.rect[0];
   const h = note.rect[3] - note.rect[1];
+  if (note.stamp) {
+    const big = fs * 1.8;
+    const [first = '', ...rest] = note.lines;
+    const ops = [
+      `0.8 0 0 RG 1.6 w 1 1 ${num(w - 2)} ${num(h - 2)} re S`, '0.8 0 0 rg',
+      `BT /F2 ${num(big)} Tf 6 ${num(h - 4 - big * 0.85)} Td (${pdfText(first)}) Tj ET`,
+      ...rest.map((l, i) => `BT /F1 ${num(fs)} Tf 6 ${num(h - 6 - big - (i + 1) * fs * 1.2 + fs * 0.25)} Td (${pdfText(l)}) Tj ET`),
+    ];
+    const sbody = B.from(`${ops.join('\n')}\n`, 'latin1');
+    put(ids.form, `<< /Type /XObject /Subtype /Form /BBox [0 0 ${num(w)} ${num(h)}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> >> >> /Length ${sbody.length} >>`, sbody);
+    put(ids.annot, `<< /Type /Annot /Subtype /FreeText /Rect [${note.rect.map(num).join(' ')}] /Contents (${pdfText(note.lines.join(' '))}) /T (${pdfText(name)}) /M (${pdfDate(at)}) /DA (/Helv ${num(fs)} Tf 0.8 0 0 rg) /F 196 /Border [0 0 0] /P ${pageRef} /AP << /N ${ids.form} 0 R >> >>`);
+    return;
+  }
   const body = B.from(`0 0 0.35 rg\n${note.lines.map((l, i) => `BT /F1 ${num(fs)} Tf 3 ${num(h - 2 - fs - i * fs * 1.25 + fs * 0.2)} Td (${pdfText(l)}) Tj ET`).join('\n')}\n`, 'latin1');
   put(ids.form, `<< /Type /XObject /Subtype /Form /BBox [0 0 ${num(w)} ${num(h)}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >> /Length ${body.length} >>`, body);
   put(ids.annot, `<< /Type /Annot /Subtype /FreeText /Rect [${note.rect.map(num).join(' ')}] /Contents (${pdfText(note.lines.join(' '))}) /T (${pdfText(name)}) /M (${pdfDate(at)}) /DA (/Helv ${num(fs)} Tf 0 0 0.35 rg) /F 196 /Border [0 0 0] /P ${pageRef} /AP << /N ${ids.form} 0 R >> >>`);

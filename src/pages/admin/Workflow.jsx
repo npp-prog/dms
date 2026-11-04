@@ -7,6 +7,7 @@ import { THIRD_PARTY, routeFromGuide } from '../../lib/workflow.js';
 import Icon from '../../components/Icon.jsx';
 import { DEFAULT_REF_PATTERN, refNumber } from '../../lib/naming.js';
 import Select from '../../components/Select.jsx';
+import { isApprovalStep } from '../../lib/approver.js';
 
 const PREPARER = ''; // the office that prepared the document
 const PREPARER_PICK = '@preparer'; // the preparer's office in a select (whose value cannot be '')
@@ -18,6 +19,8 @@ const clean = (route) => route.map((s) => ({
   ...(s.upload !== undefined ? { upload: s.upload } : {}),
   ...(s.alternates?.length ? { alternates: [...s.alternates] } : {}),
   ...(s.positions?.length ? { positions: [...s.positions] } : {}),
+  // An approval (approve by signing, or disapprove): saved as set, so the automatic guess no longer applies.
+  approval: isApprovalStep(s),
 }));
 
 // Administration > Workflow: the route of every document type (which offices receive it, in
@@ -243,6 +246,10 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                     <label className="check">
                       <input type="checkbox" checked={s.sign} onChange={(e) => set(i, { sign: e.target.checked })} />
                       Must sign the PDF (DICT PNPKI)
+                    </label>
+                    <label className="check" title="The office approves it (signs) or disapproves it (stamped DISAPPROVED: the route ends there)">
+                      <input type="checkbox" checked={isApprovalStep(s)} onChange={(e) => set(i, { approval: e.target.checked, ...(e.target.checked ? { sign: true } : {}) })} />
+                      Approval: approve (sign) or disapprove
                     </label>
                     <label className="check">
                       <input type="checkbox" checked={Boolean(s.assign)} disabled={!textFields.length}

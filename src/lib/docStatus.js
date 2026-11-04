@@ -6,6 +6,7 @@
 //   On Hold         an office holding it put it on hold: it does not move on until released
 //   For Signature   a signature request is open (documents outside any route)
 //   Complete        its route is done (it is in the Archive), or its main document's is
+//   Disapproved     an approving office (the Mayor's or the Vice Mayor's…) disapproved it
 //   Cancelled
 import { isArchived } from './archiveFiles.js';
 
@@ -15,6 +16,7 @@ export const DOC_STAGES = {
   returned: { label: 'Returned', className: 'badge-yellow' },
   signing: { label: 'For Signature', className: 'badge-blue' },
   hold: { label: 'On Hold', className: 'badge-red' },
+  disapproved: { label: 'Disapproved', className: 'badge-red' },
   complete: { label: 'Complete', className: 'badge-green' },
   cancelled: { label: 'Cancelled', className: 'badge-gray' },
 };
@@ -23,6 +25,8 @@ export function docStage(d) {
   if (!d) return 'draft';
   const wf = d.workflow;
   if (d.status === 'cancelled' || wf?.state === 'cancelled') return 'cancelled';
+  // Disapproved at an approval step (stamped DISAPPROVED): its route ended there.
+  if (wf?.state === 'disapproved') return 'disapproved';
   if (isArchived(d)) return 'complete';
   // A signature request (documents outside any route): for signature, then complete; declined
   // goes back to the preparer.

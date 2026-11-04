@@ -213,6 +213,8 @@ function DocumentPage({ docId }) {
   // (size and preview of each) while signing, and where each was tapped ({ mark, text }).
   const [placing, setPlacing] = useState(null);
   const [placements, setPlacements] = useState({});
+  // The approving office disapproves it: the DISAPPROVED stamp is placed in the PDF card.
+  const [disapproving, setDisapproving] = useState(false);
   const tapItem = placing?.items?.[placing.target] || null;
   const placedMarks = placing ? Object.keys(placing.items).filter((k) => placing.items[k] && placements[k])
     .map((k) => ({ ...placements[k], ...placing.items[k], id: k, kind: k === 'mark' ? 'mark' : 'text', active: k === placing.target })) : [];
@@ -407,6 +409,9 @@ function DocumentPage({ docId }) {
               }}
               onView={() => { setView('pdf'); viewer.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
               placements={placements}
+              disapproving={disapproving && wf?.state === 'in-progress'}
+              onDisapproveCancel={() => setDisapproving(false)}
+              onDisapprove={async (remarks) => { await workflowAction(docId, 'disapprove', actor, { stage: wf.stage, remarks }); setDisapproving(false); }}
               onPlacing={(p) => {
                 setPlacing(p);
                 if (!p) { setPlacements({}); return; }
@@ -468,6 +473,7 @@ function DocumentPage({ docId }) {
           )}
           {type && (wf || (type.processing || []).length > 0) && (docData.status !== 'draft' || wf) && (
             <WorkflowCard doc={docData} busy={busy}
+              onDisapprove={() => { setDisapproving(true); setView('pdf'); viewer.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
               canAct={canAct(docData, { uid: user.uid, office: profile.office, isAdmin, isHead, positions: profile.positions || [], grant: folderGrant })}
               canStart={docData.status === 'complete' && (docData.pdf?.files || []).length > 0 && (isOwner || isAdmin) && docData.signRequest?.state !== 'open' && !docData.closed}
               onStart={() => run(() => startWorkflow(docId, type, actor, settings.offices || []))}

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   BASIS_VERSION, addPdfVersion, checkStorage, documentBasis, getPdfBytes, getSavedCertificate, getSavedCertificateBytes, getSavedMark, setDocumentStatus, startWorkflow, editRefNo,
 } from '../lib/api.js';
-import { addNotes, checkSignedVersion, isValidAt, noteBox, readCertificate, readSignatures, signPdf, stampDate, wrapNote } from '../lib/signing.js';
+import { addNotes, checkSignedVersion, isValidAt, noteBox, readCertificate, readSignatures, signPdf, stampBox, stampDate, wrapNote } from '../lib/signing.js';
 import { liveFiles, refStampMissing, refUndoBase, withdrawnFiles } from '../lib/workflow.js';
 import { byOffice, missingFields } from '../lib/forms.js';
 import { markPixels } from '../lib/markImage.js';
@@ -34,7 +34,9 @@ function saveAs(bytes, name) {
 // finished document to PDF; then each signatory, while the document is in their office, signs
 // it in DMS with their certificate file, or signs it in Adobe Acrobat and uploads it back.
 // Every version is kept; the newest is the current PDF.
-export default function PdfCard({ docData, type, settings, actor, canConvert, canSign, signStep = true, reason, onChanged, onLoaded, onView, placements = {}, onPlacing }) {
+// disapproving: the approving office disapproves it (Workflow card → Disapprove…): it taps the PDF
+// where the DISAPPROVED stamp goes and says why; onDisapprove(remarks) then ends the route.
+export default function PdfCard({ docData, type, settings, actor, canConvert, canSign, signStep = true, reason, onChanged, onLoaded, onView, placements = {}, onPlacing, disapproving = false, onDisapprove, onDisapproveCancel }) {
   const id = useId();
   const files = docData.pdf?.files || [];
   const current = files.at(-1);
@@ -66,6 +68,7 @@ export default function PdfCard({ docData, type, settings, actor, canConvert, ca
   const [refSize, setRefSize] = useState('M');
   const [refEdit, setRefEdit] = useState(null); // { value, date } while changing the assigned no.
   const placement = placements.mark;
+  const [disReason, setDisReason] = useState('');
 
   // Load the current PDF and check every signature in it: once per version (not again when the
   // document is reloaded after another action).
@@ -130,7 +133,12 @@ export default function PdfCard({ docData, type, settings, actor, canConvert, ca
   // The number only (e.g. 2026-0005), not its name (Travel Order No.): the form prints the name.
   const refLines = pendingRef ? [String(pendingRef.value), ...(pendingRef.date ? [`Date: ${new Date(`${pendingRef.date}T00:00:00`).toLocaleDateString('en-PH', { dateStyle: 'medium' })}`] : [])] : [];
   const placingRef = Boolean(pendingRef) && (mode === 'sign' || esign || mode === 'stamp');
-  const active = [placingMark && 'mark', placingText && 'text', placingRef && 'ref'].filter(Boolean);
+  // Disapproving: the DISAPPROVED stamp (who, when), unless this step stamped it already.
+  const wfNow = docData.workflow;
+  const stampedHere = current?.kind === 'disapproved' && wfNow?.state === 'in-progress' && current.stage === wfNow.stage;
+  const placingStamp = disapproving && Boolean(bytes) && !stampedHere;
+  const stampLines = ['DISAPPROVED', actor.displayName || actor.email || '', stampDate()];
+  const active = [placingMark && 'mark', placingText && 'text', placingRef && 'ref', placingStamp && 'stamp'].filter(Boolean);
   const tapFor = active.includes(target) ? target : active[0];
   const refNote = () => ({ page: placements.ref.page, rect: placements.ref.rect, lines: refLines, size: NOTE_SIZES[refSize] });
   // Ask the viewer to take taps for the mark, the text and the reference no.
@@ -145,9 +153,10 @@ export default function PdfCard({ docData, type, settings, actor, canConvert, ca
         mark: placingMark ? { w, h, preview: markUrl, label: [esign ? 'e-signature' : 'Digitally signed by', name, ...myRefs, stampDate()].join('\n'), hint: 'Tap the page where your signature mark goes (e.g. the Signature line of your box).' } : null,
         text: placingText ? { ...box, label: noteLines.join('\n'), size: NOTE_SIZES[noteSize], hint: 'Tap the page where your text goes.' } : null,
         ref: placingRef ? { ...noteBox(refLines, NOTE_SIZES[refSize]), label: refLines.join('\n'), size: NOTE_SIZES[refSize], hint: `Tap the page where the ${pendingRef.label} goes.` } : null,
+        stamp: placingStamp ? { ...stampBox(stampLines, 10), label: stampLines.join('\n'), size: 10, hint: 'Tap the page where the DISAPPROVED stamp goes (e.g. your signature line).' } : null,
       },
     });
-  }, [active.join(), tapFor, size, markUrl, saved, esign, myRefs.join(), noteLines.join('\n'), noteSize, refLines.join('\n'), refSize]);
+  }, [placingStamp, active.join(), tapFor, size, markUrl, saved, esign, myRefs.join(), noteLines.join('\n'), noteSize, refLines.join('\n'), refSize]);
 
   // The assigned no. is suggested by DMS; the office may change it before it is on the PDF.
   const saveRef = (e) => {
@@ -205,6 +214,21 @@ export default function PdfCard({ docData, type, settings, actor, canConvert, ca
     setMode('');
     onView?.();
     setNotice(`${refLines[0]} is on the PDF.`);
+    onChanged();
+  });
+
+  // Disapproved: the DISAPPROVED stamp on the PDF (a new version), then the route ends (onDisapprove).
+  const disapprove = () => run('Disapproving…', async () => {
+    if (!disReason.trim()) throw new Error('Say why the document is disapproved.');
+    if (!stampedHere) {
+      if (!placements.stamp) throw new Error('Tap the PDF where the DISAPPROVED stamp goes.');
+      const out = await addNotes(bytes, [{ page: placements.stamp.page, rect: placements.stamp.rect, lines: stampLines, size: 10, stamp: true }], { name: actor.displayName || actor.email });
+      made.current[(await addPdfVersion(docData.id, out, actor, { kind: 'disapproved', onProgress: uploading, reason: disReason.trim() })).path] = out;
+    }
+    await onDisapprove(disReason.trim());
+    setDisReason('');
+    onView?.();
+    setNotice('Disapproved: the DISAPPROVED stamp is on the PDF and its route ends here.');
     onChanged();
   });
 
@@ -347,6 +371,24 @@ export default function PdfCard({ docData, type, settings, actor, canConvert, ca
                   ))}
                 </ol>
               )
+          )}
+
+          {disapproving && bytes && (
+            <div className="mark-box disapprove-box">
+              <div className="field-label">Disapprove</div>
+              {stampedHere
+                ? <p className="small muted">The DISAPPROVED stamp is on the PDF. Say why, then disapprove it.</p>
+                : <p className={`small ${placements.stamp ? 'muted' : 'mark-todo'}`}>{placements.stamp
+                  ? `Stamp placed on page ${placements.stamp.page + 1}. Tap the PDF again to move it.`
+                  : 'Tap the PDF where the DISAPPROVED stamp goes (e.g. your signature line).'}</p>}
+              <label className="field"><span className="field-label">Why is it disapproved?</span>
+                <textarea rows={2} value={disReason} maxLength={500} onChange={(e) => setDisReason(e.target.value)} /></label>
+              <p className="xs muted">The stamp shows DISAPPROVED, your name and the date. The route ends here; the preparer is told why.</p>
+              <div className="row gap">
+                <button className="btn btn-danger btn-sm" disabled={!!busy || !disReason.trim() || (!stampedHere && !placements.stamp)} onClick={disapprove}>{busy || (stampedHere ? 'Disapprove' : 'Stamp DISAPPROVED and disapprove')}</button>
+                <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { setDisReason(''); onDisapproveCancel?.(); }}>Cancel</button>
+              </div>
+            </div>
           )}
 
           {pendingRef && bytes && (

@@ -886,7 +886,7 @@ export async function workflowAction(id, action, user, { stage, remarks = '' } =
       patch.referred = [...new Set([...(d.referred || []), patch.currentOffice.slice(7)])];
     }
     const label = d.workflow.referral ? { back: 'sent back' }[action]
-      : { release: 'routed', return: 'returned', complete: 'processed', hold: 'put on hold', resume: 'resumed' }[action];
+      : { release: 'routed', return: 'returned', complete: 'processed', hold: 'put on hold', resume: 'resumed', disapprove: 'disapproved' }[action];
     const history = [...(d.history || []), historyEntry(label, user, remarks)];
     tx.update(ref, { ...patch, updatedAt: serverTimestamp(), history });
     publishCheck(tx, id, { ...d, ...patch });
@@ -898,6 +898,7 @@ export async function workflowAction(id, action, user, { stage, remarks = '' } =
     release: () => `routed by ${who} to ${at(patch.workflow)}${why}.`,
     return: () => `returned by ${who} to ${at(patch.workflow)}${why}.`,
     complete: () => `processed by ${who}: its route is complete${why}.`,
+    disapprove: () => `DISAPPROVED by ${who}: its route ends here${why}.`,
     back: () => `sent back by ${who} to ${at(patch.workflow)}${why}.`,
     hold: () => `put on hold by ${who} at ${at(d.workflow)}${why}.`,
     resume: () => `taken off hold by ${who}: it goes on along its route.`,
@@ -1173,7 +1174,7 @@ export async function addPdfVersion(id, bytes, user, { kind, method = 'dms', sig
       // basisV: how the basis was computed (bases computed another way are not compared).
       pdf,
       updatedAt: serverTimestamp(),
-      history: [...(d.history || []), historyEntry(kind === 'signed' || kind === 'esigned' ? 'signed' : kind === 'stamped' ? (reason === 'QR code' ? 'QR code put on the PDF' : 'reference no. put on the PDF') : kind === 'restored' ? `PDF back to version ${restores + 1}` : 'converted to PDF', user, kind === 'restored' ? reason : note)],
+      history: [...(d.history || []), historyEntry(kind === 'signed' || kind === 'esigned' ? 'signed' : kind === 'disapproved' ? 'stamped DISAPPROVED' : kind === 'stamped' ? (reason === 'QR code' ? 'QR code put on the PDF' : 'reference no. put on the PDF') : kind === 'restored' ? `PDF back to version ${restores + 1}` : 'converted to PDF', user, kind === 'restored' ? reason : note)],
     });
   });
   if (kind === 'signed' || kind === 'esigned') tellPreparer(d, id, `${kind === 'esigned' ? 'e-signed' : 'signed'} by ${signer?.name || user.displayName || user.email}${reason ? ` — ${reason}` : ''}${signed?.state === 'done' ? '. Everyone asked has signed it.' : ''}.`, user);

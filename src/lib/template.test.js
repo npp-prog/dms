@@ -224,8 +224,14 @@ test('document workflow', () => {
       // The DV signed by the payee in Box E is optional: the step goes on without it.
       assert.doesNotThrow(() => applyAction(doc, a, { uid: 'x', displayName: 'X' }));
     }
+    // The Mayor's approval: approving is signing.
+    if (doc.workflow.steps[doc.workflow.stage].approval && !doc.pdf.files.some((f) => f.stage === doc.workflow.stage && f.kind === 'signed')) {
+      assert.throws(() => applyAction(doc, a, { uid: 'x', displayName: 'X' }), /requires a signature/);
+      doc.pdf = { files: [...doc.pdf.files, { kind: 'signed', stage: doc.workflow.stage }] };
+    }
     doc = { ...doc, ...applyAction(doc, a, { uid: 'x', displayName: 'X' }) };
   }
+  assert.ok(doc.pdf.files.some((f) => f.kind === 'signed'), 'the Mayor approved (signed)');
   assert.ok(doc.data?.checkNo, 'the payment step was reached');
   assert.equal(doc.workflow.state, 'done');
   assert.equal(doc.currentOffice, '');
@@ -623,8 +629,41 @@ test('Travel Order: Executive (Mayor) or Legislative (Vice Mayor) letterhead and
   const leg = buildWorkflow(to, { ...base, data: { approver: 'Municipal Vice Mayor' } }, DEFAULT_SETTINGS.offices, juan, 't0').workflow;
   assert.equal(mayorStep(leg).routedTo, 'Office of the Municipal Vice Mayor');
   assert.ok(!leg.choose);
-  // other formats are not changed
+  // every format with an approval at the Mayor's office follows its signatory (the DV too); the
+  // letterhead changes only for a format issued by the Mayor's office
   const dv = STARTER_TYPES.find((t) => t.code === 'DV');
   const dvWf = buildWorkflow(dv, { ...base, data: { approver: 'Municipal Vice Mayor' } }, DEFAULT_SETTINGS.offices, juan, 't0').workflow;
-  assert.ok(dvWf.steps.every((s) => !s.bySignatory));
+  const dvMayor = dvWf.steps.find((s) => s.bySignatory);
+  assert.equal(dvMayor.routedTo, 'Office of the Municipal Vice Mayor');
+  assert.equal(officeLetterhead(settings, dv, 'Municipal Accounting Office', { approver: 'Municipal Vice Mayor' }).name, 'Municipal Accounting Office');
+});
+
+test('an approval step: approve (sign and route) or disapprove (stamped DISAPPROVED, the route ends)', async () => {
+  const { isApprovalStep, withApprover } = await import('./approver.js');
+  const { docStage } = await import('./docStatus.js');
+  assert.ok(isApprovalStep({ office: 'Office of the Municipal Mayor', sign: true }));
+  assert.ok(isApprovalStep({ office: 'Municipal Budget Office', action: 'Approve the PR', sign: true }));
+  assert.ok(!isApprovalStep({ office: 'Municipal Accounting Office', action: 'Pre-audit', sign: true }));
+  assert.ok(!isApprovalStep({ office: 'Office of the Municipal Mayor', sign: true, approval: false }));
+  // a format with a Mayor's approval on its route gets the signatory choice
+  const t = withApprover({ fields: [], steps: [{ id: 's1' }], template: '', route: [{ office: '' }, { office: 'Office of the Municipal Mayor', sign: true }] });
+  assert.equal(t.fields.find((f) => f.key === 'approver').optionLabels['Municipal Vice Mayor'], 'Legislative (Municipal Vice Mayor)');
+  const route = [{ office: '', action: 'Prepare' }, { office: 'Office of the Municipal Mayor', action: 'Approve', sign: true }, { office: 'Municipal Accounting Office', action: 'File' }];
+  const juan = { uid: 'u1', displayName: 'Juan' };
+  let doc = { createdBy: 'u1', office: 'Municipal Engineering Office', data: { approver: 'Municipal Mayor' }, pdf: { files: [{ kind: 'generated', stage: 0 }] } };
+  doc = { ...doc, ...buildWorkflow(withApprover({ route, fields: [], steps: [{ id: 's1' }], template: '' }), doc, DEFAULT_SETTINGS.offices, juan, 't0') };
+  assert.equal(doc.workflow.steps[1].approval, true);
+  doc = { ...doc, ...applyAction(doc, 'release', juan, '', 't1') };
+  assert.ok(availableActions(doc).includes('disapprove'));
+  const mayor = { uid: 'm1', displayName: 'Mario' };
+  assert.throws(() => applyAction(doc, 'disapprove', mayor, ''), /Say why/);
+  assert.throws(() => applyAction(doc, 'disapprove', mayor, 'No funds'), /Stamp DISAPPROVED/);
+  doc.pdf.files.push({ kind: 'disapproved', stage: 1 });
+  assert.throws(() => applyAction(doc, 'release', mayor), /DISAPPROVED/);
+  doc = { ...doc, ...applyAction(doc, 'disapprove', mayor, 'No funds', 't2') };
+  assert.equal(doc.workflow.state, 'disapproved');
+  assert.equal(doc.currentOffice, '');
+  assert.equal(docStage(doc), 'disapproved');
+  assert.deepEqual(availableActions(doc), []);
+  assert.equal(doc.workflow.events.at(-1).remarks, 'No funds');
 });

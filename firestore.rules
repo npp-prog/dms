@@ -585,7 +585,9 @@ service cloud.firestore {
         let w1 = request.resource.data.workflow;
         return w1.stage >= w0.stage - 1 && w1.stage <= w0.stage + 1
           && (w1.state == 'in-progress'
-              || (w1.state == 'done' && w1.stage == w0.stage && w0.stage == w0.steps.size() - 1))
+              || (w1.state == 'done' && w1.stage == w0.stage && w0.stage == w0.steps.size() - 1)
+              // Disapproved at an approval step (stamped DISAPPROVED): the route ends there.
+              || (w1.state == 'disapproved' && w1.stage == w0.stage && w0.steps[w0.stage].get('approval', false) == true))
           // On hold: it stays where it is (no move, no referral) until taken off hold.
           && (w0.get('hold', null) == null || (w1.stage == w0.stage && w1.state == w0.state && w1.get('referral', null) == null));
       }

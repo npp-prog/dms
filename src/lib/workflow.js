@@ -22,7 +22,7 @@
 // document.routeOffices: the offices on the route the document has reached so far (their office
 // heads can open the document).
 
-import { isMayorOffice, issuedByMayor, viceApproves, viceMayorOffice } from './approver.js';
+import { isApprovalStep, isMayorOffice, viceApproves, viceMayorOffice } from './approver.js';
 
 // Steps done by the preparer's own office (or by people it deals with directly).
 const PREPARER = /requesting|claimant|supervisor|payee|custodian|traveler|supplier|end[- ]?user/i;
@@ -81,7 +81,7 @@ export function routeFromGuide(type, offices = []) {
 export function routeSteps(type, offices = []) {
   const steps = type?.route?.length ? type.route : routeFromGuide(type, offices);
   return steps.map((s) => ({
-    office: s.office || 'Requesting office', action: s.action || '', routedTo: s.office || '', sign: Boolean(s.sign),
+    office: s.office || 'Requesting office', action: s.action || '', routedTo: s.office || '', sign: Boolean(s.sign) || isApprovalStep(s),
     // a third party: designated by the preparer (chooseOffices)
     ...(s.office === THIRD_PARTY ? { thirdParty: true } : {}),
     ...(s.alternates?.length ? { alternates: s.alternates.filter((o) => o !== (s.office || '')) } : {}),
@@ -93,6 +93,8 @@ export function routeSteps(type, offices = []) {
     // (e.g. the DV signed by the payee in Box E), both before it releases the document.
     ...(s.fills?.length ? { fills: [...s.fills] } : {}),
     ...(s.upload ? { upload: String(s.upload) } : {}),
+    // An approval: the office approves (signs) or disapproves it (stamped DISAPPROVED: the route ends).
+    ...(isApprovalStep(s) ? { approval: true } : {}),
   }));
 }
 
@@ -124,9 +126,9 @@ export function buildWorkflow(type, doc, offices, user, at = new Date().toISOStr
   // The Vice Mayor approves: their office is chosen already where it is an alternate.
   const vm = viceMayorOffice(offices);
   const steps = routeSteps(type, offices).map((s) => {
-    // Issued by the Mayor's office (the Travel Order): the Vice Mayor's office may take the Mayor's
-    // steps (Legislative), chosen by the signatory on the form.
-    const step = issuedByMayor(type) && isMayorOffice(s.office) && !(s.alternates || []).some((o) => /vice mayor/i.test(o))
+    // A format with a signatory (approver: Executive or Legislative): the Vice Mayor's office may take
+    // the Mayor's steps, chosen by the signatory on the form.
+    const step = (type?.fields || []).some((f) => f.key === 'approver') && isMayorOffice(s.office) && !(s.alternates || []).some((o) => /vice mayor/i.test(o))
       ? { ...s, alternates: [...(s.alternates || []), vm], bySignatory: true } : s;
     const vice = viceApproves(doc?.data) && step.alternates?.find((o) => /vice mayor/i.test(o));
     return vice ? { ...step, routedTo: vice } : step;
@@ -200,7 +202,8 @@ export function availableActions(doc) {
   // On hold: it stays where it is until the office holding it resumes it.
   if (wf.hold) return ['resume'];
   const last = wf.stage === wf.steps.length - 1;
-  return [last ? 'complete' : 'release', ...(wf.stage > 0 ? ['return', 'hold'] : [])];
+  return [last ? 'complete' : 'release', ...(wf.stage > 0 ? ['return', 'hold'] : []),
+    ...(wf.stage > 0 && wf.steps[wf.stage].approval ? ['disapprove'] : [])];
 }
 
 // PDF versions still in effect. A 'restored' version (to change an assigned reference no. that was
@@ -287,6 +290,9 @@ export function applyAction(doc, action, user, remarks = '', at = new Date().toI
   if (action === 'release' && wf.stage === 0 && !(doc.pdf?.files || []).length) {
     throw new Error('Convert the document to PDF (PDF and digital signatures) before routing it.');
   }
+  if ((action === 'release' || action === 'complete') && (doc.pdf?.files || []).at(-1)?.kind === 'disapproved') {
+    throw new Error('The PDF is stamped DISAPPROVED: disapprove the document (it cannot go on).');
+  }
   if ((action === 'release' || action === 'complete') && fillsMissing(doc).length) {
     throw new Error('Fill in this step\'s details (in the Workflow card) before routing it.');
   }
@@ -331,6 +337,15 @@ export function applyAction(doc, action, user, remarks = '', at = new Date().toI
   if (action === 'resume') {
     const { hold, ...rest } = wf;
     return { workflow: { ...rest, events: [...wf.events, event('resumed', wf.stage)] } };
+  }
+  // Disapproved at an approval step: the PDF was stamped DISAPPROVED at this step (its newest
+  // version); the route ends here, and the preparer is told why.
+  if (action === 'disapprove') {
+    if (!String(remarks).trim()) throw new Error('Say why the document is disapproved.');
+    const last = (doc.pdf?.files || []).at(-1);
+    if (last?.kind !== 'disapproved' || last.stage !== wf.stage) throw new Error('Stamp DISAPPROVED on the PDF first (PDF and digital signatures).');
+    next = { ...wf, state: 'disapproved', events: [...wf.events, event('disapproved', wf.stage)] };
+    return { workflow: next, ...placement(next, doc) };
   }
   if (action === 'release') next = { ...wf, stage: wf.stage + 1, received: true, events: [...wf.events, event('released', wf.stage)] };
   if (action === 'return') next = { ...wf, stage: wf.stage - 1, received: true, events: [...wf.events, event('returned', wf.stage)] };
@@ -430,5 +445,5 @@ export function assignPending(doc) {
   return Boolean(step?.assign?.field && !String(doc.data?.[step.assign.field] || '').trim());
 }
 
-export const ACTION_LABELS = { release: 'Route', return: 'Return', complete: 'Mark processed', back: 'Send back', hold: 'Put on hold', resume: 'Take off hold' };
+export const ACTION_LABELS = { release: 'Route', return: 'Return', complete: 'Mark processed', back: 'Send back', hold: 'Put on hold', resume: 'Take off hold', disapprove: 'Disapprove' };
 
