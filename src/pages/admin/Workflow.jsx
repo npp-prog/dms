@@ -185,7 +185,8 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                   <b>{officesOf(s)}</b>
                   <span className="small">{s.action || <i className="muted">No action yet</i>}</span>
                   <span className="route-badges">
-                    {s.positions?.length > 0 && s.office && <span className="badge badge-blue">By {s.positions.join(' or ')}</span>}
+                    {s.headOnly && <span className="badge badge-blue">Office head only</span>}
+                    {!s.headOnly && s.positions?.length > 0 && s.office && <span className="badge badge-blue">By {s.positions.join(' or ')}</span>}
                     {s.sign && <span className="sign-tag" title="Signs the PDF"><Icon name="sign" />Signs</span>}
                     {s.assign && <span className="badge badge-blue">Assigns {fieldLabel(s.assign.field)}</span>}
                     {s.fills?.length > 0 && <span className="badge badge-blue">Fills in {s.fills.length} detail{s.fills.length > 1 ? 's' : ''}</span>}
@@ -242,10 +243,12 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                     <div className="field">
                       <span className="field-label">Who acts <span className="muted">(optional)</span></span>
                       <div className="chips-field">
-                        <PositionsPicker value={s.positions || []} choices={positionsOf(settings)} onNew={canManageSettings ? newPosition : undefined}
-                          placeholder="+ Add a position…" onChange={(positions) => set(i, { positions })} />
+                        {s.headOnly
+                          ? <span className="small muted">The office head only.</span>
+                          : <PositionsPicker value={s.positions || []} choices={positionsOf(settings)} onNew={canManageSettings ? newPosition : undefined}
+                            placeholder="+ Add a position…" onChange={(positions) => set(i, { positions })} />}
                       </div>
-                      <span className="help">{s.positions?.length ? 'Only these positions (and the office head) sign and route it.' : 'Anyone in the office.'}</span>
+                      <span className="help">{s.headOnly ? 'Only the head of the office signs and routes it (Office head only, below).' : s.positions?.length ? 'Only these positions (and the office head) sign and route it.' : 'Anyone in the office.'}</span>
                     </div>
                   ) : <div />}
                   <div className="route-options">
@@ -253,9 +256,9 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                       <input type="checkbox" checked={s.sign} onChange={(e) => set(i, { sign: e.target.checked })} />
                       Must sign the PDF (DICT PNPKI)
                     </label>
-                    {!s.office && (
-                      <label className="check" title="Only the head of the preparer's office acts on this step (e.g. the recommending approval)">
-                        <input type="checkbox" checked={Boolean(s.headOnly)} onChange={(e) => set(i, { headOnly: e.target.checked })} />
+                    {s.office !== THIRD_PARTY && (
+                      <label className="check" title={s.office ? `Only the head of ${s.office} (or of the office chosen instead) acts on this step` : "Only the head of the preparer's office acts on this step (e.g. the recommending approval)"}>
+                        <input type="checkbox" checked={Boolean(s.headOnly)} onChange={(e) => set(i, { headOnly: e.target.checked, ...(e.target.checked ? { positions: [] } : {}) })} />
                         Office head only
                       </label>
                     )}

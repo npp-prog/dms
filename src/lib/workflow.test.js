@@ -64,3 +64,14 @@ test('a step that attaches a document by link (the JEV): required before routing
   assert.equal(attachMissing(doc), '');
   assert.doesNotThrow(() => applyAction(doc, 'release', { uid: 'a', displayName: 'A' }));
 });
+
+test('office head only, at any office (Accounting, Treasury, the Mayor\'s office)', async () => {
+  const { buildWorkflow, canAct, HEAD_ONLY } = await import('./workflow.js');
+  const type = { route: [{ office: '' }, { office: 'Municipal Accounting Office', headOnly: true, action: 'Approve the JEV' }] };
+  const doc = { createdBy: 'u1', office: 'Municipal Engineering Office', data: {} };
+  const wf = buildWorkflow(type, doc, ['Municipal Engineering Office', 'Municipal Accounting Office'], { uid: 'u1', displayName: 'J' }, 't0').workflow;
+  assert.deepEqual([wf.steps[1].routedTo, wf.steps[1].positions], ['Municipal Accounting Office', [HEAD_ONLY]]);
+  const at1 = { ...doc, workflow: { ...wf, stage: 1 } };
+  assert.ok(!canAct(at1, { uid: 's1', office: 'Municipal Accounting Office', positions: ['Reviewer'] }), 'staff of the office: no');
+  assert.ok(canAct(at1, { uid: 'h1', office: 'Municipal Accounting Office', isHead: true }), 'its head: yes');
+});

@@ -149,7 +149,9 @@ export function buildWorkflow(type, doc, offices, user, at = new Date().toISOStr
     const vice = viceApproves(doc?.data) && step.alternates?.find((o) => /vice mayor/i.test(o));
     const routed = vice ? { ...step, routedTo: vice } : step;
     // The office head of the preparer's office (at their office, for the head only).
-    const headed = routed.headOnly && !routed.routedTo && doc?.office ? { ...routed, routedTo: doc.office, positions: [HEAD_ONLY] } : routed;
+    // (at a named office: its head; at the preparer's office: the head of the office that prepared it)
+    const headed = routed.headOnly && !isThirdParty(routed) && (routed.routedTo || doc?.office)
+      ? { ...routed, routedTo: routed.routedTo || doc.office, positions: [HEAD_ONLY] } : routed;
     // Signs unless the form says otherwise (e.g. an office head among the travelers: no
     // recommending approval to sign).
     return headed.signUnless && String(doc?.data?.[headed.signUnless] ?? '').trim() ? { ...headed, sign: false } : headed;
