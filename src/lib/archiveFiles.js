@@ -22,11 +22,27 @@ export function withParents(docs, parents = docs) {
 
 export const safe = (s) => String(s || '').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
 
-// Every file of a document: its PDF versions, the files attached to its checklist and other
-// attachments, and the files its route steps uploaded. name may hold a subfolder (attachments/...).
+// The final PDF of a document: its newest version still in effect (a version withdrawn to change
+// a reference no. is not; see liveFiles in workflow.js), or null.
+export function finalPdf(d) {
+  const live = [];
+  (d?.pdf?.files || []).forEach((f, i) => {
+    if (f?.kind !== 'restored') { live.push({ f, i }); return; }
+    // back to the version it restores (the ones after it are withdrawn)
+    while (live.length && live.at(-1).i > f.restores) live.pop();
+  });
+  return live.at(-1)?.f || null;
+}
+
+// What a backup keeps of a document: its final PDF only (not the earlier versions), and its
+// supporting documents: the files attached to its checklist and other attachments, the files its
+// route steps uploaded and its supplemental documents. name may hold a subfolder (attachments/...).
+// (Supporting documents saved as DMS documents of their own go into the Archive, and its backups,
+// with their main document.)
 export function filesOf(d) {
   const out = [];
-  (d.pdf?.files || []).forEach((f, i) => out.push({ path: f.path, name: `PDF ${String(i + 1).padStart(2, '0')} ${f.kind}.pdf`, pdf: true }));
+  const final = finalPdf(d);
+  if (final?.path) out.push({ path: final.path, name: `${safe(`${d.typeCode || 'DOC'} ${d.controlNo || ''}`)}.pdf`, pdf: true });
   for (const list of Object.values(d.links || {})) {
     for (const l of list || []) if (l?.kind === 'file' && l.path) out.push({ path: l.path, name: `attachments/${safe(l.name) || 'file'}` });
   }

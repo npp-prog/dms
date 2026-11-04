@@ -37,10 +37,9 @@ test('automatic Google Drive backup: each processed document once, then only wha
   const f = fakes(docs);
   assert.deepEqual(await f.source.documentsAfter(null, 20).then((r) => r.length), 2);
   let r = await runBackup({ ...f });
-  assert.deepEqual(r, { documents: 1, files: 3, caughtUp: true, missing: 0 });
+  assert.deepEqual(r, { documents: 1, files: 2, caughtUp: true, missing: 0 }, 'the final PDF only (not its earlier versions) and its attachment');
   assert.deepEqual(f.files(), [
-    'DMS Archive/2026/DV/DMS-2026-000123 NEIL PRIOLO/PDF 01 generated.pdf',
-    'DMS Archive/2026/DV/DMS-2026-000123 NEIL PRIOLO/PDF 02 signed.pdf',
+    'DMS Archive/2026/DV/DMS-2026-000123 NEIL PRIOLO/DV DMS-2026-000123.pdf',
     'DMS Archive/2026/DV/DMS-2026-000123 NEIL PRIOLO/attachments/Official receipt.pdf',
     'DMS Archive/2026/DV/DMS-2026-000123 NEIL PRIOLO/record.json',
   ]);
@@ -83,7 +82,7 @@ test('a document folder deleted in Drive, or the whole DMS Archive folder, is ba
   f.log.length = 0;
   const r = await runBackup({ ...f });
   assert.equal(r.documents, 1);
-  assert.deepEqual(f.log, ['new PDF 01 generated.pdf', 'new record.json'], 'started afresh');
+  assert.deepEqual(f.log, ['new DV DMS-1.pdf', 'new record.json'], 'started afresh');
   // The whole DMS Archive folder is deleted: everything is backed up again.
   f.drive.exists = async () => false;
   const all = await runBackup({ ...f });
@@ -92,13 +91,13 @@ test('a document folder deleted in Drive, or the whole DMS Archive folder, is ba
 
 test('the time running out inside a document never uploads a file twice', async () => {
   const d = { controlNo: 'DMS-9', typeCode: 'DV', title: 'BIG', workflow: { state: 'done', events: [{ type: 'completed', at: '2026-10-30T01:00:00Z' }] },
-    pdf: { files: [1, 2, 3, 4].map((i) => ({ path: `p/${i}.pdf`, kind: 'signed' })) } };
+    supplements: [1, 2, 3, 4].map((i) => ({ path: `p/${i}.pdf`, label: `Letter ${i}` })) };
   const f = fakes([{ id: 'big', raw: '2026-10-30T01:00:00Z', data: d }]);
   let t = 0;
   const r1 = await runBackup({ ...f, budgetMs: 4, now: () => t++ });
   assert.equal(r1.caughtUp, false);
   await runBackup({ ...f });
-  assert.equal(f.log.filter((x) => x.startsWith('new PDF')).length, 4, 'each PDF once');
+  assert.equal(f.log.filter((x) => x.startsWith('new Letter')).length, 4, 'each file once');
 });
 
 test('several Google accounts: each connection backs up on its own', async () => {
@@ -123,4 +122,14 @@ test('several Google accounts: each connection backs up on its own', async () =>
   await a.clearAll();
   assert.deepEqual((await listAccounts(base)).map((x) => x.uid), ['uidAdmin']);
   assert.ok((await b.get('state')).documents === 1);
+});
+
+test('a backup keeps the final PDF only, and the supporting documents', async () => {
+  const { filesOf, finalPdf } = await import('./archiveFiles.js');
+  const d = { typeCode: 'DV', controlNo: 'DMS-2026-000001', pdf: { files: [{ path: 'v0', kind: 'generated' }, { path: 'v1', kind: 'stamped' }, { path: 'v2', kind: 'signed' }, { path: 'v3', kind: 'restored', restores: 0 }, { path: 'v4', kind: 'signed' }] },
+    links: { a: [{ kind: 'file', path: 'att.pdf', name: 'OR.pdf' }, { kind: 'fts', id: 'x' }] }, stepFiles: [{ path: 'box-e.pdf', label: 'Box E', name: 'dv.pdf' }], supplements: [{ path: 'sup.pdf', label: 'Letter' }] };
+  assert.equal(finalPdf(d).path, 'v4');
+  assert.equal(finalPdf({ pdf: { files: [{ path: 'v0', kind: 'generated' }, { path: 'v1', kind: 'stamped' }, { path: 'v2', kind: 'restored', restores: 0 }] } }).path, 'v0', 'withdrawn versions are not final');
+  assert.deepEqual(filesOf(d).map((f) => f.path), ['v4', 'att.pdf', 'box-e.pdf', 'sup.pdf']);
+  assert.deepEqual(filesOf({ controlNo: 'X' }), []);
 });

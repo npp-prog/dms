@@ -257,7 +257,7 @@ function Backups({ docs, me }) {
             <ol className="small">
               <li><b>Add your devices once</b> (<b>Devices and schedule</b>): the Records Office computer, external drive, flash drive or network storage that keeps copies, and how often to back up.</li>
               <li><b>Back up when it is due.</b> DMS shows <b>Due</b> here and reminds you on the Dashboard. Plug in the device, choose it below and click <b>Back up</b>.</li>
-              <li><b>Save the ZIP to the device.</b> DMS makes one ZIP file (each document's PDFs, attachments and record, by year and type, with an index). On a computer with Chrome or Edge a window opens: choose a folder on the device. On other browsers, tablets and phones it goes to Downloads: move it to the device.</li>
+              <li><b>Save the ZIP to the device.</b> DMS makes one ZIP file (each document's final PDF and its supporting documents, with its record, by year and type, with an index; earlier versions of the PDF are not included). On a computer with Chrome or Edge a window opens: choose a folder on the device. On other browsers, tablets and phones it goes to Downloads: move it to the device.</li>
               <li><b>It is recorded</b> in the Backup log: when, which device, how many documents, by whom.</li>
             </ol>
             <p className="small muted">Nothing is saved to a device by itself: a backup happens only when someone clicks <b>Back up</b>. To stop backing up to a device, remove it in <b>Devices and schedule</b> (its past backups stay in the log); the reminders for it stop too. The copy to Google Drive above is the automatic one.</p>
