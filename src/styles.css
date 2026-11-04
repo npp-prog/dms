@@ -1764,8 +1764,8 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .additional-links { padding-left: 1.6rem; }
 
 /* The document's actions under its title: one size, with icons */
-.doc-actions { gap: .6rem; }
-.doc-actions > .btn, .doc-actions > a.btn, .doc-actions > * > .btn { min-width: 168px; height: 42px; padding: 0 1.1rem; border-radius: 10px; font-size: .9rem; }
-.doc-actions .btn svg { width: 17px; height: 17px; flex: none; }
+.doc-actions { gap: .45rem; }
+.doc-actions > .btn, .doc-actions > a.btn, .doc-actions > * > .btn { min-width: 150px; height: 32px; min-height: 32px; padding: 0 .75rem; gap: .35rem; border-radius: 8px; font-size: .8rem; }
+.doc-actions .btn svg { width: 14px; height: 14px; flex: none; }
 .doc-actions .btn-ghost:hover { background: var(--hover); }
-@media (max-width: 640px) { .doc-actions > .btn, .doc-actions > a.btn, .doc-actions > * > .btn { min-width: 0; flex: 1 1 calc(50% - .6rem); } }
+@media (max-width: 640px) { .doc-actions > .btn, .doc-actions > a.btn, .doc-actions > * > .btn { min-width: 0; flex: 1 1 calc(50% - .45rem); } }
