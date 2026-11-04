@@ -223,8 +223,15 @@ service cloud.firestore {
           && request.auth.uid in get(/databases/$(database)/documents/conversations/$(cid)).data.members;
         allow create: if isActive() && request.resource.data.from == request.auth.uid
           && request.auth.uid in getAfter(/databases/$(database)/documents/conversations/$(cid)).data.members
-          && request.resource.data.keys().hasOnly(['from', 'text', 'at'])
-          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000;
+          && request.resource.data.keys().hasOnly(['from', 'text', 'at', 'doc', 'replyTo'])
+          && request.resource.data.text is string && request.resource.data.text.size() <= 2000
+          // a DMS document sent in it (a link: it opens only for those who may see it), and the
+          // message it replies to (a short quote)
+          && (request.resource.data.text.size() > 0 || 'doc' in request.resource.data)
+          && (!('doc' in request.resource.data) || (request.resource.data.doc.keys().hasOnly(['id', 'controlNo', 'typeCode', 'title'])
+              && request.resource.data.doc.id is string && request.resource.data.doc.get('title', '') is string && request.resource.data.doc.get('title', '').size() <= 200))
+          && (!('replyTo' in request.resource.data) || (request.resource.data.replyTo.keys().hasOnly(['id', 'from', 'name', 'text'])
+              && request.resource.data.replyTo.id is string && request.resource.data.replyTo.get('text', '') is string && request.resource.data.replyTo.get('text', '').size() <= 200));
         allow update, delete: if false;
       }
     }

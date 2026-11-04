@@ -1712,3 +1712,23 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .warn-text { color: var(--warn, #9a6700); }
 .wf-disapproved .wf-dot { background: var(--bad); border-color: var(--bad); color: #fff; }
 .disapprove-box { border-color: var(--bad); }
+/* Messages: replies, DMS documents and links */
+.chat-row { display: flex; align-items: center; gap: .3rem; max-width: 100%; }
+.chat-msg.mine .chat-row { flex-direction: row-reverse; }
+.chat-reply { border: 0; background: none; color: var(--muted); font-size: 1rem; padding: .15rem .35rem; border-radius: 8px; opacity: 0; cursor: pointer; }
+.chat-msg:hover .chat-reply, .chat-reply:focus { opacity: 1; }
+@media (hover: none) { .chat-reply { opacity: .6; } }
+.chat-reply:hover { background: var(--hover); color: var(--text); }
+.chat-quote { display: grid; gap: .05rem; text-align: left; max-width: 100%; margin: .35rem 0 -.25rem; padding: .3rem .7rem .6rem; border: 0; border-radius: 14px; background: #f2f3f5; color: var(--muted); cursor: pointer; font: inherit; }
+.chat-quote-t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px; color: var(--text); opacity: .75; font-size: .82rem; }
+.chat-bubble a { color: inherit; text-decoration: underline; }
+.chat-doc { display: flex; align-items: center; gap: .5rem; margin: .1rem 0 .3rem; padding: .45rem .6rem; border-radius: 12px; background: rgba(255, 255, 255, .85); color: var(--text) !important; text-decoration: none !important; }
+.chat-msg.theirs .chat-doc { background: #fff; }
+.chat-doc-t { display: grid; min-width: 0; }
+.chat-doc-t .xs { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.chat-msg.flash .chat-bubble { box-shadow: 0 0 0 3px var(--gold); transition: box-shadow .3s; }
+.chat-compose-extra { display: grid; gap: .3rem; padding: .5rem .7rem 0; border-top: 1px solid var(--line); }
+.chat-replying { display: flex; align-items: center; gap: .5rem; padding: .35rem .6rem; border-left: 3px solid var(--primary); background: var(--sunken); border-radius: 6px; }
+.chat-replying .grow { display: grid; min-width: 0; flex: 1; }
+.chat-pick { padding: .6rem .7rem 0; border-top: 1px solid var(--line); max-height: 300px; overflow: auto; }
+.chat-attach { font-size: 1.1rem; }

@@ -3,6 +3,33 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { conversationId, isUnread, listDirectory, markConversationRead, sendMessage, watchConversations, watchMessages } from '../lib/api.js';
 import PersonPicker from '../components/PersonPicker.jsx';
 import { Avatar } from '../components/Icon.jsx';
+import { Link } from 'react-router-dom';
+import { LinkEditor } from '../components/DocLinks.jsx';
+
+// Text with its links clickable: a link to a DMS page (this site) opens in DMS; other web links
+// in a new tab.
+const URL_RE = /(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]])/g;
+function Linked({ text }) {
+  return String(text || '').split(URL_RE).map((part, i) => {
+    if (i % 2 === 0) return part;
+    let url;
+    try { url = new URL(part); } catch { return part; }
+    const inDms = url.origin === window.location.origin || /(^|\.)dms\.mgocandoni\.com$/.test(url.hostname);
+    return inDms
+      ? <Link key={i} to={`${url.pathname}${url.search}${url.hash}`}>{part}</Link>
+      : <a key={i} href={url.href} target="_blank" rel="noopener noreferrer">{part}</a>;
+  });
+}
+
+// A DMS document sent in a message: it opens in DMS (only for those who may see it).
+function DocCard({ d }) {
+  return (
+    <Link className="chat-doc" to={`/documents/${d.id}`}>
+      <span className="chat-doc-ic">📄</span>
+      <span className="chat-doc-t"><b>{d.typeCode} {d.controlNo}</b>{d.title && <span className="xs">{d.title}</span>}</span>
+    </Link>
+  );
+}
 
 const when = (iso) => {
   if (!iso) return '';
@@ -94,6 +121,18 @@ function Conversation({ me, partner, convo, onBack, onSent }) {
   const [messages, setMessages] = useState(convo ? null : []);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [replyTo, setReplyTo] = useState(null); // the message being answered
+  const [attach, setAttach] = useState(null); // a DMS document to send
+  const [picking, setPicking] = useState(false);
+  const input = useRef(null);
+  const nameOf = (uid) => (uid === me.uid ? 'You' : partner.displayName);
+  const quoteOf = (m) => (m.text || (m.doc ? `${m.doc.typeCode} ${m.doc.controlNo}` : '')).slice(0, 200);
+  const jump = (mid) => {
+    const el = document.getElementById(`msg-${mid}`);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1200);
+  };
   const [error, setError] = useState('');
   const end = useRef(null);
 
@@ -119,10 +158,13 @@ function Conversation({ me, partner, convo, onBack, onSent }) {
   const send = async (e) => {
     e?.preventDefault();
     if (busy) return; // Enter pressed again while sending
-    if (!text.trim()) return;
+    if (!text.trim() && !attach) return;
     setBusy(true); setError('');
     // Sent: the conversation is on the server, so its messages can be listened to (a new one too).
-    try { await sendMessage(me, partner, text); setText(''); setReady(true); onSent(); } catch (err) { setError(err.message); } finally { setBusy(false); }
+    try {
+      await sendMessage(me, partner, text, { doc: attach, replyTo: replyTo && { id: replyTo.id, from: replyTo.from, name: nameOf(replyTo.from) === 'You' ? me.displayName || me.email : partner.displayName, text: quoteOf(replyTo) } });
+      setText(''); setAttach(null); setReplyTo(null); setReady(true); onSent();
+    } catch (err) { setError(err.code === 'permission-denied' ? 'Sending documents and replies needs the latest firestore.rules published (Firebase console → Firestore → Rules).' : err.message); } finally { setBusy(false); }
   };
 
   return (
@@ -144,8 +186,21 @@ function Conversation({ me, partner, convo, onBack, onSent }) {
               const first = !run(g.items[i - 1], m);
               const last = !run(m, g.items[i + 1]);
               return (
-                <div key={m.id} className={`chat-msg ${m.from === me.uid ? 'mine' : 'theirs'}${first ? ' first' : ''}${last ? ' last' : ''}`}>
-                  <div className="chat-bubble">{m.text}</div>
+                <div key={m.id} id={`msg-${m.id}`} className={`chat-msg ${m.from === me.uid ? 'mine' : 'theirs'}${first ? ' first' : ''}${last ? ' last' : ''}`}>
+                  {m.replyTo && (
+                    <button type="button" className="chat-quote" onClick={() => jump(m.replyTo.id)} title="Show the message it replies to">
+                      <span className="xs">{m.from === me.uid ? 'You' : partner.displayName} replied to {m.replyTo.from === me.uid ? 'you' : m.replyTo.from === m.from ? 'themself' : m.replyTo.name || partner.displayName}</span>
+                      <span className="chat-quote-t">{m.replyTo.text}</span>
+                    </button>
+                  )}
+                  <div className="chat-row">
+                    <div className="chat-bubble">
+                      {m.doc && <DocCard d={m.doc} />}
+                      {m.text && <Linked text={m.text} />}
+                    </div>
+                    <button type="button" className="chat-reply" title="Reply" aria-label="Reply to this message"
+                      onClick={() => { setReplyTo(m); input.current?.focus(); }}>↩</button>
+                  </div>
                   {last && <div className="xs muted chat-time">{new Date(m.at).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}</div>}
                 </div>
               );
@@ -155,10 +210,33 @@ function Conversation({ me, partner, convo, onBack, onSent }) {
         <div ref={end} />
       </div>
       {error && <div className="alert small">{error}</div>}
+      {picking && (
+        <div className="chat-pick">
+          <LinkEditor onAdd={(d) => { setAttach(d); setPicking(false); input.current?.focus(); }} onCancel={() => setPicking(false)} />
+        </div>
+      )}
+      {(replyTo || attach) && (
+        <div className="chat-compose-extra">
+          {replyTo && (
+            <div className="chat-replying">
+              <span className="grow"><span className="xs muted">Replying to {replyTo.from === me.uid ? 'yourself' : partner.displayName}</span>
+                <span className="chat-quote-t small">{quoteOf(replyTo)}</span></span>
+              <button type="button" className="btn-icon" aria-label="Cancel the reply" onClick={() => setReplyTo(null)}>×</button>
+            </div>
+          )}
+          {attach && (
+            <div className="chat-replying">
+              <span className="grow small">📄 <b>{attach.typeCode} {attach.controlNo}</b> {attach.title}</span>
+              <button type="button" className="btn-icon" aria-label="Remove the document" onClick={() => setAttach(null)}>×</button>
+            </div>
+          )}
+        </div>
+      )}
       <form className="chat-send" onSubmit={send}>
-        <textarea rows={1} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} aria-label="Message" placeholder="Write a message…"
+        <button type="button" className="btn-icon chat-attach" title="Send a DMS document" aria-label="Send a DMS document" onClick={() => setPicking((x) => !x)}>📎</button>
+        <textarea ref={input} rows={1} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} aria-label="Message" placeholder="Write a message…"
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
-        <button className="btn btn-primary btn-sm" disabled={busy || !text.trim()}>Send</button>
+        <button className="btn btn-primary btn-sm" disabled={busy || (!text.trim() && !attach)}>Send</button>
       </form>
     </>
   );

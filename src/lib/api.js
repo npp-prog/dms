@@ -223,19 +223,23 @@ export function watchMessages(id, onChange, onError) {
     (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
 }
 
-export async function sendMessage(me, other, text) {
+// extra: { doc: a DMS document sent with it ({ id, controlNo, typeCode, title }), replyTo: the
+// message it answers ({ id, from, name, text }: a short quote) }.
+export async function sendMessage(me, other, text, extra = {}) {
   const body = String(text || '').trim().slice(0, 2000);
-  if (!body) return;
+  const docRef = extra.doc?.id ? { id: String(extra.doc.id), controlNo: String(extra.doc.controlNo || '').slice(0, 60), typeCode: String(extra.doc.typeCode || '').slice(0, 30), title: String(extra.doc.title || '').slice(0, 200) } : null;
+  const replyTo = extra.replyTo?.id ? { id: String(extra.replyTo.id), from: String(extra.replyTo.from || ''), name: String(extra.replyTo.name || '').slice(0, 120), text: String(extra.replyTo.text || '').slice(0, 200) } : null;
+  if (!body && !docRef) return;
   const id = conversationId(me.uid, other.uid);
   const at = new Date().toISOString();
   const batch = writeBatch(db);
   batch.set(doc(db, 'conversations', id), {
     members: [me.uid, other.uid].sort(),
     names: { [me.uid]: me.displayName || me.email || '', [other.uid]: other.displayName || other.email || '' },
-    lastText: body.slice(0, 140), lastAt: at, lastBy: me.uid,
+    lastText: (body || `Sent ${docRef.typeCode} ${docRef.controlNo}`).slice(0, 140), lastAt: at, lastBy: me.uid,
     readAt: { [me.uid]: at },
   }, { merge: true });
-  batch.set(doc(collection(db, 'conversations', id, 'messages')), { from: me.uid, text: body, at });
+  batch.set(doc(collection(db, 'conversations', id, 'messages')), { from: me.uid, text: body, at, ...(docRef ? { doc: docRef } : {}), ...(replyTo ? { replyTo } : {}) });
   await batch.commit();
 }
 
