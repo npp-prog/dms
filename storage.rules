@@ -173,7 +173,7 @@ service firebase.storage {
             && firestore.get(/databases/(default)/documents/checks/$(docId)).data.get('pdf', '') == 'documents/' + docId + '/' + file);
       // resource == null: a new file only, never over an existing version.
       allow create: if resource == null && isActive() && canAdd(docOf(docId))
-        && file.matches('[0-9]+-(generated|signed|esigned|uploaded|stamped|restored)\\.pdf')
+        && file.matches('[0-9]+-(generated|signed|esigned|uploaded|stamped|restored|disapproved)\\.pdf')
         && request.resource.contentType == 'application/pdf'
         && request.resource.size < 25 * 1024 * 1024;
       allow update, delete: if false;
