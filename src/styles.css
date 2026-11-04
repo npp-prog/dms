@@ -1762,3 +1762,10 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .aging-overdue { color: var(--bad); font-weight: 700; }
 .additional-item { display: grid; gap: .25rem; margin-bottom: .5rem; }
 .additional-links { padding-left: 1.6rem; }
+
+/* The document's actions under its title: one size, with icons */
+.doc-actions { gap: .6rem; }
+.doc-actions > .btn, .doc-actions > a.btn, .doc-actions > * > .btn { min-width: 168px; height: 42px; padding: 0 1.1rem; border-radius: 10px; font-size: .9rem; }
+.doc-actions .btn svg { width: 17px; height: 17px; flex: none; }
+.doc-actions .btn-ghost:hover { background: var(--hover); }
+@media (max-width: 640px) { .doc-actions > .btn, .doc-actions > a.btn, .doc-actions > * > .btn { min-width: 0; flex: 1 1 calc(50% - .6rem); } }

@@ -1,3 +1,4 @@
+import Icon from './Icon.jsx';
 import { useState } from 'react';
 import { getDocument, getFileBytes, getPdfBytes, getTypeForDocument } from '../lib/api.js';
 import { effectiveChecklist, itemTypeCode } from '../lib/checklists.js';
@@ -127,7 +128,7 @@ export default function BulkDownload({ docData, type, settings }) {
     <>
       <button className="btn btn-ghost" disabled={busy} onClick={run}
         title="The document, its checklist and every linked document as PDFs in one ZIP">
-        {busy ? 'Preparing…' : 'Download all (ZIP)'}
+        <Icon name="download" />{busy ? 'Preparing…' : 'Download all (ZIP)'}
       </button>
       {status && <span className="small muted bulk-status">{status}</span>}
     </>

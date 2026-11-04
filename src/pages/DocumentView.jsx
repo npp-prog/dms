@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import Icon from '../components/Icon.jsx';
 import { tabLabel } from '../lib/tabLabel.js';
 import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed, watchDocument } from '../lib/api.js';
 import SignRequestCard from '../components/SignRequestCard.jsx';
@@ -355,26 +356,26 @@ function DocumentPage({ docId }) {
               {docData.supports.typeCode ? ` (${docData.supports.typeCode})` : ''}, checklist item <i>{docData.supports.item}</i>.</p>
           )}
         </div>
-        <div className="row gap wrap">
+        <div className="row gap wrap doc-actions">
           {type && !isExternal && (type.bulkDownload || docData.typeCode === 'DV') && <BulkDownload docData={docData} type={type} settings={settings} />}
-          {canChange && <Link className="btn btn-ghost" to={`/documents/${docId}/edit`}>Edit</Link>}
+          {canChange && <Link className="btn btn-ghost" to={`/documents/${docId}/edit`}><Icon name="edit" />Edit</Link>}
           {canCopy && (
             <button className="btn btn-ghost" disabled={busy} title="A new draft with the same details, to edit"
               onClick={async () => {
                 if (uploaded) { navigate(`/upload?copy=${docId}`); return; }
                 setBusy(true); setActionError('');
                 try { navigate(`/documents/${await copyDocument({ ...docData, id: docId }, actor, { ...signatoriesFrom(settings), custom: docData.signatories?.custom || [] })}/edit`, { state: { copied: true } }); } catch (e) { if (!staleReload(e)) setActionError(e.message); setBusy(false); }
-              }}>Copy as new draft</button>
+              }}><Icon name="copy" />Copy as new draft</button>
           )}
           {canCancel && (
             <button className="btn btn-ghost" disabled={busy}
               onClick={() => window.confirm('Cancel this document?') && run(() => setDocumentStatus(docId, 'cancelled', actor, docData.history))}>
-              Cancel document
+              <Icon name="cancel" />Cancel document
             </button>
           )}
-          {(isSuper || (isOwner && docData.status === 'draft' && editableByPreparer(docData))) && <button className="btn btn-danger" disabled={busy} onClick={remove}>Delete</button>}
+          {(isSuper || (isOwner && docData.status === 'draft' && editableByPreparer(docData))) && <button className="btn btn-danger" disabled={busy} onClick={remove}><Icon name="trash" />Delete</button>}
           {/* (Last: it shows only outside the PDF view, so the other buttons never move.) */}
-          {view !== 'pdf' && <button className="btn btn-primary" onClick={() => window.print()}>Print {view === 'checklist' ? 'checklist' : 'document'}</button>}
+          {view !== 'pdf' && <button className="btn btn-primary" onClick={() => window.print()}><Icon name="print" />Print {view === 'checklist' ? 'checklist' : 'document'}</button>}
         </div>
       </div>
 
