@@ -145,3 +145,9 @@ export function withRestart(pattern, restart) {
 // other details filled in along the way.
 export const isRefNumber = (r) => Boolean(r?.value) && !r.of && (!r.filled || /no\.?$/i.test(String(r.label || '').trim()));
 export const drnOf = (d) => Object.values(d?.refNos || {}).filter(isRefNumber).map((r) => r.value).join(', ');
+
+// A reference no. a route step assigns is kept in a text field of the form; a document type with
+// none (an uploaded-only type) keeps it in this built-in field (stamped on the PDF, not printed by
+// the form).
+export const BUILTIN_REF_FIELD = { key: 'refNo', label: 'Reference No.' };
+export const refFieldLabel = (key, fields = []) => (fields || []).find((f) => f.key === key)?.label || (key === BUILTIN_REF_FIELD.key ? BUILTIN_REF_FIELD.label : key);

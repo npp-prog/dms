@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getPrivacy, listDocumentTypes, savePrivacy, saveRoute, saveSettings } from '../../lib/api.js';
 import Select from '../../components/Select.jsx';
-import { CONTROL_RESTARTS, DEFAULT_REF_PATTERN, REF_RESTARTS, controlNoSettings, controlNumber, refNumber, refRestart, withRestart } from '../../lib/naming.js';
+import { CONTROL_RESTARTS, DEFAULT_REF_PATTERN, REF_RESTARTS, controlNoSettings, controlNumber, refNumber, refRestart, withRestart, refFieldLabel } from '../../lib/naming.js';
 import { routeFromGuide } from '../../lib/workflow.js';
 import { SIGNATORY_ROLES, signatoriesFrom } from '../../lib/signatories.js';
 import { fundsOf, positionsOf } from '../../lib/defaults.js';
@@ -159,7 +159,7 @@ export default function Settings() {
               <tbody>
                 {drns.map(({ t, s, i }) => {
                   const pattern = s.assign.pattern || DEFAULT_REF_PATTERN;
-                  const label = (t.fields || []).find((f) => f.key === s.assign.field)?.label || s.assign.field;
+                  const label = refFieldLabel(s.assign.field, t.fields);
                   return (
                     <tr key={`${t.id}-${i}`}>
                       <td><b>{t.code}</b> <span className="small muted">{t.name}</span></td>

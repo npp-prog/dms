@@ -1,3 +1,4 @@
+import { refFieldLabel } from '../lib/naming.js';
 import { useEffect, useState } from 'react';
 import { ACTION_LABELS, HIDDEN_EVENTS, approverMismatch, isThirdParty, assignPending, availableActions, fillsMissing, officeOf, refStampMissing, signatureMissing } from '../lib/workflow.js';
 import PersonPicker from './PersonPicker.jsx';
@@ -149,7 +150,7 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
   }
 
   const nameOf = (step) => officeOf(step, doc) || 'Requesting office';
-  const fieldLabel = (key) => (doc.typeSnapshot?.fields || []).find((f) => f.key === key)?.label || key;
+  const fieldLabel = (key) => refFieldLabel(key, doc.typeSnapshot?.fields);
   const actions = canAct ? availableActions(doc) : [];
   const next = wf.steps[wf.stage + 1];
   const prev = wf.steps[wf.stage - 1];

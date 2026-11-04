@@ -5,7 +5,7 @@ import {
 import { deleteObject, getBytes, getDownloadURL, getMetadata, ref as storageRef, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from '../firebase.js';
 import { isOwnerEmail } from './owner.js';
-import { controlNumber, DEFAULT_REF_PATTERN, refNumber } from './naming.js';
+import { controlNumber, DEFAULT_REF_PATTERN, refFieldLabel, refNumber } from './naming.js';
 import { CHECKLIST_LIBRARY_VERSION, DEFAULT_SETTINGS, FORMAT_KEYS, STARTER_TYPES, positionsOf } from './defaults.js';
 import { checkRecord, pdfIsPublic } from './publicRecord.js';
 import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing } from './workflow.js';
@@ -928,7 +928,7 @@ export async function assignRefNo(id, user) {
     const history = [...(d.history || [])];
     const step = d.workflow.steps[d.workflow.stage];
     const assign = step.assign;
-    const field = (d.typeSnapshot?.fields || []).find((f) => f.key === assign.field);
+    const field = { label: refFieldLabel(assign.field, d.typeSnapshot?.fields) };
     const now = new Date();
     const base = refNumber(assign.pattern || DEFAULT_REF_PATTERN, { fund: d.data?.fund, date: now });
     // The alternate office (the Vice Mayor's) numbers with its own format, if the step has one

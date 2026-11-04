@@ -407,6 +407,8 @@ The **Processing Guide** tab has the routing steps: which office receives the do
 
 A step at the preparer's office can be ticked **Office head only**: only the head of the preparer's office acts on it (the Travel Order's recommending approval). A step at the Mayor's office that assigns a number can have its own **Pattern when the Vice Mayor's office numbers it** (the Travel Order: `EXEC-{YYYY}-{####}`, and `LEGIS-{YYYY}-{####}` for the Vice Mayor's office). A Travel Order route saved in Workflow before this update: click **Start from the processing guide**, then **Save route**, to get the office-head step and the EXEC/LEGIS numbers.
 
+**Assigns a reference no.** keeps the number in one of the form's text fields; a document type with none (an *Uploaded only* type) uses the built-in **Reference No.** (stamped on the PDF, not printed by a form).
+
 In **Workflow**, a step's **Approval: approve (sign) or disapprove** box makes it an approval step (ticking it also ticks *Must sign*): the office approves by signing or disapproves with the DISAPPROVED stamp. Steps at the Mayor's or the Vice Mayor's office, and steps whose action is an approval, are ticked by default.
 
 A field (or a table column) of type **Person (DMS account)** is filled by choosing a DMS user: it stores the name under its key, the person's DMS account no. under *key*`DmsNo` (print it with `{{keyDmsNo|dms}}`, e.g. `{{nameDmsNo|dms}}` → *DMS No. 000123*; inside a table loop the same, per line) and the user under *key*`Uid`. A table printed with `{{table:key}}` puts the DMS No. under the name by itself. The Travel Order, Itinerary of Travel and Payroll use it for the travelers and employees (sites with these formats unedited are updated automatically; an edited one: **Update format**).

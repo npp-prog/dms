@@ -5,7 +5,7 @@ import { positionsOf } from '../../lib/defaults.js';
 import PositionsPicker from '../../components/PositionsPicker.jsx';
 import { THIRD_PARTY, routeFromGuide } from '../../lib/workflow.js';
 import Icon from '../../components/Icon.jsx';
-import { DEFAULT_REF_PATTERN, refNumber } from '../../lib/naming.js';
+import { BUILTIN_REF_FIELD, DEFAULT_REF_PATTERN, refFieldLabel, refNumber } from '../../lib/naming.js';
 import Select from '../../components/Select.jsx';
 import { isApprovalStep } from '../../lib/approver.js';
 
@@ -100,7 +100,9 @@ function RouteEditor({ type, offices, actor, onSaved }) {
 
   // Offices in Settings, plus any office a step names that is not (or no longer) in the list.
   // The type's fields that can take a reference no. and its date; a sensible first choice.
-  const textFields = (type.fields || []).filter((f) => f.type === 'text');
+  // (plus the built-in Reference No., for a type with no text field of its own, e.g. uploaded only)
+  const ownText = (type.fields || []).filter((f) => f.type === 'text');
+  const textFields = ownText.some((f) => f.key === BUILTIN_REF_FIELD.key) ? ownText : [...ownText, { ...BUILTIN_REF_FIELD, label: ownText.length ? 'Reference No. (not printed by the form)' : BUILTIN_REF_FIELD.label }];
   const dateFields = (type.fields || []).filter((f) => f.type === 'date');
   const suggestAssign = () => {
     const field = textFields.find((f) => f.filledBy === 'accounting' && /no\.?$/i.test(f.label)) || textFields.find((f) => /no\.?/i.test(f.label)) || textFields[0];
@@ -109,7 +111,7 @@ function RouteEditor({ type, offices, actor, onSaved }) {
   };
   // One step open for editing at a time; the others show as one-line summaries.
   const [open, setOpen] = useState(null);
-  const fieldLabel = (key) => (type.fields || []).find((f) => f.key === key)?.label || key;
+  const fieldLabel = (key) => refFieldLabel(key, type.fields);
   const choices = [...new Set([...offices, ...route.map((s) => s.office).filter(Boolean)])];
   const set = (i, patch) => setRoute(route.map((s, j) => (j === i ? { ...s, ...patch } : s)));
   const move = (i, d) => {
@@ -260,7 +262,7 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                       Approval: approve (sign) or disapprove
                     </label>
                     <label className="check">
-                      <input type="checkbox" checked={Boolean(s.assign)} disabled={!textFields.length}
+                      <input type="checkbox" checked={Boolean(s.assign)}
                         onChange={(e) => set(i, { assign: e.target.checked ? suggestAssign() : undefined })} />
                       Assigns a reference no.
                     </label>
