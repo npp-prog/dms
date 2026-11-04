@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getFileBytes, isUnread } from '../lib/api.js';
+import { getFileBytes, isUnread, watchPresence } from '../lib/api.js';
+import { isOnline } from '../lib/presence.js';
 import {
   addCommunityMember, createCommunity, deleteCommunity, deleteCommunityMessage, managesCommunity, markCommunityRead,
   postToCommunity, removeCommunityMember, updateCommunity, watchCommunities, watchCommunityMessages,
@@ -144,6 +145,13 @@ function Room({ c, me, manages, onBack, onGone }) {
   const [managing, setManaging] = useState(false);
   const fileRef = useRef(null);
   const end = useRef(null);
+  // Who is online among the members (lib/presence.js), re-checked every 30 seconds.
+  const [presence, setPresence] = useState({});
+  const [, setTick] = useState(0);
+  useEffect(() => watchPresence(setPresence, () => {}), []);
+  useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30e3); return () => clearInterval(t); }, []);
+  const online = (uid) => isOnline(presence[uid]);
+  const onlineCount = c.members.filter(online).length;
 
   // Only members read the messages (those who manage it but are not in it change its name and members).
   const member = c.members.includes(me.uid);
@@ -174,13 +182,13 @@ function Room({ c, me, manages, onBack, onGone }) {
       <div className="chat-head">
         <button type="button" className="btn-icon chat-back" title="Back" onClick={onBack}>←</button>
         <Avatar name={c.name} size="sm" />
-        <div className="chat-head-t"><b>{c.name}</b><div className="xs muted">{c.members.length} members · {c.office || 'administrators'}</div></div>
+        <div className="chat-head-t"><b>{c.name}</b><div className="xs muted">{c.members.length} members{onlineCount > 0 && <> · <button type="button" className="link xs online-text" onClick={() => setManaging(true)}>{onlineCount} online</button></>} · {c.office || 'administrators'}</div></div>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setManaging(!managing)}>{managing ? 'Close' : manages ? 'Manage' : 'Members'}</button>
       </div>
       {!managing && !member && (
         <p className="small muted chat-empty">Only the members of a community read its messages and files. You can manage its name and members (Manage).</p>
       )}
-      {managing ? <Manage c={c} me={me} manages={manages} onGone={onGone} /> : member && (
+      {managing ? <Manage c={c} me={me} manages={manages} onGone={onGone} online={online} /> : member && (
         <>
           <div className="chat-body">
             {c.description && <p className="small muted chat-empty">{c.description}</p>}
@@ -196,14 +204,15 @@ function Room({ c, me, manages, onBack, onGone }) {
                   const mine = m.from === me.uid;
                   return (
                     <div key={m.id} className={`chat-msg ${mine ? 'mine' : 'theirs'}${first ? ' first' : ''}${last ? ' last' : ''}`}>
-                      {first && !mine && <div className="xs muted chat-from">{m.fromName}</div>}
+                      {first && !mine && <div className="xs muted chat-from">{online(m.from) && <span className="online-dot-inline" title="Online" />}{m.fromName}</div>}
                       <div className="chat-bubble">
                         {m.text}
                         {m.file && <SharedFile file={m.file} />}
                       </div>
                       {last && (
                         <div className="xs muted chat-time">{new Date(m.at).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}
-                          {(mine || manages) && <>{' '}<button type="button" className="link xs" onClick={() => window.confirm('Delete this message?') && deleteCommunityMessage(c.id, m.id).catch((e) => setError(e.message))}>· Delete</button></>}
+                          {/* Only the sender deletes their message. */}
+                          {mine && <>{' '}<button type="button" className="link xs" onClick={() => window.confirm('Delete this message?') && deleteCommunityMessage(c.id, m.id).catch((e) => setError(e.message))}>· Delete</button></>}
                         </div>
                       )}
                     </div>
@@ -228,7 +237,7 @@ function Room({ c, me, manages, onBack, onGone }) {
   );
 }
 
-function Manage({ c, me, manages, onGone }) {
+function Manage({ c, me, manages, onGone, online = () => false }) {
   const [name, setName] = useState(c.name);
   const [description, setDescription] = useState(c.description || '');
   const [error, setError] = useState('');
@@ -237,7 +246,8 @@ function Manage({ c, me, manages, onGone }) {
     setBusy(true); setError('');
     try { await fn(); } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
-  const people = c.members.map((uid) => ({ uid, name: c.names?.[uid] || 'User' })).sort((a, b) => a.name.localeCompare(b.name));
+  // (online first)
+  const people = c.members.map((uid) => ({ uid, name: c.names?.[uid] || 'User' })).sort((a, b) => (online(b.uid) - online(a.uid)) || a.name.localeCompare(b.name));
   return (
     <div className="chat-body community-manage">
       {manages && (
@@ -257,7 +267,7 @@ function Manage({ c, me, manages, onGone }) {
       <ul className="receipts">
         {people.map((p) => (
           <li key={p.uid}>
-            <span>{p.name}{p.uid === c.createdBy && <span className="muted small"> · created it</span>}</span>
+            <span className="member-name">{online(p.uid) && <span className="online-dot-inline" title="Online" />}{p.name}{p.uid === c.createdBy && <span className="muted small"> · created it</span>}{online(p.uid) && <span className="xs online-text"> · online</span>}</span>
             {manages && p.uid !== me.uid && <button type="button" className="link small" disabled={busy} onClick={() => run(() => removeCommunityMember(c, p.uid))}>Remove</button>}
           </li>
         ))}

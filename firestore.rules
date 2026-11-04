@@ -158,7 +158,8 @@ service cloud.firestore {
           && isMember(getAfter(/databases/$(database)/documents/communities/$(cid)).data)
           && request.resource.data.keys().hasOnly(['from', 'fromName', 'text', 'file', 'at'])
           && request.resource.data.text is string && request.resource.data.text.size() <= 2000;
-        allow delete: if isStaff() && (resource.data.from == request.auth.uid || manages(community()));
+        // only its sender deletes a message
+        allow delete: if isStaff() && resource.data.from == request.auth.uid;
         allow update: if false;
       }
     }
