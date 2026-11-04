@@ -339,7 +339,12 @@ export async function saveDocumentType(id, data, user) {
 // does not change the format's version, and starter-format updates keep it.
 const cleanSteps = (route) => route.map((s) => ({
   office: s.office || '', action: String(s.action || '').trim(), sign: Boolean(s.sign),
-  ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: String(s.assign.pattern || '').trim() } } : {}),
+  ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: String(s.assign.pattern || '').trim(),
+    ...(String(s.assign.altPattern || '').trim() ? { altPattern: String(s.assign.altPattern).trim() } : {}), ...(s.assign.noStamp ? { noStamp: true } : {}) } } : {}),
+  // the head of the preparer's office only; signs unless a field of the form is filled; an approval
+  ...(s.headOnly ? { headOnly: true } : {}),
+  ...(s.signUnless ? { signUnless: String(s.signUnless) } : {}),
+  ...(typeof s.approval === 'boolean' ? { approval: s.approval } : {}),
   ...(s.fills?.length ? { fills: [...s.fills] } : {}),
   ...(String(s.upload || '').trim() ? { upload: String(s.upload).trim() } : {}),
   // who in the office acts on it (positions); none: anyone in the office

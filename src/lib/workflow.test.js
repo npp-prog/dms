@@ -44,3 +44,11 @@ test('overdue: more than 3 days where it is now, counted from when it arrived', 
   assert.ok(!isOverdue(doc([{ type: 'released', at: '2026-11-06T10:00:00+08:00' }]), now), '3 days: not yet');
   assert.equal(daysWaiting({ workflow: { state: 'done', events: [{ type: 'released', at: '2026-10-01' }] } }, now), null, 'processed: not waiting');
 });
+
+test('a reference no. already on the document: assigned, not stamped', () => {
+  const doc = { workflow: { state: 'in-progress', stage: 1, steps: [{}, { assign: { field: 'dvNo', noStamp: true } }], events: [] },
+    refNos: { dvNo: { value: '0001', label: 'DV No.', stage: 1, at: '2026-11-04T01:00:00Z' } }, pdf: { files: [{ kind: 'generated', at: '2026-11-03T01:00:00Z' }] } };
+  assert.equal(refStampMissing(doc), null);
+  doc.workflow.steps[1].assign.noStamp = false;
+  assert.equal(refStampMissing(doc).value, '0001');
+});

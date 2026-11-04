@@ -116,7 +116,7 @@ export default function PdfCard({ docData, type, settings, actor, canConvert, ca
   // Reference nos. this office assigned at its step (e.g. the DV No.): shown on its signature.
   const wf = docData.workflow;
   const myRefs = Object.values(docData.refNos || {})
-    .filter((r) => !r.of && wf?.state === 'in-progress' && r.stage === wf.stage && (!r.filled || /no\.?$/i.test(r.label)))
+    .filter((r) => !r.of && wf?.state === 'in-progress' && r.stage === wf.stage && !wf.steps[wf.stage]?.assign?.noStamp && (!r.filled || /no\.?$/i.test(r.label)))
     .map((r) => `${r.label} ${r.value}`);
   // A password remembered on this device (My Profile): sign without typing it.
   const [remembered, setRemembered] = useState(null);

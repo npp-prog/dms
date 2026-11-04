@@ -14,7 +14,7 @@ const PREPARER_PICK = '@preparer'; // the preparer's office in a select (whose v
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const clean = (route) => route.map((s) => ({
   office: s.office || '', action: s.action || '', sign: Boolean(s.sign),
-  ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '', ...(s.assign.altPattern ? { altPattern: s.assign.altPattern } : {}) } } : {}),
+  ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '', ...(s.assign.altPattern ? { altPattern: s.assign.altPattern } : {}), ...(s.assign.noStamp ? { noStamp: true } : {}) } } : {}),
   ...(s.headOnly ? { headOnly: true } : {}),
   ...(s.signUnless ? { signUnless: s.signUnless } : {}),
   ...(s.fills?.length ? { fills: [...s.fills] } : {}),
@@ -286,6 +286,10 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                         <span className="field-label">Number pattern</span>
                         <input value={s.assign.pattern} onChange={(e) => set(i, { assign: { ...s.assign, pattern: e.target.value } })}
                           placeholder={DEFAULT_REF_PATTERN} />
+                      </label>
+                      <label className="check assign-nostamp">
+                        <input type="checkbox" checked={Boolean(s.assign.noStamp)} onChange={(e) => set(i, { assign: { ...s.assign, noStamp: e.target.checked } })} />
+                        Already on the document: do not stamp it on the PDF
                       </label>
                       {/mayor/i.test(s.office || '') && !/vice/i.test(s.office || '') && (
                         <label className="field">

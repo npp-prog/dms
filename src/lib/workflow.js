@@ -96,7 +96,7 @@ export function routeSteps(type, offices = []) {
     // Who in the office acts on it (positions, Users); none: anyone in the office.
     ...(s.positions?.length && s.office ? { positions: [...s.positions] } : {}),
     // The reference no. this office assigns (when the office first opens the document) (e.g. the DV No.).
-    ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '', ...(s.assign.altPattern ? { altPattern: s.assign.altPattern } : {}) } } : {}),
+    ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '', ...(s.assign.altPattern ? { altPattern: s.assign.altPattern } : {}), ...(s.assign.noStamp ? { noStamp: true } : {}) } } : {}),
     // The head of the preparer's office only (e.g. the Travel Order's recommending approval).
     ...(s.headOnly ? { headOnly: true } : {}),
     // It signs, except when this field of the form has a value (e.g. an office head travels).
@@ -274,7 +274,8 @@ export function signatureMissing(doc) {
 export function refStampMissing(doc) {
   const wf = doc?.workflow;
   const step = wf?.state === 'in-progress' && !wf.referral ? wf.steps[wf.stage] : null;
-  const r = step?.assign?.field ? doc.refNos?.[step.assign.field] : null;
+  // (A number already on the document, e.g. stamped on the paper: assigned, not stamped by DMS.)
+  const r = step?.assign?.field && !step.assign.noStamp ? doc.refNos?.[step.assign.field] : null;
   if (!r || r.stage !== wf.stage) return null;
   const files = liveFiles(doc.pdf?.files);
   const lastNew = Math.max(-1, ...files.map((f, i) => (f.kind === 'generated' || f.kind === 'uploaded' ? i : -1)));

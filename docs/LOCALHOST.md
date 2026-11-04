@@ -407,7 +407,7 @@ The **Processing Guide** tab has the routing steps: which office receives the do
 
 A step at the preparer's office can be ticked **Office head only**: only the head of the preparer's office acts on it (the Travel Order's recommending approval). A step at the Mayor's office that assigns a number can have its own **Pattern when the Vice Mayor's office numbers it** (the Travel Order: `EXEC-{YYYY}-{####}`, and `LEGIS-{YYYY}-{####}` for the Vice Mayor's office). A Travel Order route saved in Workflow before this update: click **Start from the processing guide**, then **Save route**, to get the office-head step and the EXEC/LEGIS numbers.
 
-**Assigns a reference no.** keeps the number in one of the form's text fields; a document type with none (an *Uploaded only* type) uses the built-in **Reference No.** (stamped on the PDF, not printed by a form).
+**Assigns a reference no.** keeps the number in one of the form's text fields; a document type with none (an *Uploaded only* type) uses the built-in **Reference No.** (stamped on the PDF, not printed by a form). Tick **Already on the document: do not stamp it on the PDF** when the number is already on the paper (stamped or written by the office): it is still assigned, recorded and searchable (DRN), but routing does not wait for it to be put on the PDF.
 
 In **Workflow**, a step's **Approval: approve (sign) or disapprove** box makes it an approval step (ticking it also ticks *Must sign*): the office approves by signing or disapproves with the DISAPPROVED stamp. Steps at the Mayor's or the Vice Mayor's office, and steps whose action is an approval, are ticked by default.
 
