@@ -518,6 +518,9 @@ function DocumentPage({ docId }) {
               {Object.entries(docData.refNos || {}).filter(([, r]) => !r.of).map(([k, r]) => (
                 <Fragment key={k}><dt>{r.label}</dt><dd><b>{r.value}</b><div className="small muted">Assigned by {r.by}{r.office ? `, ${r.office}` : ''}</div></dd></Fragment>
               ))}
+              {docData.uploaded && String(docData.data?.refNo || '').trim() && !docData.refNos?.refNo && (
+                <><dt>Reference No.</dt><dd>{docData.data.refNo} <span className="xs muted">(already assigned; typed on upload)</span></dd></>
+              )}
               <dt>Format version</dt><dd>v{docData.typeVersion || 1}</dd>
               {docData.transaction && (<><dt>Transaction</dt><dd>{docData.transaction.code} — {docData.transaction.title}</dd></>)}
             </dl>

@@ -27,7 +27,7 @@ export default function UploadDocument() {
   // Opened from New document with the type chosen (?type=<id>).
   const [params] = useSearchParams();
   const [typeId, setTypeId] = useState(params.get('type') || '');
-  const [form, setForm] = useState({ title: '', fund: '', notes: '' });
+  const [form, setForm] = useState({ title: '', fund: '', notes: '', refNo: '' });
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -47,7 +47,7 @@ export default function UploadDocument() {
     }).catch((e) => setError(e.message));
   }, [copyId]);
   const type = (types || []).find((t) => t.id === typeId) || OTHER;
-  const set = (k) => (e) => setForm({ ...form, [k]: k === 'notes' ? e.target.value : e.target.value.toUpperCase() });
+  const set = (k) => (e) => setForm({ ...form, [k]: k === 'notes' || k === 'refNo' ? e.target.value : e.target.value.toUpperCase() });
 
   const submit = async (e) => {
     e.preventDefault();
@@ -69,7 +69,7 @@ export default function UploadDocument() {
       await Promise.all([loadPdfjs(), import('pdf-lib'), import('../lib/signing.js'), import('../lib/qr.js')]);
       const contentText = kind === 'application/pdf' ? await pdfText(pdf) : '';
       // A draft until its file is stored: if anything below fails, the draft is removed again.
-      const created = await createUploadedDocument(type, { ...form, title: form.title.trim(), fileName: file.name, contentText, copiedFrom }, actor);
+      const created = await createUploadedDocument(type, { ...form, title: form.title.trim(), refNo: form.refNo.trim(), fileName: file.name, contentText, copiedFrom }, actor);
       try {
         // The QR code of its public check page on every page (lib/qrStamp.js: also on a signed PDF,
         // in an update after its signatures, where the PDF allows it).
@@ -121,6 +121,11 @@ export default function UploadDocument() {
             <option value="">—</option>
             {fundsOf(settings).map((f) => <option key={f} value={f}>{f}</option>)}
           </Select>
+        </div>
+        <div className="field">
+          <label className="field-label" htmlFor={`${id}-r`}>Reference No. <span className="muted">(optional)</span></label>
+          <input id={`${id}-r`} value={form.refNo} maxLength={60} onChange={set('refNo')} />
+          <span className="small muted">Already assigned in another system or on the paper: type it as it is. DMS keeps it as the document&apos;s reference no. (DRN) and does not assign another.</span>
         </div>
         <div className="field upload-wide">
           <label className="field-label" htmlFor={`${id}-n`}>Notes <span className="muted">(optional)</span></label>

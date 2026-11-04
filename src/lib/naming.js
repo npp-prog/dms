@@ -144,7 +144,12 @@ export function withRestart(pattern, restart) {
 // numbers an office fills in (a field labelled "… No.", e.g. Check/ADA No.); not dates, banks or
 // other details filled in along the way.
 export const isRefNumber = (r) => Boolean(r?.value) && !r.of && (!r.filled || /no\.?$/i.test(String(r.label || '').trim()));
-export const drnOf = (d) => Object.values(d?.refNos || {}).filter(isRefNumber).map((r) => r.value).join(', ');
+// (plus a reference no. the preparer typed on upload, already assigned elsewhere: data.refNo)
+export const drnOf = (d) => {
+  const list = Object.values(d?.refNos || {}).filter(isRefNumber).map((r) => r.value);
+  const typed = String(d?.data?.refNo || '').trim();
+  return (typed && !list.includes(typed) ? [...list, typed] : list).join(', ');
+};
 
 // A reference no. a route step assigns is kept in a text field of the form; a document type with
 // none (an uploaded-only type) keeps it in this built-in field (stamped on the PDF, not printed by
