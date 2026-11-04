@@ -735,12 +735,12 @@ const TO = {
   orientation: 'portrait',
   active: true,
   checklistSource: 'own',
-  starterVersion: 4,
+  starterVersion: 5,
   // The letterhead (title, email, contact no.) of the issuing office, from Settings.
   headerOffice: 'Office of the Municipal Mayor',
   steps: [
     { id: 's1', title: 'Travelers', instructions: 'One line per person directed to travel: choose them from DMS (by name, email or DMS account no.), then their position.' },
-    { id: 's2', title: 'Travel', instructions: 'The date or dates of travel as they should read on the order, and one line per purpose, in the order they are listed. The Travel Order No. is assigned by the Office of the Mayor.' },
+    { id: 's2', title: 'Travel', instructions: 'The destination, the date or dates of travel as they should read on the order, and one line per purpose, in the order they are listed. The Travel Order No. is assigned by the Office of the Mayor.' },
     { id: 's3', title: 'Issue', instructions: 'The date the order is given and signed, and who approves: the Mayor or, in their place, the Vice Mayor (names from Settings).' },
   ],
   fields: [
@@ -752,8 +752,10 @@ const TO = {
         { key: 'position', label: 'Position', type: 'text', keepCase: true },
       ],
     },
+    { key: 'destination', label: 'Destination', type: 'text', required: true, keepCase: true, step: 's2',
+      help: 'Where they travel to: the place, municipality or city, and province. Printed after "You are hereby directed to travel to".' },
     { key: 'travelDates', label: 'Date/s of travel', type: 'text', required: true, keepCase: true, step: 's2',
-      help: 'Printed after "You are hereby directed to travel with the following Purpose/s on". Write the month, the day or days and the year.' },
+      help: 'Printed after "You are hereby directed to travel to … with the following Purpose/s on". Write the month, the day or days and the year.' },
     {
       key: 'purposes', label: 'Purpose/s', type: 'table', required: true, step: 's2',
       help: 'Printed as a numbered list, as typed. Add a line to authorize the claim of actual expenses if it applies.',
@@ -778,7 +780,7 @@ const TO = {
   <div class="to-title">TRAVEL ORDER NO.: {{toNo}}</div>
   <div>Series of {{givenDate|year}}</div>
   <table class="to-to"><tr><td class="to-k">TO</td><td class="to-c">:</td><td><table class="to-who">{{#each travelers}}<tr><td class="to-n"><b>{{name}}</b><span class="dms-no">{{nameDmsNo|dms}}</span></td><td class="to-c">-</td><td>{{position}}</td></tr>{{/each}}</table></td></tr></table>
-  <p>You are hereby directed to travel with the following Purpose/s on {{travelDates}}</p>
+  <p>You are hereby directed to travel{{#if destination}} to <b>{{destination}}</b>{{/if}} with the following Purpose/s on {{travelDates}}</p>
   <table class="to-list">{{#each purposes}}<tr><td class="to-no">{{@no}}.</td><td>{{purpose}}</td></tr>{{/each}}</table>
   <p class="to-gap">This travel order is issued for the good public service.</p>
   <p>Given and signed this {{givenDate|day}}<sup>{{givenDate|ord}}</sup> day of {{givenDate|monthyear}} at Candoni, {{lgu.province}}.</p>
