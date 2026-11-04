@@ -218,7 +218,7 @@ The search box in **All/Office/My Documents**, **Archive** and **Folders** looks
 
 ### Print and process
 
-The completed document gets a control number, e.g. `DMS-2026-000001`. Above the preview are two tabs: **DV** and **Checklist 1613**. **Print** prints whichever tab you are on, so print both and put the checklist on top of the attachments. Printing is automatic:
+The completed document gets a control number, e.g. `DMS-2026-000001`. Above the preview are two tabs: **DV** and **Checklist** (the checklist's number shows when the label fits). **Print** prints whichever tab you are on, so print both and put the checklist on top of the attachments. Tab labels have at most 10 characters, spaces included: a longer one is shortened, e.g. *03 Travel Order* shows as **03 TO**, and the full name shows when you point at the tab. Printing is automatic:
 
 - **Portrait, one page.** Every form prints portrait on one page: the DV on Folio (8.5 × 13 in), everything else on A4. Forms that are too tall (many lines) or too wide (many columns) are scaled down to fit.
 - **Fills the page.** When there is room left, the main table (particulars, items, employees) stretches to the bottom of the page, like a pre-printed form.

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { tabLabel } from '../lib/tabLabel.js';
 import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed, watchDocument } from '../lib/api.js';
 import SignRequestCard from '../components/SignRequestCard.jsx';
 import PrecheckCard from '../components/PrecheckCard.jsx';
@@ -330,7 +331,7 @@ function DocumentPage({ docId }) {
     .filter((t) => t.link.kind === 'fts' || t.link.kind === 'file')
     .map((t) => ({
       ...t,
-      label: `${String(t.n).padStart(2, '0')} ${t.link.kind === 'fts' ? t.link.typeCode : itemTypeCode(item)}`,
+      label: tabLabel(`${String(t.n).padStart(2, '0')} ${t.link.kind === 'fts' ? t.link.typeCode : itemTypeCode(item)}`),
       title: t.link.kind === 'fts' ? `${item.label}: ${t.link.controlNo}` : `${item.label}: ${t.link.name}`,
     })));
   const unchecked = activeChecklist ? missingRequired(activeChecklist.items, docData.checklist) : [];
@@ -583,7 +584,7 @@ function DocumentPage({ docId }) {
                 {(isExternal ? [] : docData.supplements || []).map((l, i) => (
                   <button key={`supp:${i}`} title={`${l.label || 'Supplemental document'}: ${l.dms?.controlNo || l.controlNo || l.name}`}
                     className={(view === 'file' || view === 'linked') && linkKey === `supp:${i}` ? 'active' : ''}
-                    onClick={() => (l.kind === 'fts' ? openLinked(l, `supp:${i}`) : openFile(l, `supp:${i}`))}>{l.label && l.label !== 'Supplemental document' ? l.label : `Supplemental ${i + 1}`}</button>
+                    onClick={() => (l.kind === 'fts' ? openLinked(l, `supp:${i}`) : openFile(l, `supp:${i}`))}>{l.label && l.label !== 'Supplemental document' ? tabLabel(l.label) : `Supp. ${i + 1}`}</button>
                 ))}
                 {/* Files uploaded at a route step (e.g. the DV signed by the payee in Box E). */}
                 {(isExternal ? [] : docData.stepFiles || []).map((l, i) => {
@@ -591,12 +592,12 @@ function DocumentPage({ docId }) {
                   return (
                     <button key={`step:${i}`} title={`${name}: ${l.dms?.controlNo || l.name}`}
                       className={view === 'file' && linkKey === `step:${i}` ? 'active' : ''}
-                      onClick={() => openFile(l, `step:${i}`)}>{name.length > 30 ? `${name.slice(0, 28).trim()}…` : name}</button>
+                      onClick={() => openFile(l, `step:${i}`)}>{tabLabel(name)}</button>
                   );
                 })}
-                {!uploaded && <button className={view === 'document' ? 'active' : ''} onClick={() => setView('document')}>{docData.typeCode}</button>}
+                {!uploaded && <button className={view === 'document' ? 'active' : ''} title={docData.typeName} onClick={() => setView('document')}>{tabLabel(docData.typeCode)}</button>}
                 {activeChecklist && activeChecklist.items.length > 0 && (
-                  <button className={view === 'checklist' ? 'active' : ''} onClick={() => setView('checklist')}>Checklist{docData.transaction ? ` ${docData.transaction.code}` : ''}</button>
+                  <button className={view === 'checklist' ? 'active' : ''} title={`Checklist${docData.transaction ? ` ${docData.transaction.code}: ${docData.transaction.title || ''}` : ''}`} onClick={() => setView('checklist')}>{`Checklist ${docData.transaction?.code || ''}`.trim().length <= 10 ? `Checklist ${docData.transaction?.code || ''}`.trim() : 'Checklist'}</button>
                 )}
                 {linkTabs.map((t) => (
                   <button key={t.key} title={t.title} className={(view === 'linked' || view === 'file') && linkKey === t.key ? 'active' : ''}
