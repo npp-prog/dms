@@ -144,8 +144,14 @@ test('checklist library data is complete', () => {
     assert.ok(!c.items.some((i) => /\(deleted\b/i.test(`${i.label} ${i.details}`)), `${c.code} has a deleted item`);
   }
   const c1613 = LIBRARY.find((c) => c.code === '1613');
-  assert.equal(c1613.items.length, 15);
-  assert.equal(c1613.items.filter((i) => i.required).length, 8);
+  // (v3: the AIR only if applicable, with a CAR item after it when there is no AIR)
+  assert.equal(c1613.items.length, 16);
+  assert.equal(c1613.items.filter((i) => i.required).length, 7);
+  const air = c1613.items.findIndex((i) => i.label === 'Acceptance and Inspection Report');
+  assert.equal(c1613.items[air].required, false);
+  assert.equal(c1613.items[air + 1].label, 'Completion and Acceptance Report');
+  // no Acceptance and Inspection Report or Requisition and Issue Slip is always required
+  assert.ok(!LIBRARY.some((c) => c.items.some((i) => i.required && /^(Acceptance and Inspection Report|Requisition and Issue Slip)$/.test(i.label))));
 });
 
 test('checklist items accept only documents of their kind', () => {

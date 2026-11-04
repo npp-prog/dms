@@ -880,7 +880,10 @@ const PAYROLL = {
 // signatories as printed on the Appendix Forms of the Municipal Government of Candoni.
 // Raised when the bundled checklist library (src/data/checklists.json) changes:
 // 2 = Document Type and Document Details for every item, 1001 from its revised Word file.
-export const CHECKLIST_LIBRARY_VERSION = 2;
+// 3: the Acceptance and Inspection Report (AIR) and the Requisition and Issue Slip (RIS) only if
+// applicable (Y or N/A), and a Completion and Acceptance Report (CAR) item after each AIR (when
+// there is no AIR).
+export const CHECKLIST_LIBRARY_VERSION = 3;
 
 // The parts of a document type that make up its format (what a starter update replaces).
 export const FORMAT_KEYS = ['template', 'fields', 'steps', 'processing', 'paperSize', 'orientation', 'checklistSource', 'checklist', 'bulkDownload', 'headerOffice'];
