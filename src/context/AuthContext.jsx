@@ -112,7 +112,7 @@ export function AuthProvider({ children }) {
     // Combined identity used when stamping documents.
     actor: user && profile ? {
       uid: user.uid, email: user.email, displayName: profile.displayName, office: profile.office,
-      position: profile.position || '', idNo: profile.idNo || '', photo: profile.photo || '',
+      position: profile.position || '', accountNo: profile.accountNo || '', photo: profile.photo || '',
     } : null,
     login: (email, password) => signInWithEmailAndPassword(auth, email, password),
     loginWithGoogle: async () => {

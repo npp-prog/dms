@@ -35,7 +35,6 @@ export default function Profile() {
   const id = useId();
   const [name, setName] = useState(profile.displayName || '');
   const [position, setPosition] = useState(profile.position || '');
-  const [idNo, setIdNo] = useState(profile.idNo || '');
   const [cert, setCert] = useState(undefined);
   const [mark, setMark] = useState(undefined);
   const [file, setFile] = useState(null);
@@ -63,11 +62,10 @@ export default function Profile() {
     try { await fn(); } catch (e) { if (!staleReload(e)) setMsg({ ok: false, text: e.message }); } finally { setBusy(''); }
   };
 
-  const detailsChanged = name.trim() !== (profile.displayName || '') || position.trim() !== (profile.position || '')
-    || idNo.trim() !== (profile.idNo || '');
+  const detailsChanged = name.trim() !== (profile.displayName || '') || position.trim() !== (profile.position || '');
   const saveDetails = () => run('Saving…', async () => {
     if (!name.trim()) throw new Error('Type your name.');
-    await updateMyProfile({ displayName: name.trim().slice(0, 120), position: position.trim().slice(0, 120), idNo: idNo.trim().slice(0, 40) });
+    await updateMyProfile({ displayName: name.trim().slice(0, 120), position: position.trim().slice(0, 120) });
     setMsg({ ok: true, text: 'Your details were saved.' });
   });
 
@@ -164,11 +162,6 @@ export default function Profile() {
             <label className="field-label" htmlFor={`${id}-pos`}>Position</label>
             <input id={`${id}-pos`} value={position} maxLength={120} onChange={(e) => setPosition(e.target.value)} />
             <span className="xs muted">Your job title or designation. It shows with your name in DMS and prints under your name on the documents you prepare.</span>
-          </div>
-          <div className="field">
-            <label className="field-label" htmlFor={`${id}-idno`}>ID No.</label>
-            <input id={`${id}-idno`} value={idNo} maxLength={40} onChange={(e) => setIdNo(e.target.value)} />
-            <span className="xs muted">Your employee ID number.</span>
           </div>
           <div><button className="btn btn-primary btn-sm" disabled={!!busy || !detailsChanged} onClick={saveDetails}>Save details</button></div>
           <dl className="details">

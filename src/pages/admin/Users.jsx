@@ -22,7 +22,7 @@ function UserRow({ u, me, isSuper, givesStaff, settings, offices, canManage, onC
         <div className="user-who">
           <span className="user-name"><b>{u.displayName || u.email}</b>{u.id === me.uid && <span className="muted"> (you)</span>}</span>
           <span className="small muted">{u.email}</span>
-          {(u.position || u.idNo || u.accountNo) && <span className="xs muted">{[u.accountNo && `DMS No. ${u.accountNo}`, u.position, u.idNo && `ID No. ${u.idNo}`].filter(Boolean).join(' · ')}</span>}
+          {(u.position || u.accountNo) && <span className="xs muted">{[u.accountNo && `DMS No. ${u.accountNo}`, u.position].filter(Boolean).join(' · ')}</span>}
         </div>
         <div className="user-office">
           <span className="small">{u.office || (u.role === 'payee' ? 'Not LGU personnel' : 'No office')}</span>

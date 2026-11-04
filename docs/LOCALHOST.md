@@ -80,9 +80,9 @@ Sign in as **user@fts.local** / **user123**.
 
 A new person can click **Create an account**. An administrator then approves the account under **Users**. If an administrator already added your email in **Users** (**+ Add user**), there is nothing to approve: sign in with **Continue with Google** using that email, or create an account with it and open the verification link sent to your inbox, and DMS opens with the office, role and positions they set.
 
-### My Profile: name, position, ID No. and picture
+### My Profile: name, position, DMS account no. and picture
 
-Open **My Profile** (left menu, or click your picture at the top right). Under **Details**, set your **Name**, your **Position** (job title or designation) and your **ID No.** (employee ID number), then click **Save details**. Your name and position show with you across DMS: at the top of the Dashboard, in Users, in Messages and when someone searches for a person to send or refer a document to (they can also search by position or ID No.). The documents you prepare keep your name and position, and print the position under your name (*Prepared by*; templates use `{{preparedByPosition}}` and `{{preparedByIdNo}}`).
+Open **My Profile** (left menu, or click your picture at the top right). Under **Details**, set your **Name** and your **Position** (job title or designation), then click **Save details**. Your **DMS account no.** (below) is your number in DMS; it replaces the former ID No. Your name and position show with you across DMS: at the top of the Dashboard, in Users, in Messages and when someone searches for a person to send or refer a document to (they can also search by position or DMS account no.). The documents you prepare keep your name and position, and print the position under your name (*Prepared by*; templates use `{{preparedByPosition}}`, and `{{preparedByDmsNo}}` for your DMS account no.).
 
 **DMS account no.** Every DMS user, LGU employee or not (suppliers and payees too), has a DMS account number of 6 digits (e.g. *000123*), shown under **Details** in My Profile and in Users. It is given automatically when the account is approved (or at the next sign-in for accounts approved earlier), is never given twice and cannot be changed. People can be found by it when choosing a person.
 

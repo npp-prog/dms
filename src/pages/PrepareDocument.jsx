@@ -293,7 +293,7 @@ function Wizard({ typeId, docId }) {
               <div className="preview-label no-print">Live preview</div>
               <DocumentPreview type={type} data={data} checklist={checklist} settings={settings}
                 signatories={sigs} office={existing?.office || profile?.office} controlNo={existing?.controlNo || '(assigned on save)'} preparedBy={existing?.createdByName || actor.displayName}
-                preparedByPosition={existing ? existing.createdByPosition || '' : actor.position} preparedByIdNo={existing ? existing.createdByIdNo || '' : actor.idNo} />
+                preparedByPosition={existing ? existing.createdByPosition || '' : actor.position} preparedByIdNo={existing ? existing.createdByIdNo || '' : actor.accountNo} />
             </>
           )}
         </div>

@@ -8,7 +8,7 @@ import { localDay } from './archiveFiles.js';
 //   {{field}}                   value of a field (HTML-escaped)
 //   {{field|currency}}          filters: currency, peso, acct, number, date, mdy, upper, words,
 //                               day, ord, monthyear, year (parts of a date)
-//   {{lgu.name}} {{controlNo}}  context values (lgu, sig, docType, office, controlNo, today, preparedBy, preparedByPosition, preparedByIdNo)
+//   {{lgu.name}} {{controlNo}}  context values (lgu, sig, docType, office, controlNo, today, preparedBy, preparedByPosition, preparedByDmsNo)
 //   {{sum:items.amount|peso}}   sum of a table column
 //   {{table:items}}             auto-rendered HTML table for a table field
 //   {{#each items}}<tr><td>{{@no}}</td><td>{{description}}</td></tr>{{/each}}
@@ -177,7 +177,9 @@ export function renderTemplate(template, ctx = {}) {
     preparedBy: ctx.preparedBy || '',
     // The preparer's position and ID no. (My Profile).
     preparedByPosition: ctx.preparedByPosition || '',
+    // The preparer's DMS account no. (preparedByIdNo: its older name, same value).
     preparedByIdNo: ctx.preparedByIdNo || '',
+    preparedByDmsNo: ctx.preparedByIdNo || '',
     // The Vice Mayor prints in the Mayor's place when the preparer chose them as approver.
     sig: approverSignatories(ctx.signatories || {}, ctx.data),
     office: ctx.office || {},

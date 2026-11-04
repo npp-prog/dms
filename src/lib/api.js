@@ -105,11 +105,11 @@ export async function listUsers() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-// The preparer's position and ID no. (My Profile), kept on the documents they prepare and printed
-// under their name.
+// The preparer's position and DMS account no. (My Profile), kept on the documents they prepare and
+// printed under their name ({{preparedByDmsNo}}; createdByIdNo keeps its older name).
 const preparerExtras = (user) => ({
   ...(user.position ? { createdByPosition: user.position } : {}),
-  ...(user.idNo ? { createdByIdNo: user.idNo } : {}),
+  ...(user.accountNo ? { createdByIdNo: user.accountNo } : {}),
 });
 
 // ---------- Directory (names and offices, to forward a document to someone) ----------

@@ -335,7 +335,7 @@ export default function DocumentTypeEditor() {
               <summary>Template reference</summary>
               <ul className="ref">
                 <li><code>{'{{key}}'}</code> field value · filters: <code>|currency</code> <code>|peso</code> <code>|date</code> <code>|words</code> <code>|upper</code> <code>|number</code></li>
-                <li><code>{'{{controlNo}}'}</code> <code>{'{{today|date}}'}</code> <code>{'{{preparedBy}}'}</code> <code>{'{{preparedByPosition}}'}</code> <code>{'{{preparedByIdNo}}'}</code> <code>{'{{lgu.name}}'}</code> <code>{'{{lgu.address}}'}</code></li>
+                <li><code>{'{{controlNo}}'}</code> <code>{'{{today|date}}'}</code> <code>{'{{preparedBy}}'}</code> <code>{'{{preparedByPosition}}'}</code> <code>{'{{preparedByDmsNo}}'}</code> <code>{'{{lgu.name}}'}</code> <code>{'{{lgu.address}}'}</code></li>
                 <li><code>{'{{table:key}}'}</code> auto table · <code>{'{{sum:key.column|peso}}'}</code> column total</li>
                 <li><code>{'{{#each key}}<tr><td>{{@no}}</td><td>{{column}}</td></tr>{{/each}}'}</code> custom rows</li>
                 <li><code>{'{{check:id}}'}</code> checklist box · <code>{'{{#if key=Value}}✓{{/if}}'}</code> conditional</li>
