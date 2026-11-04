@@ -1,4 +1,4 @@
-import { dmsNoKey, isAccountNo, uidKey, unlinkedPeople } from './accountNo.js';
+import { dmsNoKey, headKey, isAccountNo, uidKey, unlinkedPeople } from './accountNo.js';
 import { toNumber } from './template.js';
 import { isChecked } from './checklists.js';
 import { localDay } from './archiveFiles.js';
@@ -43,7 +43,12 @@ export function computeFields(fields, data) {
   let next = data;
   for (const f of fields || []) {
     if (f.type !== 'table' && f.compute) {
-      const v = evaluate(f.compute, next);
+      // anyhead:table.column: YES when a person chosen in that column is an office head (e.g. a
+      // Travel Order with an office head among its travelers needs no recommending approval).
+      const head = /^anyhead:(\w+)\.(\w+)$/.exec(f.compute);
+      const v = head
+        ? ((Array.isArray(next[head[1]]) ? next[head[1]] : []).some((r) => r?.[`${head[2]}Head`] === true) ? 'YES' : '')
+        : evaluate(f.compute, next);
       if (v !== next[f.key]) next = { ...next, [f.key]: v };
     }
   }
@@ -106,7 +111,7 @@ export function copiedData(type, src) {
     if (f.filledBy || skip.has(f.key) || f.key === 'date' || !(f.key in (src?.data || {}))) continue;
     data[f.key] = JSON.parse(JSON.stringify(src.data[f.key]));
     // A person field: their DMS account no. and user go with the name.
-    if (f.type === 'person') for (const k of [dmsNoKey(f.key), uidKey(f.key)]) data[k] = src.data[k] ?? '';
+    if (f.type === 'person') for (const k of [dmsNoKey(f.key), uidKey(f.key), headKey(f.key)]) data[k] = src.data[k] ?? '';
   }
   return data;
 }

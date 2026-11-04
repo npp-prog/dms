@@ -689,7 +689,7 @@ service cloud.firestore {
       // external: a supplier or payee
       allow read: if isActive();
       // position, idNo, photo: from My Profile (checked there).
-      allow create, update: if isActive() && request.resource.data.keys().hasOnly(['displayName', 'office', 'email', 'external', 'position', 'idNo', 'photo', 'accountNo'])
+      allow create, update: if isActive() && request.resource.data.keys().hasOnly(['displayName', 'office', 'email', 'external', 'position', 'idNo', 'photo', 'accountNo', 'head'])
         && ((request.auth.uid == uid
               && request.resource.data.get('external', false) == (profile().role == 'payee')
               && request.resource.data.office == myOffice()
@@ -697,13 +697,15 @@ service cloud.firestore {
               && request.resource.data.get('photo', '') == profile().get('photo', '')
               && request.resource.data.get('position', '') == profile().get('position', '')
               && request.resource.data.get('idNo', '') == profile().get('idNo', '')
-              && request.resource.data.get('accountNo', '') == profile().get('accountNo', ''))
+              && request.resource.data.get('accountNo', '') == profile().get('accountNo', '')
+              && request.resource.data.get('head', false) == (profile().role != 'payee' && profile().get('head', false)))
             || (isAdmin()
               && get(/databases/$(database)/documents/users/$(uid)).data.active == true
               && request.resource.data.get('external', false) == (get(/databases/$(database)/documents/users/$(uid)).data.role == 'payee')
               && request.resource.data.office == get(/databases/$(database)/documents/users/$(uid)).data.get('office', '')
               && request.resource.data.email == get(/databases/$(database)/documents/users/$(uid)).data.get('email', '')
-              && request.resource.data.get('accountNo', '') == get(/databases/$(database)/documents/users/$(uid)).data.get('accountNo', '')));
+              && request.resource.data.get('accountNo', '') == get(/databases/$(database)/documents/users/$(uid)).data.get('accountNo', '')
+              && request.resource.data.get('head', false) == (get(/databases/$(database)/documents/users/$(uid)).data.role != 'payee' && get(/databases/$(database)/documents/users/$(uid)).data.get('head', false))));
       allow delete: if isAdmin();
     }
 

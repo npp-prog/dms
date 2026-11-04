@@ -14,7 +14,9 @@ const PREPARER_PICK = '@preparer'; // the preparer's office in a select (whose v
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const clean = (route) => route.map((s) => ({
   office: s.office || '', action: s.action || '', sign: Boolean(s.sign),
-  ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '' } } : {}),
+  ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '', ...(s.assign.altPattern ? { altPattern: s.assign.altPattern } : {}) } } : {}),
+  ...(s.headOnly ? { headOnly: true } : {}),
+  ...(s.signUnless ? { signUnless: s.signUnless } : {}),
   ...(s.fills?.length ? { fills: [...s.fills] } : {}),
   ...(s.upload !== undefined ? { upload: s.upload } : {}),
   ...(s.alternates?.length ? { alternates: [...s.alternates] } : {}),
@@ -247,6 +249,12 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                       <input type="checkbox" checked={s.sign} onChange={(e) => set(i, { sign: e.target.checked })} />
                       Must sign the PDF (DICT PNPKI)
                     </label>
+                    {!s.office && (
+                      <label className="check" title="Only the head of the preparer's office acts on this step (e.g. the recommending approval)">
+                        <input type="checkbox" checked={Boolean(s.headOnly)} onChange={(e) => set(i, { headOnly: e.target.checked })} />
+                        Office head only
+                      </label>
+                    )}
                     <label className="check" title="The office approves it (signs) or disapproves it (stamped DISAPPROVED: the route ends there)">
                       <input type="checkbox" checked={isApprovalStep(s)} onChange={(e) => set(i, { approval: e.target.checked, ...(e.target.checked ? { sign: true } : {}) })} />
                       Approval: approve (sign) or disapprove
@@ -277,6 +285,13 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                         <input value={s.assign.pattern} onChange={(e) => set(i, { assign: { ...s.assign, pattern: e.target.value } })}
                           placeholder={DEFAULT_REF_PATTERN} />
                       </label>
+                      {/mayor/i.test(s.office || '') && !/vice/i.test(s.office || '') && (
+                        <label className="field">
+                          <span className="field-label">Pattern when the Vice Mayor&apos;s office numbers it</span>
+                          <input value={s.assign.altPattern || ''} onChange={(e) => set(i, { assign: { ...s.assign, altPattern: e.target.value } })} />
+                          <span className="help">Documents approved by the Vice Mayor (Legislative). Empty: the same pattern, in a series of its own.</span>
+                        </label>
+                      )}
                       <p className="help assign-help">Next number: <b>{refNumber(s.assign.pattern || DEFAULT_REF_PATTERN, { fund: 'General Fund' }).format(1)}</b>
                         {' · '}{'{YYYY}'} year, {'{YY}'}, {'{MM}'} month, {'{DD}'}, {'{FUND}'} fund (GF, SEF, TF), {'{####}'} the series, which starts again
                         whenever the rest changes. The date field gets today&apos;s date.</p>

@@ -447,6 +447,8 @@ details summary { cursor: pointer; font-weight: 600; margin-top: .8rem; }
 .doc-render .to-appr { width: 50%; padding-left: 120px; vertical-align: top; }
 .doc-render .to-signer { padding-left: 40px; }
 .doc-render .to-space { height: 46px; }
+.doc-render .to-line { display: inline-block; min-width: 200px; border-top: 1px solid #000; padding-top: 2px; text-align: center; }
+.doc-render .to .to-rec { margin-top: 18px; }
 .doc-render .to .to-fill { width: 100%; border-collapse: collapse; }
 .doc-render .to-fill td { height: 16px; padding: 0; }
 .doc-render .to-foot { margin-bottom: 12mm; background: #1f4e79; color: #fff !important; text-align: center; font-size: 11.5px; padding: 1px 0; }

@@ -667,3 +667,34 @@ test('an approval step: approve (sign and route) or disapprove (stamped DISAPPRO
   assert.deepEqual(availableActions(doc), []);
   assert.equal(doc.workflow.events.at(-1).remarks, 'No funds');
 });
+
+test('Travel Order: to the office head (recommending approval), EXEC- or LEGIS- numbers', async () => {
+  const { HEAD_ONLY, holdsPosition } = await import('./workflow.js');
+  const to = STARTER_TYPES.find((t) => t.code === 'TO');
+  const juan = { uid: 'u1', displayName: 'Juan', office: 'Municipal Engineering Office' };
+  const base = { createdBy: 'u1', office: 'Municipal Engineering Office', pdf: { files: [{ kind: 'generated', stage: 0 }] } };
+  const data = computeFields(to.fields, { approver: 'Municipal Mayor', travelers: [{ name: 'ANA', nameDmsNo: '000003', nameHead: false }] });
+  assert.equal(data.headTravels, '');
+  let doc = { ...base, data };
+  doc = { ...doc, ...buildWorkflow(to, doc, DEFAULT_SETTINGS.offices, juan, 't0') };
+  const head = doc.workflow.steps[1];
+  assert.deepEqual([head.routedTo, head.positions, head.sign, Boolean(head.approval)], ['Municipal Engineering Office', [HEAD_ONLY], true, false]);
+  doc = { ...doc, ...applyAction(doc, 'release', juan, '', 't1') };
+  assert.equal(doc.currentOffice, 'Municipal Engineering Office');
+  assert.ok(!canAct(doc, { uid: 'u1', office: 'Municipal Engineering Office', positions: ['Engineer II'] }), 'only the office head');
+  assert.ok(canAct(doc, { uid: 'h1', office: 'Municipal Engineering Office', isHead: true }));
+  assert.ok(!holdsPosition(head, [], false) && holdsPosition(head, [], true));
+  const html = renderTemplate(to.template, { data, fields: to.fields });
+  assert.match(html, /Recommending Approval/);
+  // an office head travels: no recommending approval to print or sign, but it still goes to the head
+  const data2 = computeFields(to.fields, { approver: 'Municipal Mayor', travelers: [{ name: 'ANA', nameHead: true }] });
+  assert.equal(data2.headTravels, 'YES');
+  const wf2 = buildWorkflow(to, { ...base, data: data2 }, DEFAULT_SETTINGS.offices, juan, 't0').workflow;
+  assert.equal(wf2.steps[1].sign, false);
+  assert.equal(wf2.steps[1].positions[0], HEAD_ONLY);
+  assert.doesNotMatch(renderTemplate(to.template, { data: data2, fields: to.fields }), /Recommending Approval/);
+  // numbers: EXEC- by the Mayor's office, LEGIS- by the Vice Mayor's
+  const mayor = wf2.steps.find((s) => s.assign);
+  assert.equal(refNumber(mayor.assign.pattern, { date: new Date('2026-11-04T08:00:00') }).format(1), 'EXEC-2026-0001');
+  assert.equal(refNumber(mayor.assign.altPattern, { date: new Date('2026-11-04T08:00:00') }).format(1), 'LEGIS-2026-0001');
+});

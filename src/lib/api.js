@@ -119,6 +119,7 @@ const preparerExtras = (user) => ({
 export const directoryEntry = (p) => ({
   displayName: p.displayName || '', office: p.office || '', email: p.email || '', external: p.role === 'payee',
   position: p.position || '', idNo: p.idNo || '', photo: p.photo || '', accountNo: p.accountNo || '',
+  head: p.role !== 'payee' && Boolean(p.head),
 });
 
 // ---------- DMS account numbers (lib/accountNo.js) ----------
@@ -923,11 +924,15 @@ export async function assignRefNo(id, user) {
     const assign = step.assign;
     const field = (d.typeSnapshot?.fields || []).find((f) => f.key === assign.field);
     const now = new Date();
-    const series = refNumber(assign.pattern || DEFAULT_REF_PATTERN, { fund: d.data?.fund, date: now });
+    const base = refNumber(assign.pattern || DEFAULT_REF_PATTERN, { fund: d.data?.fund, date: now });
+    // The alternate office (the Vice Mayor's) numbers with its own format, if the step has one
+    // (the Travel Order: EXEC-2026-0001 by the Mayor's office, LEGIS-2026-0001 by the Vice Mayor's).
+    const altSeries = assign.altPattern ? refNumber(assign.altPattern, { fund: d.data?.fund, date: now }) : base;
     // An alternate office handling the step (the Vice Mayor's instead of the Mayor's) numbers in its
     // own series.
     const byAlternate = step.routedTo && step.routedTo !== step.office ? `${step.routedTo.replace(/[^A-Za-z0-9]+/g, '')}_` : '';
-    const counterRef = doc(db, 'counters', `${d.typeCode}_${byAlternate}${series.counterId}`.slice(0, 140));
+    const counterRef = doc(db, 'counters', `${d.typeCode}_${byAlternate}${(byAlternate && assign.altPattern ? altSeries : base).counterId}`.slice(0, 140));
+    const series = byAlternate && assign.altPattern ? altSeries : base;
     const counter = await tx.get(counterRef);
     const value = (counter.exists() ? counter.data().value : 0) + 1;
     const number = series.format(value);

@@ -18,10 +18,13 @@ export function nextAccountNo(last, taken = () => false) {
 // under the field's key, its DMS account number under `${key}DmsNo` and the user under `${key}Uid`.
 export const dmsNoKey = (key) => `${key}DmsNo`;
 export const uidKey = (key) => `${key}Uid`;
+export const headKey = (key) => `${key}Head`;
 export const personValue = (key, p) => ({
   [key]: p ? String(p.displayName || p.email || '') : '',
   [dmsNoKey(key)]: p?.accountNo || '',
   [uidKey(key)]: p?.uid || '',
+  // an office head (of the office they act for)
+  [headKey(key)]: Boolean(p?.head),
 });
 
 // The person fields not chosen from DMS (a name with no DMS account number), as labels: a required

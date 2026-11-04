@@ -735,13 +735,13 @@ const TO = {
   orientation: 'portrait',
   active: true,
   checklistSource: 'own',
-  starterVersion: 6,
+  starterVersion: 7,
   // The letterhead (title, email, contact no.) of the issuing office, from Settings.
   headerOffice: 'Office of the Municipal Mayor',
   steps: [
     { id: 's1', title: 'Travelers', instructions: 'One line per person directed to travel: choose them from DMS (by name, email or DMS account no.), then their position.' },
     { id: 's2', title: 'Travel', instructions: 'The destination, the date or dates of travel as they should read on the order, and one line per purpose, in the order they are listed. The Travel Order No. is assigned by the Office of the Mayor.' },
-    { id: 's3', title: 'Issue', instructions: 'The date the order is given and signed, and its signatory: Executive (the Mayor) or Legislative (the Vice Mayor). Legislative: the order carries the Office of the Vice Mayor\'s letterhead, goes to that office, and its Travel Order No. is from the Vice Mayor\'s series.' },
+    { id: 's3', title: 'Issue', instructions: 'The date the order is given and signed, and its signatory: Executive (the Mayor) or Legislative (the Vice Mayor). Legislative: the order carries the Office of the Vice Mayor\'s letterhead, goes to that office, and its Travel Order No. is LEGIS-… (Executive: EXEC-…). Every order first goes to your office head, who signs the Recommending Approval (none when an office head travels).' },
   ],
   fields: [
     { key: 'toNo', label: 'Travel Order No.', type: 'text', filledBy: 'mayor' },
@@ -761,6 +761,9 @@ const TO = {
       help: 'Printed as a numbered list, as typed. Add a line to authorize the claim of actual expenses if it applies.',
       columns: [{ key: 'purpose', label: 'Purpose', type: 'textarea', keepCase: true }],
     },
+    // YES when an office head is among the travelers (lib/forms.js computeFields): then no
+    // recommending approval is printed or signed.
+    { key: 'headTravels', label: 'An office head travels', type: 'text', filledBy: 'auto', compute: 'anyhead:travelers.name' },
     { key: 'givenDate', label: 'Given and signed on', type: 'date', required: true, keepCase: true, step: 's3' },
     { key: 'approver', label: 'Signatory', type: 'select', options: ['Municipal Mayor', 'Municipal Vice Mayor'], default: 'Municipal Mayor', required: true, step: 's3',
       optionLabels: { 'Municipal Mayor': 'Executive (Municipal Mayor)', 'Municipal Vice Mayor': 'Legislative (Municipal Vice Mayor)' },
@@ -769,7 +772,9 @@ const TO = {
   checklist: [],
   processing: [
     { id: 'p1', office: 'Requesting Office', action: 'Prepare the Travel Order', details: 'Encode the travelers, the date/s and the purposes of the travel, with the invitation or other basis of the travel.' },
-    { id: 'p2', office: 'Office of the Municipal Mayor', action: 'Number and approve', sign: true, assign: { field: 'toNo', dateField: '', pattern: '{YYYY}-{####}' }, details: 'Assigns the Travel Order No. and puts it on the PDF. The Mayor approves and signs the order.' },
+    { id: 'ph', office: 'Requesting Office', headOnly: true, approval: false, sign: true, signUnless: 'headTravels', action: 'Review and recommend approval',
+      details: 'Every Travel Order goes to the head of the requesting office. The office head signs the Recommending Approval, except when an office head is among the travelers (then it is reviewed and routed, with nothing to sign).' },
+    { id: 'p2', office: 'Office of the Municipal Mayor', action: 'Number and approve', sign: true, assign: { field: 'toNo', dateField: '', pattern: 'EXEC-{YYYY}-{####}', altPattern: 'LEGIS-{YYYY}-{####}' }, details: 'Assigns the Travel Order No. (EXEC-2026-0001; the Office of the Vice Mayor, for a Legislative order: LEGIS-2026-0001) and puts it on the PDF. The Mayor (or the Vice Mayor) approves and signs the order, or disapproves it.' },
     { id: 'p3', office: 'Requesting Office', action: 'Use for the travel', details: 'Attach the approved Travel Order to the Itinerary of Travel and to the DV for the cash advance for local travel, and to its liquidation.' },
   ],
   template: `<div class="to">
@@ -787,6 +792,7 @@ const TO = {
   <table class="to-list">{{#each purposes}}<tr><td class="to-no">{{@no}}.</td><td>{{purpose}}</td></tr>{{/each}}</table>
   <p class="to-gap">This travel order is issued for the good public service.</p>
   <p>Given and signed this {{givenDate|day}}<sup>{{givenDate|ord}}</sup> day of {{givenDate|monthyear}} at Candoni, {{lgu.province}}.</p>
+  {{#if !headTravels}}<table class="to-sign to-rec"><tr><td class="to-appr">Recommending Approval:</td><td class="to-signer"><div class="to-space"></div><div class="to-line">Head of Office</div></td></tr></table>{{/if}}
   <table class="to-sign"><tr><td class="to-appr">Approved:</td><td class="to-signer"><div class="to-space"></div><b>{{sig.mayor|upper}}</b><div>{{#if approver=Municipal Vice Mayor}}Vice Mayor{{/if}}{{#if !approver}}Mayor{{/if}}{{#if approver=Municipal Mayor}}Mayor{{/if}}</div></td></tr></table>
   <table class="to-fill" data-grow><tr class="blank"><td></td></tr></table>
   <div class="to-foot">#CandoniSHINE &nbsp;|&nbsp; Experience Rural Tranquility</div>

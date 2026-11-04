@@ -70,10 +70,18 @@ const holderOf = (step, doc) => (isThirdParty(step) ? `person:${step.party?.uid 
 // The route suggested by a type's processing guide, as the admin route editor starts it.
 export function routeFromGuide(type, offices = []) {
   return (type?.processing || []).map((p) => ({
-    office: resolveOffice(p.office, offices), action: p.action || '', sign: false,
+    office: resolveOffice(p.office, offices), action: p.action || '',
+    // (A guide step signs only where it says when: signUnless.)
+    sign: p.signUnless !== undefined && Boolean(p.sign),
     ...(p.assign ? { assign: p.assign } : {}), ...(p.fills?.length ? { fills: p.fills } : {}), ...(p.upload ? { upload: p.upload } : {}),
+    ...(p.headOnly ? { headOnly: true } : {}), ...(p.signUnless ? { signUnless: p.signUnless } : {}),
+    ...(typeof p.approval === 'boolean' ? { approval: p.approval } : {}),
   }));
 }
+
+// A step for the office head only (positions: [HEAD_ONLY]): no position bears this name, and the
+// office head always may act (holdsPosition, and firestore.rules holdsStepPosition).
+export const HEAD_ONLY = 'Office Head';
 
 // The steps a new document of this type follows: the admin's route, else the processing guide.
 // A step may name alternate offices (e.g. the Vice Mayor instead of the Mayor); the preparer
@@ -88,7 +96,11 @@ export function routeSteps(type, offices = []) {
     // Who in the office acts on it (positions, Users); none: anyone in the office.
     ...(s.positions?.length && s.office ? { positions: [...s.positions] } : {}),
     // The reference no. this office assigns (when the office first opens the document) (e.g. the DV No.).
-    ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '' } } : {}),
+    ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: s.assign.pattern || '', ...(s.assign.altPattern ? { altPattern: s.assign.altPattern } : {}) } } : {}),
+    // The head of the preparer's office only (e.g. the Travel Order's recommending approval).
+    ...(s.headOnly ? { headOnly: true } : {}),
+    // It signs, except when this field of the form has a value (e.g. an office head travels).
+    ...(s.signUnless ? { signUnless: s.signUnless } : {}),
     // Fields this office fills in (e.g. Check/ADA No., date, bank) and a file it must upload
     // (e.g. the DV signed by the payee in Box E), both before it releases the document.
     ...(s.fills?.length ? { fills: [...s.fills] } : {}),
@@ -131,7 +143,12 @@ export function buildWorkflow(type, doc, offices, user, at = new Date().toISOStr
     const step = (type?.fields || []).some((f) => f.key === 'approver') && isMayorOffice(s.office) && !(s.alternates || []).some((o) => /vice mayor/i.test(o))
       ? { ...s, alternates: [...(s.alternates || []), vm], bySignatory: true } : s;
     const vice = viceApproves(doc?.data) && step.alternates?.find((o) => /vice mayor/i.test(o));
-    return vice ? { ...step, routedTo: vice } : step;
+    const routed = vice ? { ...step, routedTo: vice } : step;
+    // The office head of the preparer's office (at their office, for the head only).
+    const headed = routed.headOnly && !routed.routedTo && doc?.office ? { ...routed, routedTo: doc.office, positions: [HEAD_ONLY] } : routed;
+    // Signs unless the form says otherwise (e.g. an office head among the travelers: no
+    // recommending approval to sign).
+    return headed.signUnless && String(doc?.data?.[headed.signUnless] ?? '').trim() ? { ...headed, sign: false } : headed;
   });
   if (!steps.length) return null;
   const workflow = {

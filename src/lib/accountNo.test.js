@@ -14,8 +14,8 @@ test('account numbers: six digits, next one skips taken numbers', () => {
 });
 
 test('person fields: chosen from DMS, with the DMS account number', () => {
-  assert.deepEqual(personValue('name', { uid: 'u1', displayName: 'Juan', accountNo: '000007' }), { name: 'Juan', nameDmsNo: '000007', nameUid: 'u1' });
-  assert.deepEqual(personValue('name', null), { name: '', nameDmsNo: '', nameUid: '' });
+  assert.deepEqual(personValue('name', { uid: 'u1', displayName: 'Juan', accountNo: '000007' }), { name: 'Juan', nameDmsNo: '000007', nameUid: 'u1', nameHead: false });
+  assert.deepEqual(personValue('name', null), { name: '', nameDmsNo: '', nameUid: '', nameHead: false });
   const fields = [
     { key: 'name', label: 'Name', type: 'person' },
     { key: 'travelers', label: 'Travelers', type: 'table', columns: [{ key: 'name', label: 'Name', type: 'person' }, { key: 'position', label: 'Position', type: 'text' }] },
