@@ -179,6 +179,8 @@ For line items, click **+ Add row**. On the DV, the **Explanation** is a paragra
 ![DV particulars](images/10-dv-particulars.png)
 
 
+**Travel Order: dates of travel.** **Date/s of travel** is chosen on the calendar: one day, or tick **More than one day** and choose the first (**From**) and last (**To**) day. The order prints them as *November 10, 2026*, *November 10-12, 2026* or *November 30 - December 2, 2026* (shown under the field, with the number of days). An administrator can give any format such a field: type **Date or dates (calendar)** in Document Types → Fields.
+
 **Travel Order: destination.** The Travel Order's **Travel** step asks for the **Destination** (required), printed as typed in the order: *You are hereby directed to travel to* the destination *with the following Purpose/s on* the date/s.
 
 **Travel Order: recommending approval and numbers.** Every Travel Order goes first to the **head of the requesting office** (a step only the office head can act on). The order prints a **Recommending Approval** line for the office head, who signs it there; when an **office head is among the travelers** (chosen from DMS), the order prints no Recommending Approval and the office head only reviews it and routes it on, with nothing to sign. The Travel Order No. is **EXEC-2026-0001** (Executive: the Office of the Mayor's series) or **LEGIS-2026-0001** (Legislative: the Office of the Vice Mayor's series).

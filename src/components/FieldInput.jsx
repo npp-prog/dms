@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { computeRow, toCaps } from '../lib/forms.js';
 import { formatCurrency, sumColumn } from '../lib/template.js';
 import Select from './Select.jsx';
@@ -5,6 +6,32 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { fundsOf } from '../lib/defaults.js';
 import PersonPicker from './PersonPicker.jsx';
 import { dmsNoKey, isAccountNo, personValue } from '../lib/accountNo.js';
+import { dateRangeValue, dayCount, fromKey, toKey } from '../lib/dateRange.js';
+
+// One day, or several days, chosen on the calendar (lib/dateRange.js): the form prints them as
+// "November 10, 2026" or "November 10-12, 2026".
+function DateRangeField({ id, value, from, to, disabled, onPick }) {
+  const [several, setSeveral] = useState(Boolean(to));
+  const n = dayCount(from, to);
+  return (
+    <div className="date-range" id={id}>
+      <div className="date-range-row">
+        <label className="date-range-part"><span className="xs muted">{several ? 'From' : 'Date'}</span>
+          <input type="date" value={from || ''} disabled={disabled}
+            onChange={(e) => onPick(e.target.value, several && to > e.target.value ? to : '')} /></label>
+        {several && (
+          <label className="date-range-part"><span className="xs muted">To</span>
+            <input type="date" value={to || ''} min={from || undefined} disabled={disabled || !from}
+              onChange={(e) => onPick(from, e.target.value)} /></label>
+        )}
+      </div>
+      <label className="check"><input type="checkbox" checked={several} disabled={disabled}
+        onChange={(e) => { setSeveral(e.target.checked); if (!e.target.checked) onPick(from, ''); }} /> More than one day</label>
+      {value && from && <span className="xs muted">Prints as: <b>{value}</b>{n > 1 ? ` (${n} days)` : ''}</span>}
+      {value && !from && <span className="xs warn-text">Written before: {value}. Choose the date or dates on the calendar.</span>}
+    </div>
+  );
+}
 
 // A person field (or table column): chosen from DMS, so that the document records the person's
 // DMS account number with their name (lib/accountNo.js). A name typed before (an older document)
@@ -131,6 +158,9 @@ export default function FieldInput({ field, value, onChange, onPatch, data = {},
   } else if (field.type === 'person') {
     control = <PersonField id={`f-${field.key}`} name={value ?? ''} dmsNo={data[dmsNoKey(field.key)]} disabled={disabled}
       onPick={(p) => (onPatch ? onPatch(pick(field.key, p, field.keepCase), p) : onChange(pick(field.key, p, field.keepCase)[field.key]))} />;
+  } else if (field.type === 'daterange') {
+    control = <DateRangeField id={`f-${field.key}`} value={value ?? ''} from={data[fromKey(field.key)]} to={data[toKey(field.key)]} disabled={disabled}
+      onPick={(from, to) => (onPatch ? onPatch(dateRangeValue(field.key, from, to)) : onChange(dateRangeValue(field.key, from, to)[field.key]))} />;
   } else if (field.type === 'textarea') {
     control = <textarea id={`f-${field.key}`} rows={3} value={value ?? ''} disabled={disabled} className={field.keepCase ? '' : 'caps'}
       onChange={(e) => onChange(field.keepCase ? e.target.value : toCaps(e.target.value))} />;

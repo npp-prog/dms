@@ -1742,3 +1742,7 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
   .fit[data-multipage] [data-page-foot] { position: fixed; left: 10mm; right: 10mm; bottom: 22mm; margin: 0 !important; }
   .fit[data-multipage] { padding-bottom: 12mm; }
 }
+/* Date or dates (calendar) */
+.date-range { display: grid; gap: .4rem; }
+.date-range-row { display: flex; gap: .6rem; flex-wrap: wrap; }
+.date-range-part { display: grid; gap: .15rem; flex: 1 1 160px; }

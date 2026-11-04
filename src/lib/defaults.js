@@ -735,7 +735,7 @@ const TO = {
   orientation: 'portrait',
   active: true,
   checklistSource: 'own',
-  starterVersion: 9,
+  starterVersion: 10,
   // The letterhead (title, email, contact no.) of the issuing office, from Settings.
   headerOffice: 'Office of the Municipal Mayor',
   steps: [
@@ -754,8 +754,8 @@ const TO = {
     },
     { key: 'destination', label: 'Destination', type: 'text', required: true, keepCase: true, step: 's2',
       help: 'Where they travel to: the place, municipality or city, and province. Printed after "You are hereby directed to travel to".' },
-    { key: 'travelDates', label: 'Date/s of travel', type: 'text', required: true, keepCase: true, step: 's2',
-      help: 'Printed after "You are hereby directed to travel to … with the following Purpose/s on". Write the month, the day or days and the year.' },
+    { key: 'travelDates', label: 'Date/s of travel', type: 'daterange', required: true, keepCase: true, step: 's2',
+      help: 'Choose the day on the calendar, or tick More than one day and choose the first and last day. Printed after "You are hereby directed to travel to … with the following Purpose/s on".' },
     {
       key: 'purposes', label: 'Purpose/s', type: 'table', required: true, step: 's2',
       help: 'Printed as a numbered list, as typed. Add a line to authorize the claim of actual expenses if it applies.',
@@ -952,6 +952,7 @@ export const FIELD_TYPES = [
   { value: 'number', label: 'Number' },
   { value: 'currency', label: 'Amount (₱)' },
   { value: 'date', label: 'Date' },
+  { value: 'daterange', label: 'Date or dates (calendar)' },
   { value: 'select', label: 'Dropdown' },
   { value: 'person', label: 'Person (DMS account)' },
   { value: 'table', label: 'Table / line items' },

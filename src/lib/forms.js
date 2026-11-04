@@ -112,6 +112,7 @@ export function copiedData(type, src) {
     data[f.key] = JSON.parse(JSON.stringify(src.data[f.key]));
     // A person field: their DMS account no. and user go with the name.
     if (f.type === 'person') for (const k of [dmsNoKey(f.key), uidKey(f.key), headKey(f.key)]) data[k] = src.data[k] ?? '';
+    if (f.type === 'daterange') for (const k of [`${f.key}From`, `${f.key}To`]) data[k] = src.data[k] ?? '';
   }
   return data;
 }
