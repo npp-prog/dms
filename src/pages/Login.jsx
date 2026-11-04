@@ -71,7 +71,7 @@ export default function Login() {
 
   const titles = { login: 'Sign in', register: 'Create your account', reset: 'Reset your password' };
   const subs = {
-    login: 'Requesting offices, Accounting, Budget and administrators all sign in here.',
+    login: '',
     register: 'After creating your account, an administrator approves your access.',
     reset: 'Enter the email address of your account.',
   };
@@ -88,7 +88,7 @@ export default function Login() {
       <section className="auth-panel">
         <div className="auth-box">
           <h2>{titles[mode]}</h2>
-          <p className="muted small">{subs[mode]}</p>
+          {subs[mode] && <p className="muted small">{subs[mode]}</p>}
           {mode !== 'reset' && (
             <>
               <button type="button" className="gbtn" disabled={busy} onClick={async () => {
