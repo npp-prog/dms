@@ -30,3 +30,17 @@ test('the DV No. and its date are assigned on the route, not typed in the Accoun
   assert.deepEqual([...assignedFields(type, { workflow: { steps: [{ office: 'A' }] } })], []);
   assert.deepEqual([...assignedFields({ route: [{ assign: { field: 'orNo' } }], processing: type.processing }, {})], ['orNo']);
 });
+
+test('overdue: more than 3 days where it is now, counted from when it arrived', async () => {
+  const { daysWaiting, isOverdue, waitingSince, OVERDUE_DAYS } = await import('./workflow.js');
+  assert.equal(OVERDUE_DAYS, 3);
+  const now = new Date('2026-11-10T09:00:00+08:00');
+  const doc = (events, extra = {}) => ({ workflow: { state: 'in-progress', stage: 1, steps: [{}, {}], events, ...extra } });
+  const d = doc([{ type: 'started', at: '2026-11-01T08:00:00+08:00' }, { type: 'released', at: '2026-11-05T08:00:00+08:00' }, { type: 'assigned', at: '2026-11-08T08:00:00+08:00' }]);
+  assert.equal(waitingSince(d), '2026-11-05T08:00:00+08:00', 'assigning a number is not an arrival');
+  assert.equal(daysWaiting(d, now), 5);
+  assert.ok(isOverdue(d, now));
+  assert.ok(!isOverdue(doc([{ type: 'released', at: '2026-11-07T10:00:00+08:00' }]), now), 'under 3 days');
+  assert.ok(!isOverdue(doc([{ type: 'released', at: '2026-11-06T10:00:00+08:00' }]), now), '3 days: not yet');
+  assert.equal(daysWaiting({ workflow: { state: 'done', events: [{ type: 'released', at: '2026-10-01' }] } }, now), null, 'processed: not waiting');
+});

@@ -73,14 +73,19 @@ export function systemFor(item) {
   return Object.values(PIM_DOCS).some((names) => names.some((n) => new RegExp(`\\b${escapeRe(n)}\\b`, 'i').test(label))) ? 'PIM' : '';
 }
 
+// (An additional document, not on the checklist (any): any document may be linked to it.)
 export function acceptsDocument(item, docu) {
-  if (!item) return true;
+  if (!item || item.any) return true;
   const text = `${item.label || ''} ${item.details || ''}`;
   const names = [...(ALIASES[docu.typeCode] || []), docu.typeName].filter(Boolean);
   return names.some((n) => new RegExp(`\\b${escapeRe(n)}\\b`, 'i').test(text));
 }
 
 export const isChecked = (v) => v === true || v === 'Y';
+
+// The Additional documents typed under a checklist (additionalDocs: their names), as items that
+// documents are linked or uploaded to like checklist items (links[`add${i}`]).
+export const additionalItems = (list = []) => (list || []).map((label, i) => ({ id: `add${i}`, label: String(label || ''), any: true }));
 
 // Printed with separate Document Type and Document Details columns when any item has details.
 export const hasDetails = (items) => (items || []).some((i) => String(i.details || '').trim());

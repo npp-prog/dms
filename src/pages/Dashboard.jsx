@@ -2,7 +2,9 @@ import { useLiveRefresh } from '../lib/useLiveRefresh.js';
 import { docStage } from '../lib/docStatus.js';
 import { isMyTurn } from '../lib/signRequest.js';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { OVERDUE_DAYS, daysWaiting, isOverdue } from '../lib/workflow.js';
+import { matchesSearch } from '../lib/docSearch.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listDocuments, listDocumentTypes, listUsers } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
@@ -88,12 +90,20 @@ export default function Dashboard() {
   const thisYear = docs.filter((d) => String(d.createdAt?.toDate?.().getFullYear()) === year);
   const waiting = profile.office ? docs.filter((d) => d.currentOffice === profile.office).length : 0;
   const firstName = (profile.displayName || '').split(' ')[0];
+  // Overdue: routed documents more than 3 days where they are now (the longest first).
+  const overdue = docs.filter((d) => isOverdue(d)).sort((a, b) => daysWaiting(b) - daysWaiting(a));
+  // Search: the documents the user may see, as they type; Enter opens Documents with the search.
+  const navigate = useNavigate();
+  const [q, setQ] = useState('');
+  const found = q.trim() ? docs.filter((d) => matchesSearch(d, q.trim().toLowerCase())).slice(0, 6) : [];
 
   const items = [
     canManageUsers && pendingUsers > 0 && <InboxRow key="u" icon="user" tone="red" title="Registrations to approve" sub="New accounts waiting for access" n={pendingUsers} to="/admin/users" />,
     canManageFormats && types.length === 0 && <InboxRow key="t" icon="types" tone="red" title="No document formats yet" sub="Load the starter formats or create a document type" n="!" to="/admin/types" />,
     backupsDue > 0 && <InboxRow key="b" icon="archive" tone="red" title="Archive backup due" sub="Back up the archive to the Records Office's devices" n={backupsDue} to="/archive" />,
     toSign.length > 0 && <InboxRow key="sg" icon="sign" tone="red" title="Waiting for your signature" sub={toSign.length === 1 ? `${toSign[0].controlNo}${toSign[0].title ? ` — ${toSign[0].title}` : ''}` : 'Documents you were asked to sign'} n={toSign.length} to={toSign.length === 1 ? `/documents/${toSign[0].id}` : '/documents'} />,
+    overdue.length > 0 && <InboxRow key="od" icon="clock" tone="red" title={`Overdue documents (over ${OVERDUE_DAYS} days)`}
+      sub={`Longest: ${overdue[0].controlNo} — ${daysWaiting(overdue[0])} days at ${overdue[0].currentOffice?.startsWith('person:') ? 'a person' : overdue[0].currentOffice || 'the preparer\'s office'}`} n={overdue.length} to="/tracking?view=overdue" />,
     waiting > 0 && <InboxRow key="w" icon="inbox" tone="blue" title="Waiting in your office" sub="Documents to act on and route to the next office" n={waiting} to="/notifications" />,
     work?.overdue.length > 0 && <InboxRow key="wo" icon="check" tone="red" title="Overdue work" sub="Work items assigned to you, past their due date" n={work.overdue.length} to="/my-work?show=overdue" />,
     work?.today.length > 0 && <InboxRow key="wt" icon="check" tone="blue" title="Work due today" sub="Work items assigned to you, due today" n={work.today.length} to="/my-work?show=today" />,
@@ -124,6 +134,19 @@ export default function Dashboard() {
         </div>
         <Link to="/new" className="btn btn-primary">+ New document</Link>
       </div>
+      <form className="home-search" role="search" onSubmit={(e) => { e.preventDefault(); if (q.trim()) navigate(`/documents?q=${encodeURIComponent(q.trim())}`); }}>
+        <Icon name="search" />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search documents: number, payee or anything in them…" aria-label="Search documents" />
+        {q.trim() && (
+          <ul className="home-search-results">
+            {found.map((d) => (
+              <li key={d.id}><Link to={`/documents/${d.id}`}><b>{d.controlNo}</b> <span className="muted">{d.typeCode}</span> — {d.title}<StatusBadge doc={d} /></Link></li>
+            ))}
+            {loaded && !found.length && <li className="muted small">No document matches.</li>}
+            <li><button type="submit" className="link small">See all results in Documents →</button></li>
+          </ul>
+        )}
+      </form>
       {error && <div className="alert">{error}</div>}
       {setupNotice.length > 0 && (
         <div className="alert alert-ok row gap" style={{ justifyContent: 'space-between' }}>

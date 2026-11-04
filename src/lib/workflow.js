@@ -464,3 +464,21 @@ export function assignPending(doc) {
 
 export const ACTION_LABELS = { release: 'Route', return: 'Return', complete: 'Mark processed', back: 'Send back', hold: 'Put on hold', resume: 'Take off hold', disapprove: 'Disapprove' };
 
+
+// ---------- Overdue documents ----------
+// A routed document is overdue when it has stayed more than OVERDUE_DAYS days with the same office
+// (or person) without being routed on: counted from when it reached them.
+export const OVERDUE_DAYS = 3;
+const ARRIVALS = new Set(['started', 'released', 'returned', 'referred', 'referral back']);
+export function waitingSince(d) {
+  const wf = d?.workflow;
+  if (!wf || wf.state !== 'in-progress') return '';
+  return [...(wf.events || [])].reverse().find((e) => ARRIVALS.has(e.type))?.at || '';
+}
+// Whole days it has been where it is now (0 on the day it arrived); null if it is not moving.
+export function daysWaiting(d, now = new Date()) {
+  const at = waitingSince(d);
+  if (!at) return null;
+  return Math.max(0, Math.floor((new Date(now) - new Date(at)) / 864e5));
+}
+export const isOverdue = (d, now = new Date()) => (daysWaiting(d, now) ?? 0) > OVERDUE_DAYS;

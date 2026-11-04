@@ -9,7 +9,7 @@ import { currentSigner, isMyTurn, markInBox } from '../lib/signRequest.js';
 import { assignPending, canAct, editableByPreparer, holdsPosition, isPreparer, isReceived, linkLocked, liveFiles, officeOf } from '../lib/workflow.js';
 import { readSignatures } from '../lib/signing.js';
 import { signatoriesFrom } from '../lib/signatories.js';
-import { effectiveChecklist, isChecked, itemTypeCode, missingRequired } from '../lib/checklists.js';
+import { effectiveChecklist, isChecked, itemTypeCode, missingRequired, additionalItems } from '../lib/checklists.js';
 import AccountingPanel from '../components/AccountingPanel.jsx';
 import BulkDownload from '../components/BulkDownload.jsx';
 import ChecklistSheet from '../components/ChecklistSheet.jsx';
@@ -328,7 +328,7 @@ function DocumentPage({ docId }) {
   // A supplier or payee sees the document and its PDF only (not its checklist or attachments).
   const activeChecklist = type && !docData.uploaded && !isExternal ? effectiveChecklist(type, docData.transaction) : null;
   // Tabs after the checklist: the documents linked or uploaded to its items, numbered as on it.
-  const linkTabs = (activeChecklist?.items || []).flatMap((item, i) => (docData.links?.[item.id] || [])
+  const linkTabs = [...(activeChecklist?.items || []), ...(activeChecklist ? additionalItems(docData.additionalDocs) : [])].flatMap((item, i) => (docData.links?.[item.id] || [])
     .map((l, j) => ({ link: l, key: `${item.id}:${j}`, n: i + 1 }))
     .filter((t) => t.link.kind === 'fts' || t.link.kind === 'file')
     .map((t) => ({
@@ -560,7 +560,18 @@ function DocumentPage({ docId }) {
               {(docData.additionalDocs || []).length > 0 && (
                 <>
                   <h4 style={{ marginTop: '.9rem' }}>Additional documents</h4>
-                  <ol className="small" start={activeChecklist.items.length + 1}>{docData.additionalDocs.map((t, i) => <li key={i}>{t}</li>)}</ol>
+                  <ul className="checklist-view">
+                    {additionalItems(docData.additionalDocs).map((c, ai) => (
+                      <li key={c.id}><span>{activeChecklist.items.length + ai + 1}.</span> {c.label}
+                        <ItemLinks item={c} n={activeChecklist.items.length + ai + 1} links={docData.links?.[c.id] || []} docId={docId} parent={{ ...docData, id: docId }} actor={actor}
+                          onOpen={(l, key) => (l.kind === 'fts' ? openLinked(l, key) : openFile(l, key))}
+                          canEdit={editable && (isAdmin || (isOwner && notDone))}
+                          onChange={(list, note) => run(async () => saveDocumentLinks(docId, {
+                            links: { ...(docData.links || {}), [c.id]: list }, checklist: docData.checklist || {},
+                          }, actor, docData.history, `${c.label}: ${note}`))} />
+                      </li>
+                    ))}
+                  </ul>
                 </>
               )}
               <ExtraItems docData={docData} docId={docId} actor={actor} start={activeChecklist.items.length + (docData.additionalDocs || []).length}

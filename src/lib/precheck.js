@@ -22,7 +22,7 @@ export function precheckFiles(d) {
   const out = [];
   const current = (d.pdf?.files || []).at(-1);
   if (current?.path) out.push({ label: `The DV itself (${d.controlNo || 'this document'})`, path: current.path, main: true });
-  const items = Object.fromEntries((d.transaction?.items || []).map((i) => [i.id, i.label]));
+  const items = Object.fromEntries([...(d.transaction?.items || []), ...(d.additionalDocs || []).map((label, i) => ({ id: `add${i}`, label }))].map((i) => [i.id, i.label]));
   for (const [itemId, list] of Object.entries(d.links || {})) {
     for (const l of list || []) {
       const label = `Checklist item "${items[itemId] || itemId}": ${l.label || l.name || l.controlNo || 'attachment'}`;

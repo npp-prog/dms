@@ -2,7 +2,7 @@ import { useState } from 'react';
 import TransactionPicker from './TransactionPicker.jsx';
 import { LinkEditor, LinkList } from './DocLinks.jsx';
 import { toCaps } from '../lib/forms.js';
-import { checklistProgress, effectiveChecklist, groupItems, isChecked } from '../lib/checklists.js';
+import { additionalItems, checklistProgress, effectiveChecklist, groupItems, isChecked } from '../lib/checklists.js';
 import { linkLocked } from '../lib/workflow.js';
 
 function Answer({ item, value, onChange, links = [], onLinks, docId, doc }) {
@@ -38,11 +38,35 @@ function Answer({ item, value, onChange, links = [], onLinks, docId, doc }) {
   );
 }
 
+// An additional document (not on the checklist): the documents linked to it.
+function AdditionalLinks({ item, links, onLinks, docId, doc }) {
+  const [linking, setLinking] = useState(false);
+  return (
+    <div className="additional-links">
+      <LinkList links={links} isLocked={(l) => linkLocked(doc, l)} onRemove={(i) => onLinks(links.filter((_, j) => j !== i))} />
+      {linking
+        ? <LinkEditor item={item} excludeId={docId} onCancel={() => setLinking(false)} onAdd={(l) => { onLinks([...links, l]); setLinking(false); }} />
+        : <button type="button" className="link small" onClick={() => setLinking(true)}>+ Link document</button>}
+    </div>
+  );
+}
+
 // Checklist step of the wizard: tick Y / N/A for each required document.
 // For library-based document types (DV, Payroll, LR) the type of transaction is chosen here,
 // which loads its checklist from the library.
 // doc: the saved document being edited (links kept once it was routed on stay: lib/workflow.js linkLocked).
 export default function ChecklistStep({ type, transaction, state, onState, onTransaction, additional = [], onAdditional, links = {}, onLinks, docId, doc = null, startPicking = false }) {
+  // Removing an additional document: the links of the ones after it move up with them.
+  const removeAdditional = (i) => {
+    if (onLinks) {
+      const next = { ...links };
+      for (let j = i; j < additional.length; j += 1) {
+        if (links[`add${j + 1}`]) next[`add${j}`] = links[`add${j + 1}`]; else delete next[`add${j}`];
+      }
+      onLinks(next);
+    }
+    onAdditional(additional.filter((_, j) => j !== i));
+  };
   const [picking, setPicking] = useState(startPicking);
   const library = type.checklistSource && type.checklistSource !== 'own';
   const checklist = effectiveChecklist(type, transaction);
@@ -104,13 +128,20 @@ export default function ChecklistStep({ type, transaction, state, onState, onTra
           <p className="small muted">Attaching something that is not on the checklist? Add it here. It is listed in the
             Additional Documents box of the printed checklist.</p>
           {additional.map((text, i) => (
-            <div key={i} className="row gap additional-row">
-              <span className="muted">{(checklist?.items.length || 0) + i + 1}.</span>
-              <input className="caps" value={text} placeholder="Document"
-                onChange={(e) => onAdditional(additional.map((t, j) => (j === i ? toCaps(e.target.value) : t)))} />
-              <button type="button" className="btn-icon" title="Remove" onClick={() => onAdditional(additional.filter((_, j) => j !== i))}>×</button>
+            <div key={i} className="additional-item">
+              <div className="row gap additional-row">
+                <span className="muted">{(checklist?.items.length || 0) + i + 1}.</span>
+                <input className="caps" value={text} placeholder="Document"
+                  onChange={(e) => onAdditional(additional.map((t, j) => (j === i ? toCaps(e.target.value) : t)))} />
+                <button type="button" className="btn-icon" title="Remove" onClick={() => removeAdditional(i)}>×</button>
+              </div>
+              {onLinks && text.trim() && (
+                <AdditionalLinks item={additionalItems(additional)[i]} links={links[`add${i}`] || []} docId={docId} doc={doc}
+                  onLinks={(l) => onLinks({ ...links, [`add${i}`]: l })} />
+              )}
             </div>
           ))}
+          {onLinks && additional.some((t) => t.trim()) && <p className="xs muted">Link a document already in DMS here; to upload a file, save the document, then use + Upload file under it on the document page.</p>}
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAdditional([...additional, ''])}>+ Add document</button>
         </div>
       )}

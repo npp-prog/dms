@@ -1,7 +1,7 @@
 import { useLiveRefresh } from '../lib/useLiveRefresh.js';
 import { DOC_STAGES, docStage } from '../lib/docStatus.js';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { matchesSearch } from '../lib/docSearch.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listDocuments } from '../lib/api.js';
@@ -22,7 +22,9 @@ export default function Documents() {
   const isAdmin = admin || isRecords;
   const [docs, setDocs] = useState(null);
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState({ q: '', status: '', type: '', office: '' });
+  // (q: the search from the Dashboard's search box.)
+  const [params] = useSearchParams();
+  const [filters, setFilters] = useState({ q: params.get('q') || '', status: '', type: '', office: '' });
   const [zipOpen, setZipOpen] = useState(false);
 
   // (Reloaded by itself when a new notification arrives: a document sent to them, signed…)

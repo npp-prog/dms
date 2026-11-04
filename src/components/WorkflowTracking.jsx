@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listDocuments } from '../lib/api.js';
-import { HIDDEN_EVENTS, officeOf } from '../lib/workflow.js';
+import { HIDDEN_EVENTS, OVERDUE_DAYS, daysWaiting, isOverdue, officeOf } from '../lib/workflow.js';
 import Select from './Select.jsx';
 import Icon from './Icon.jsx';
 import { drnOf } from '../lib/naming.js';
@@ -22,13 +22,15 @@ export function stateOf(d, office, uid = '') {
   return 'moving';
 }
 
-const VIEW_ICONS = { active: 'send', mine: 'inbox', returned: 'return', done: 'check', all: 'workflow' };
+const VIEW_ICONS = { active: 'send', mine: 'inbox', overdue: 'clock', returned: 'return', done: 'check', all: 'workflow' };
 
 // The tracking views and which documents each holds (also the Dashboard's tracking status).
 export function trackingViews(office) {
   return [
     ['active', 'On the move', (r) => !['done', 'cancelled'].includes(r.state)],
     ...(office ? [['mine', 'In your office', (r) => r.state === 'mine']] : []),
+    // More than 3 days where it is now, without being routed on.
+    ['overdue', `Overdue (over ${OVERDUE_DAYS} days)`, (r) => isOverdue(r.d)],
     ['returned', 'Returned', (r) => r.state === 'returned' || (r.state === 'mine' && r.d.workflow.events.filter((e) => !HIDDEN_EVENTS.has(e.type)).at(-1)?.type === 'returned')],
     ['done', 'Processed', (r) => r.state === 'done'],
     ['all', 'All routed', () => true],
@@ -62,7 +64,9 @@ export default function WorkflowTracking() {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = rows.filter(pick)
     .filter(({ d }) => !at || (d.workflow.state === 'in-progress' && officeOf(d.workflow.steps[d.workflow.stage], d) === at))
-    .filter(({ d }) => words.every((w) => `${d.controlNo} ${drnOf(d)} ${d.typeCode} ${d.title} ${d.createdByName} ${d.office}`.toLowerCase().includes(w)));
+    .filter(({ d }) => words.every((w) => `${d.controlNo} ${drnOf(d)} ${d.typeCode} ${d.title} ${d.createdByName} ${d.office}`.toLowerCase().includes(w)))
+    // Overdue: the longest waiting first.
+    .sort((a, b) => (view === 'overdue' ? (daysWaiting(b.d) ?? 0) - (daysWaiting(a.d) ?? 0) : 0));
 
   return (
     <>
@@ -87,9 +91,9 @@ export default function WorkflowTracking() {
       {docs && (
         <div className="card table-card">
           <table className="data-table wf-table">
-            <thead><tr><th>Control No.</th><th title="Document Reference No.: the number assigned along the route (e.g. the DV No.)">DRN</th><th>Payee / Subject</th><th>Route</th><th>Now at</th><th>Last action</th></tr></thead>
+            <thead><tr><th>Control No.</th><th title="Document Reference No.: the number assigned along the route (e.g. the DV No.)">DRN</th><th>Payee / Subject</th><th>Route</th><th>Now at</th><th title={`Days where it is now; overdue after ${OVERDUE_DAYS} days`}>Days</th><th>Last action</th></tr></thead>
             <tbody>
-              {shown.length === 0 && <tr><td colSpan={6} className="muted">No documents here. A document is routed when it is marked complete.</td></tr>}
+              {shown.length === 0 && <tr><td colSpan={7} className="muted">No documents here. A document is routed when it is marked complete.</td></tr>}
               {shown.map(({ d, state }) => {
                 const wf = d.workflow;
                 const last = wf.events.filter((e) => !HIDDEN_EVENTS.has(e.type)).at(-1);
@@ -117,6 +121,9 @@ export default function WorkflowTracking() {
                           {last?.type === 'returned' && <span className="badge badge-red">Returned</span>}
                         </>
                       ) : <span className={`badge ${wf.state === 'done' ? 'badge-green' : 'badge-gray'}`}>{wf.state === 'done' ? 'Processed' : 'Cancelled'}</span>}
+                    </td>
+                    <td className="num">
+                      {daysWaiting(d) !== null && <span className={isOverdue(d) ? 'aging-overdue' : 'muted'} title={isOverdue(d) ? 'Overdue' : ''}>{daysWaiting(d)}</span>}
                     </td>
                     <td className="small">
                       {last && <>{EVENT[last.type]} by {last.by}<div className="muted">{when(last.at)}</div>
