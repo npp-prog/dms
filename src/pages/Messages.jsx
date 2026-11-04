@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { conversationId, isUnread, listDirectory, markConversationRead, sendMessage, watchConversations, watchMessages } from '../lib/api.js';
+import { conversationId, isUnread, listDirectory, markConversationRead, sendMessage, setOnlineMode, watchConversations, watchMessages, watchPresence } from '../lib/api.js';
+import { isOnline } from '../lib/presence.js';
 import PersonPicker from '../components/PersonPicker.jsx';
 import { Avatar } from '../components/Icon.jsx';
 import { Link } from 'react-router-dom';
@@ -56,11 +57,20 @@ export default function Messages() {
 
   // Their profile picture and position (directory of active users).
   const [people, setPeople] = useState({});
+  // Who is online (lib/presence.js); re-checked every 30 seconds. The user may turn theirs off.
+  const [presence, setPresence] = useState({});
+  const [, setTick] = useState(0);
+  useEffect(() => watchPresence(setPresence, () => {}), []);
+  useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30e3); return () => clearInterval(t); }, []);
+  const online = (uid) => isOnline(presence[uid]);
+  const meVisible = !presence[user.uid]?.hidden;
+  const [modeBusy, setModeBusy] = useState(false);
+  const toggleMode = () => { setModeBusy(true); setOnlineMode(user.uid, !meVisible).catch((e) => setError(e.message)).finally(() => setModeBusy(false)); };
   useEffect(() => { listDirectory().then((l) => setPeople(Object.fromEntries(l.map((p) => [p.uid, p])))).catch(() => {}); }, []);
 
   const other = (c) => {
     const uid = c.members.find((m) => m !== user.uid);
-    return { uid, displayName: c.names?.[uid] || 'User', photo: people[uid]?.photo || '', position: people[uid]?.position || '' };
+    return { uid, displayName: c.names?.[uid] || 'User', photo: people[uid]?.photo || '', position: people[uid]?.position || '', online: online(uid) };
   };
   const open = (convos || []).find((c) => c.id === openId);
   const partner = newTo || (open ? other(open) : null);
@@ -75,6 +85,10 @@ export default function Messages() {
     <div className="page messages-page">
       <div className="page-head">
         <div><h1>Messages</h1></div>
+        <button type="button" className={`online-toggle${meVisible ? ' on' : ''}`} disabled={modeBusy} onClick={toggleMode} aria-pressed={meVisible}
+          title={meVisible ? 'Others see when you are online. Click to turn it off.' : 'Others do not see when you are online. Click to turn it on.'}>
+          <span className="online-switch" aria-hidden="true"><span /></span>{meVisible ? 'Online' : 'Online status off'}
+        </button>
       </div>
       {error && <div className="alert">{error}</div>}
       <div className="chat-layout card">
@@ -93,7 +107,7 @@ export default function Messages() {
                 <li key={c.id}>
                   <button type="button" className={`${c.id === openId ? 'active' : ''}${isUnread(c, user.uid) ? ' unread' : ''}`}
                     onClick={() => { setOpenId(c.id); setNewTo(null); setStarting(false); }}>
-                    <Avatar name={o.displayName} photo={o.photo} size="sm" />
+                    <span className="av-wrap"><Avatar name={o.displayName} photo={o.photo} size="sm" />{o.online && <span className="online-dot" title="Online" />}</span>
                     <span className="chat-list-t">
                       <span className="chat-list-top"><b>{o.displayName}</b><span className="xs muted">{when(c.lastAt)}</span></span>
                       <span className="small muted chat-preview">{c.lastBy === user.uid ? 'You: ' : ''}{c.lastText}</span>
@@ -107,7 +121,7 @@ export default function Messages() {
         </aside>
         <section className="chat-main">
           {partner
-            ? <Conversation key={conversationId(user.uid, partner.uid)} me={me} partner={partner} convo={open}
+            ? <Conversation key={conversationId(user.uid, partner.uid)} me={me} partner={{ ...partner, online: online(partner.uid) }} convo={open}
               onBack={() => { setOpenId(''); setNewTo(null); }} onSent={() => setNewTo(null)} />
             : <div className="chat-none muted">Choose a conversation, or start a new message.</div>}
         </section>
@@ -171,8 +185,9 @@ function Conversation({ me, partner, convo, onBack, onSent }) {
     <>
       <div className="chat-head">
         <button type="button" className="btn-icon chat-back" title="Back" onClick={onBack}>←</button>
-        <Avatar name={partner.displayName} photo={partner.photo} size="sm" />
-        <span className="chat-who"><b>{partner.displayName}</b>{partner.position && <span className="xs muted">{partner.position}</span>}</span>
+        <span className="av-wrap"><Avatar name={partner.displayName} photo={partner.photo} size="sm" />{partner.online && <span className="online-dot" />}</span>
+        <span className="chat-who"><b>{partner.displayName}</b>
+          <span className="xs muted">{partner.online ? <span className="online-text">Online</span> : null}{partner.online && partner.position ? ' · ' : ''}{partner.position}</span></span>
       </div>
       <div className="chat-body">
         {messages === null && <div className="spinner" />}

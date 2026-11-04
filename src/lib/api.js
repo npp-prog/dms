@@ -1660,3 +1660,23 @@ function summarize(type, data) {
   const first = (type.fields || []).find((f) => f.type === 'text' && data?.[f.key]);
   return first ? String(data[first.key]).slice(0, 120) : type.name;
 }
+
+// ---------- Online status (Messages: lib/presence.js) ----------
+// presence/{uid}: { at: the last time their DMS was open (ISO), hidden: they turned it off }.
+export function heartbeat(uid) {
+  return setDoc(doc(db, 'presence', uid), { at: new Date().toISOString(), hidden: false });
+}
+export function setOnlineMode(uid, visible) {
+  return setDoc(doc(db, 'presence', uid), { at: new Date().toISOString(), hidden: !visible });
+}
+export async function getPresence(uid) {
+  const snap = await getDoc(doc(db, 'presence', uid)).catch(() => null);
+  return snap?.exists() ? snap.data() : null;
+}
+// Everyone's online status, live. Returns the unsubscribe function.
+export function watchPresence(onChange, onError) {
+  return onSnapshot(collection(db, 'presence'), (snap) => onChange(Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))), onError);
+}
+export function watchMyPresence(uid, onChange) {
+  return onSnapshot(doc(db, 'presence', uid), (snap) => onChange(snap.exists() ? snap.data() : null), () => onChange(null));
+}

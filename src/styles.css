@@ -1769,3 +1769,14 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .doc-actions .btn svg { width: 14px; height: 14px; flex: none; }
 .doc-actions .btn-ghost:hover { background: var(--hover); }
 @media (max-width: 640px) { .doc-actions > .btn, .doc-actions > a.btn, .doc-actions > * > .btn { min-width: 0; flex: 1 1 calc(50% - .45rem); } }
+
+/* Online status (Messages) */
+.av-wrap { position: relative; display: inline-flex; flex: none; }
+.online-dot { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; background: #22a55a; border: 2px solid #fff; }
+.online-text { color: #1b8a4a; font-weight: 600; }
+.online-toggle { display: inline-flex; align-items: center; gap: .5rem; border: 1px solid var(--line-2); background: #fff; border-radius: 999px; padding: .3rem .8rem .3rem .35rem; font: inherit; font-size: .82rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+.online-toggle.on { color: #1b8a4a; border-color: #b9e2c8; background: #f1fbf4; }
+.online-switch { position: relative; width: 30px; height: 18px; border-radius: 999px; background: #c9cfd6; transition: background .2s; }
+.online-switch span { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.online-toggle.on .online-switch { background: #22a55a; }
+.online-toggle.on .online-switch span { transform: translateX(12px); }

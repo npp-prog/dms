@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { HEARTBEAT_MS } from '../lib/presence.js';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import UpdateBar from './UpdateBar.jsx';
 import Icon, { Avatar } from './Icon.jsx';
 import BackButton from './BackButton.jsx';
-import { isUnread, listInbox, watchConversations } from '../lib/api.js';
+import { isUnread, listInbox, watchConversations, heartbeat, watchMyPresence } from '../lib/api.js';
 import { listCirculars, toReceive, watchCommunities, watchNotifications } from '../lib/social.js';
 import { watchIdle } from '../lib/idle.js';
 import { ROLE_NAMES } from '../lib/roles.js';
@@ -50,6 +51,19 @@ export default function Layout() {
     try { sessionStorage.setItem('dms-signed-out', 'idle'); } catch { /* no notice then */ }
     logout();
   }), []);
+  // Online status (Messages): while DMS is open and showing, a sign of life every minute, unless
+  // the user turned their online status off (lib/presence.js).
+  const [presence, setPresence] = useState(undefined);
+  useEffect(() => (profile?.active ? watchMyPresence(user.uid, setPresence) : undefined), [user.uid, profile?.active]);
+  const showOnline = presence !== undefined && !presence?.hidden;
+  useEffect(() => {
+    if (!showOnline) return undefined;
+    const beat = () => { if (document.visibilityState === 'visible') heartbeat(user.uid).catch(() => {}); };
+    beat();
+    const t = setInterval(beat, HEARTBEAT_MS);
+    document.addEventListener('visibilitychange', beat);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', beat); };
+  }, [showOnline, user.uid]);
   // Documents waiting in the user's office (refreshed as the user moves around).
   const [waiting, setWaiting] = useState(0);
   const [circulars, setCirculars] = useState([]); // ids of circulars the office has to receive

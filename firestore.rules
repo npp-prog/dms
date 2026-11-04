@@ -203,6 +203,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---- Online status (Messages): each user writes their own; turned off: hidden ----
+    match /presence/{uid} {
+      allow read: if isActive();
+      allow write: if isActive() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['at', 'hidden'])
+        && request.resource.data.at is string && request.resource.data.at.size() <= 40
+        && request.resource.data.hidden is bool;
+    }
+
     // ---- Messages between two users: only the two of them read or write them ----
     // The conversation's id is the two uids, sorted, joined by '_'.
     match /conversations/{cid} {
