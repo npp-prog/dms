@@ -532,15 +532,45 @@ service cloud.firestore {
       function workflowUntouched() {
         return unchanged(['workflow', 'currentOffice', 'routeOffices', 'atPreparer']);
       }
-      allow read: if isActive()
-        && (resource.data.createdBy == request.auth.uid || isAdmin() || heldByMyOffice() || headSees() || referredToMe() || referredByMyOffice() || isRecords() || routeStaff()
+      // A document attached to another (a TO, an OBR... linked to a DV or an LR: linkedTo, its first
+      // three) is seen by those who see that one along its route: its preparer, the offices it has
+      // reached, the people it is referred, forwarded or sent to sign.
+      function parentReaches(p) {
+        return p.get('createdBy', '') == request.auth.uid
+          || (myOffice() != '' && (myOffice() in p.get('routeOffices', []) || p.get('currentOffice', '') == myOffice()))
+          || request.auth.uid in p.get('referred', []) || request.auth.uid in p.get('sharedWith', [])
+          || request.auth.uid in p.get('signers', []) || request.auth.uid in p.get('access', []);
+      }
+      function viaParent(i) {
+        let ids = resource.data.get('linkedTo', []);
+        return ids.size() > i && exists(/databases/$(database)/documents/documents/$(ids[i]))
+          && parentReaches(get(/databases/$(database)/documents/documents/$(ids[i])).data);
+      }
+      function linkedViaParent() {
+        return viaParent(0) || viaParent(1) || viaParent(2);
+      }
+      function readsItself() {
+        return resource.data.createdBy == request.auth.uid || isAdmin() || heldByMyOffice() || headSees() || referredToMe() || referredByMyOffice() || isRecords() || routeStaff()
             // asked to sign it (a signature request)
             || request.auth.uid in resource.data.get('signers', [])
             // forwarded to this user, or referred to them (also after they sent it back)
             || request.auth.uid in resource.data.get('sharedWith', [])
             || request.auth.uid in resource.data.get('referred', [])
             // given access by the office head (this document, or its folder)
-            || request.auth.uid in resource.data.get('access', []) || folderGranted());
+            || request.auth.uid in resource.data.get('access', []) || folderGranted();
+      }
+      allow read: if isActive() && (readsItself() || linkedViaParent());
+      // Attached to a document (linkedTo): recorded by that document's preparer, who sees this one
+      // (it was linked from their list); only added, never removed or changed otherwise.
+      // (Its cheap test first: every other update (route moves...) stops there, and every expression
+      // evaluated counts toward the limit of 1000 a request may use.)
+      allow update: if request.resource.data.get('linkedTo', []).size() == resource.data.get('linkedTo', []).size() + 1
+        && isActive()
+        && request.resource.data.linkedTo is list && request.resource.data.linkedTo.size() <= 10
+        && request.resource.data.linkedTo.hasAll(resource.data.get('linkedTo', []))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['linkedTo'])
+        && get(/databases/$(database)/documents/documents/$(request.resource.data.linkedTo[request.resource.data.linkedTo.size() - 1])).data.get('createdBy', '') == request.auth.uid
+        && readsItself();
       // A new document is not routed, shared or archived yet.
       allow create: if isStaff()
         && request.resource.data.createdBy == request.auth.uid

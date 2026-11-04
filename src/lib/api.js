@@ -453,6 +453,9 @@ export async function setupSite(user) {
 
   // Documents routed before atPreparer existed: set it, so the office they wait in can see them.
   const moving = await getDocs(query(collection(db, 'documents'), where('workflow.state', '==', 'in-progress')));
+  // Documents linked before linkedTo existed (lib: markLinked): the documents on their way record
+  // the documents they are attached to, so that the offices on their route may open them.
+  for (const d of moving.docs) await markLinked(d.id, linkedDocs(d.data())).catch(() => {});
   const older = moving.docs.filter((d) => d.data().atPreparer === undefined);
   for (const d of older) await updateDoc(d.ref, { atPreparer: placement(d.data().workflow, d.data()).atPreparer });
   // Offices still ahead on a route no longer see the document: only the offices it has reached.
@@ -602,6 +605,7 @@ export async function createDocument(type, { data, checklist, additionalDocs = [
     ...(copiedFrom ? { copiedFrom } : {}),
     history: [historyEntry('created', user, copiedFrom ? `draft, copied from ${copiedFrom.controlNo}` : status)],
   });
+  await markLinked(ref.id, linkedDocs({ links }));
   return ref.id;
 }
 
@@ -670,6 +674,22 @@ async function claimLinks(parent, before, after, user) {
     });
   }
 }
+// After saving: each DMS document linked to it records it (linkedTo: the documents it is attached
+// to), so that those who see this one along its route (a DV, an LR) may open it too (firestore.rules
+// linkedViaParent). Once recorded it stays (documents no longer linked keep it: a link may have been
+// seen). Never fails the save.
+const MAX_LINKED_TO = 10;
+export async function markLinked(parentId, docs) {
+  for (const id of new Set((docs || []).map((l) => l.id).filter(Boolean))) {
+    if (id === parentId) continue;
+    try {
+      const ref = doc(db, 'documents', id);
+      const cur = (await getDoc(ref)).data();
+      const list = cur?.linkedTo || [];
+      if (cur && !list.includes(parentId) && list.length < MAX_LINKED_TO) await updateDoc(ref, { linkedTo: [...list, parentId] });
+    } catch { /* someone else's document they cannot read or mark: left as it is */ }
+  }
+}
 // After saving: frees the documents no longer linked from it.
 async function releaseLinks(parentId, before, after) {
   const still = new Set(after.map((l) => l.id));
@@ -704,6 +724,7 @@ async function withLinkClaims(id, next, user, write) {
   await claimLinks({ id, controlNo: cur.controlNo }, before, after, user);
   await write(stamped);
   await releaseLinks(id, before, after);
+  await markLinked(id, after);
 }
 
 // Links to supporting documents, added or removed on a saved document (also after it is

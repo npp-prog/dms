@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Icon from '../components/Icon.jsx';
 import { tabLabel } from '../lib/tabLabel.js';
-import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed, watchDocument } from '../lib/api.js';
+import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed, watchDocument, linkedDocs, markLinked } from '../lib/api.js';
 import SignRequestCard from '../components/SignRequestCard.jsx';
 import PrecheckCard from '../components/PrecheckCard.jsx';
 import { currentSigner, isMyTurn, markInBox } from '../lib/signRequest.js';
@@ -182,6 +182,11 @@ function DocumentPage({ docId }) {
   // stay intact, or its form if it was not converted.
   const [linkedView, setLinkedView] = useState(null);
   const [linkKey, setLinkKey] = useState('');
+  // Documents linked before they recorded it (linkedTo): recorded when its preparer opens it, so that
+  // the offices on its route may open them too.
+  useEffect(() => {
+    if (docData && user && docData.createdBy === user.uid && linkedDocs(docData).length) markLinked(docId, linkedDocs(docData)).catch(() => {});
+  }, [docId, docData?.createdBy]);
   const openLinked = (link, key) => {
     setLinkKey(key || '');
     setLinkedView({ link });
@@ -191,8 +196,10 @@ function DocumentPage({ docId }) {
       const d = await getDocument(link.id);
       if (!d) throw new Error('The linked document no longer exists.');
       const current = d.pdf?.files?.at(-1);
-      if (current) {
-        const bytes = await getPdfBytes(current.path);
+      // (Its PDF may be closed to those who see it through this document, e.g. a Payroll: then its
+      // encoded contents are shown.)
+      const bytes = current ? await getPdfBytes(current.path).catch(() => null) : null;
+      if (bytes) {
         setLinkedView({ link, doc: d, bytes, signatures: readSignatures(bytes) });
       } else {
         setLinkedView({ link, doc: d, type: await getTypeForDocument(d) });
