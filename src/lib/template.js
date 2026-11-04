@@ -65,6 +65,8 @@ const FILTERS = {
     return m ? `${m[2]}/${m[3]}/${m[1]}` : String(v ?? '');
   },
   upper: (v) => String(v ?? '').toUpperCase(),
+  // A person's DMS account number, as printed under their name (person fields: lib/accountNo.js).
+  dms: (v) => (v ? `DMS No. ${v}` : ''),
   // Parts of a date, for wording such as "this 28th day of August 2023": day (28), ord (th),
   // monthyear (August 2023), year (2023).
   day: (v) => datePart(v, (d) => String(d.getDate())),
@@ -103,7 +105,9 @@ export function renderTable(field, rows, caps = false) {
     .map((row) => `<tr class="blank">${columns
       .map((c) => {
         const text = formatCell(row?.[c.key], c.type);
-        return `<td${align(c)}>${escapeHtml(caps && !c.keepCase ? String(text).toUpperCase() : text)}</td>`;
+        // A person column: the name, and under it their DMS account number.
+        const dms = c.type === 'person' && row?.[`${c.key}DmsNo`] ? `<span class="dms-no">DMS No. ${escapeHtml(row[`${c.key}DmsNo`])}</span>` : '';
+        return `<td${align(c)}>${escapeHtml(caps && !c.keepCase ? String(text).toUpperCase() : text)}${dms}</td>`;
       })
       .join('')}</tr>`)
     .join('');

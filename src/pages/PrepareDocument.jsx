@@ -217,7 +217,13 @@ function Wizard({ typeId, docId }) {
               {step.fields.map((f) => (
                 <FieldInput key={f.key} field={f} value={data[f.key]}
                   invalid={showErrors && stepMissing.includes(f)}
-                  onChange={(v) => setData((d) => computeFields(type.fields, { ...d, [f.key]: v }))} />
+                  onChange={(v) => setData((d) => computeFields(type.fields, { ...d, [f.key]: v }))}
+                  data={data}
+                  onPatch={(values, p) => setData((d) => computeFields(type.fields, {
+                    ...d, ...values,
+                    // Their position (My Profile) fills an empty Position field.
+                    ...(p?.position && type.fields.some((x) => x.key === 'position' && x.type !== 'table') && !d.position ? { position: p.position } : {}),
+                  }))} />
               ))}
             </div>
           )}

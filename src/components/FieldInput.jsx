@@ -3,6 +3,36 @@ import { formatCurrency, sumColumn } from '../lib/template.js';
 import Select from './Select.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fundsOf } from '../lib/defaults.js';
+import PersonPicker from './PersonPicker.jsx';
+import { dmsNoKey, isAccountNo, personValue } from '../lib/accountNo.js';
+
+// A person field (or table column): chosen from DMS, so that the document records the person's
+// DMS account number with their name (lib/accountNo.js). A name typed before (an older document)
+// shows until someone is chosen.
+function PersonField({ id, name, dmsNo, disabled, onPick }) {
+  if (isAccountNo(dmsNo)) {
+    return (
+      <div className="person-chosen person-field" id={id}>
+        <span className="grow"><b>{name}</b><span className="small muted">DMS No. {dmsNo}</span></span>
+        {!disabled && <button type="button" className="link small" onClick={() => onPick(null)}>Change</button>}
+      </div>
+    );
+  }
+  if (disabled) return <div className="person-chosen person-field" id={id}><span className="grow"><b>{name || '—'}</b></span></div>;
+  return (
+    <div className="person-field" id={id}>
+      {name && <div className="xs warn-text">{name}: choose this person from DMS to record their DMS account no.</div>}
+      <PersonPicker value={null} external onChange={(p) => p && onPick(p)} placeholder="Type a name, email or DMS no.…" />
+    </div>
+  );
+}
+
+// The value to store for a chosen person: the name (in capitals unless printed as typed), their
+// DMS account no. and user.
+const pick = (key, p, keepCase) => {
+  const v = personValue(key, p);
+  return keepCase ? v : { ...v, [key]: toCaps(v[key]) };
+};
 
 function inputType(type) {
   if (type === 'number' || type === 'currency') return 'number';
@@ -24,7 +54,7 @@ function TableInput({ field, value, onChange, disabled }) {
         <thead>
           <tr>
             <th style={{ width: 32 }}>#</th>
-            {columns.map((c) => <th key={c.key} style={c.type === 'textarea' ? { minWidth: 260 } : undefined}>{c.label}</th>)}
+            {columns.map((c) => <th key={c.key} style={c.type === 'textarea' || c.type === 'person' ? { minWidth: 260 } : undefined}>{c.label}</th>)}
             {!disabled && <th style={{ width: 40 }} />}
           </tr>
         </thead>
@@ -34,7 +64,14 @@ function TableInput({ field, value, onChange, disabled }) {
               <td className="muted">{i + 1}</td>
               {columns.map((c) => (
                 <td key={c.key}>
-                  {c.type === 'textarea' ? (
+                  {c.type === 'person' ? (
+                    <PersonField name={row[c.key] ?? ''} dmsNo={row[dmsNoKey(c.key)]} disabled={disabled}
+                      onPick={(p) => onChange(rows.map((r, idx) => (idx === i ? computeRow(columns, {
+                        ...r, ...pick(c.key, p, c.keepCase),
+                        // Their position (My Profile) fills an empty Position column.
+                        ...(p?.position && columns.some((x) => x.key === 'position') && !r.position ? { position: p.position } : {}),
+                      }) : r)))} />
+                  ) : c.type === 'textarea' ? (
                     <textarea rows={3} value={row[c.key] ?? ''} disabled={disabled} className={c.keepCase ? '' : 'caps'}
                       onChange={(e) => setRow(i, c.key, c.keepCase ? e.target.value : toCaps(e.target.value))} />
                   ) : (
@@ -80,7 +117,8 @@ function TableInput({ field, value, onChange, disabled }) {
   );
 }
 
-export default function FieldInput({ field, value, onChange, disabled, invalid }) {
+// onPatch(values, person): a person field sets several keys at once (the name, DMS no. and user).
+export default function FieldInput({ field, value, onChange, onPatch, data = {}, disabled, invalid }) {
   const funds = fundsOf(useAuth().settings);
   const label = (
     <label className="field-label" htmlFor={`f-${field.key}`}>
@@ -90,6 +128,9 @@ export default function FieldInput({ field, value, onChange, disabled, invalid }
   let control;
   if (field.type === 'table') {
     control = <TableInput field={field} value={value} onChange={onChange} disabled={disabled} />;
+  } else if (field.type === 'person') {
+    control = <PersonField id={`f-${field.key}`} name={value ?? ''} dmsNo={data[dmsNoKey(field.key)]} disabled={disabled}
+      onPick={(p) => (onPatch ? onPatch(pick(field.key, p, field.keepCase), p) : onChange(pick(field.key, p, field.keepCase)[field.key]))} />;
   } else if (field.type === 'textarea') {
     control = <textarea id={`f-${field.key}`} rows={3} value={value ?? ''} disabled={disabled} className={field.keepCase ? '' : 'caps'}
       onChange={(e) => onChange(field.keepCase ? e.target.value : toCaps(e.target.value))} />;

@@ -173,6 +173,24 @@ service cloud.firestore {
       allow read: if true;
       allow write: if managesSettings();
     }
+    // DMS account numbers: the last one issued (lib/accountNo.js). It only goes up.
+    match /meta/accountNumbers {
+      allow read: if isActive();
+      allow create: if isActive() && request.resource.data.keys().hasOnly(['last'])
+        && request.resource.data.last is int && request.resource.data.last > 0 && request.resource.data.last <= 999999;
+      allow update: if isActive() && request.resource.data.keys().hasOnly(['last'])
+        && request.resource.data.last is int && request.resource.data.last > resource.data.last && request.resource.data.last <= 999999;
+    }
+    // accountNumbers/{no}: whose number it is. Created once, with the user's profile taking that
+    // number in the same write (see users: accountNoGiven); never changed or removed.
+    match /accountNumbers/{no} {
+      allow get: if isActive();
+      allow create: if isActive() && no.matches('^[0-9]{6}$')
+        && request.resource.data.keys().hasOnly(['uid', 'at']) && request.resource.data.uid is string
+        && (request.resource.data.uid == request.auth.uid || managesUsers())
+        && getAfter(/databases/$(database)/documents/users/$(request.resource.data.uid)).data.get('accountNo', '') == no;
+      allow update, delete: if false;
+    }
     // The Archive's settings (backup devices, how often to back up): the Records Officer keeps them.
     match /meta/archive {
       allow read: if isRecords() || isAdmin();
@@ -251,6 +269,18 @@ service cloud.firestore {
               || d.photo.matches('https://(firebasestorage[.]googleapis[.]com|[a-z0-9-]+[.]googleusercontent[.]com)/.*')
               || d.photo.matches('http://(127[.]0[.]0[.]1|localhost):9199/.*'));
       }
+      // The DMS account number (lib/accountNo.js): set once, six digits, claimed in
+      // accountNumbers/{no} in the same write (a number can be claimed only once); never changed.
+      function accountNoKept() {
+        return request.resource.data.get('accountNo', '') == resource.data.get('accountNo', '');
+      }
+      function accountNoGiven() {
+        let no = request.resource.data.get('accountNo', '');
+        return resource.data.get('accountNo', '') == '' && resource.data.active == true
+          && no is string && no.matches('^[0-9]{6}$')
+          && !exists(/databases/$(database)/documents/accountNumbers/$(no))
+          && getAfter(/databases/$(database)/documents/accountNumbers/$(no)).data.uid == uid;
+      }
       function invitePath() {
         return /databases/$(database)/documents/invites/$(request.auth.token.email.lower());
       }
@@ -301,17 +331,19 @@ service cloud.firestore {
         // Superadmin manages everyone (but cannot lock themselves out).
         // (The copy of their folder access only as folderAccess says: grantCopyOk.)
         (isSuper() && (request.auth.uid != uid || unchanged(['role', 'active']))
-            && (unchanged(['folderGrant']) || grantCopyOk()))
+            && (unchanged(['folderGrant']) || grantCopyOk()) && (accountNoKept() || accountNoGiven()))
         // Admin and IT Admin approve/deactivate and edit regular users; an Admin also IT Admins and
         // Records Officers, and gives those roles (never Admin or superadmin).
         || (managesUsers() && request.auth.uid != uid
             && resource.data.role in rolesIManage() && request.resource.data.role in rolesIManage()
-            && (unchanged(['folderGrant']) || grantCopyOk()))
+            && (unchanged(['folderGrant']) || grantCopyOk()) && (accountNoKept() || accountNoGiven()))
         // Anyone may edit their own name, position (job title), ID no. and profile picture (not
         // their office, office head, workflow positions or routing to any person: they decide what
         // they can see and do).
         || (request.auth.uid == uid && unchanged(['role', 'active', 'email', 'office', 'head', 'offices', 'canRefer', 'positions', 'folderGrant'])
-            && ownDetailsOk(request.resource.data))
+            && accountNoKept() && ownDetailsOk(request.resource.data))
+        // Their DMS account number, once (and nothing else).
+        || (request.auth.uid == uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accountNo']) && accountNoGiven())
         // Switching the office they act for: only to one of the offices an administrator gave them
         // (offices: [{office, head}]), with its office-head setting; nothing else changes.
         || (request.auth.uid == uid && resource.data.active == true
@@ -322,11 +354,11 @@ service cloud.firestore {
         // Added in advance: a pending account (registered before verifying its email, or before the
         // administrator added it) takes what the invitation says once the email is verified.
         || (request.auth.uid == uid && resource.data.active == false && invited()
-            && unchanged(['email', 'createdAt', 'folderGrant', 'offices']) && asInvited(request.resource.data))
+            && unchanged(['email', 'createdAt', 'folderGrant', 'offices', 'accountNo']) && asInvited(request.resource.data))
         // The owner becomes superadmin once their email is verified.
         || (request.auth.uid == uid && isOwnerEmail()
             && request.resource.data.role == 'superadmin' && request.resource.data.active == true
-            && unchanged(['email', 'office']));
+            && unchanged(['email', 'office', 'accountNo']));
 
       allow delete: if isSuper() && request.auth.uid != uid;
     }
@@ -655,19 +687,21 @@ service cloud.firestore {
       // external: a supplier or payee
       allow read: if isActive();
       // position, idNo, photo: from My Profile (checked there).
-      allow create, update: if isActive() && request.resource.data.keys().hasOnly(['displayName', 'office', 'email', 'external', 'position', 'idNo', 'photo'])
+      allow create, update: if isActive() && request.resource.data.keys().hasOnly(['displayName', 'office', 'email', 'external', 'position', 'idNo', 'photo', 'accountNo'])
         && ((request.auth.uid == uid
               && request.resource.data.get('external', false) == (profile().role == 'payee')
               && request.resource.data.office == myOffice()
               && request.resource.data.get('email', '') in ['', request.auth.token.email]
               && request.resource.data.get('photo', '') == profile().get('photo', '')
               && request.resource.data.get('position', '') == profile().get('position', '')
-              && request.resource.data.get('idNo', '') == profile().get('idNo', ''))
+              && request.resource.data.get('idNo', '') == profile().get('idNo', '')
+              && request.resource.data.get('accountNo', '') == profile().get('accountNo', ''))
             || (isAdmin()
               && get(/databases/$(database)/documents/users/$(uid)).data.active == true
               && request.resource.data.get('external', false) == (get(/databases/$(database)/documents/users/$(uid)).data.role == 'payee')
               && request.resource.data.office == get(/databases/$(database)/documents/users/$(uid)).data.get('office', '')
-              && request.resource.data.email == get(/databases/$(database)/documents/users/$(uid)).data.get('email', '')));
+              && request.resource.data.email == get(/databases/$(database)/documents/users/$(uid)).data.get('email', '')
+              && request.resource.data.get('accountNo', '') == get(/databases/$(database)/documents/users/$(uid)).data.get('accountNo', '')));
       allow delete: if isAdmin();
     }
 

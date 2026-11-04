@@ -172,6 +172,7 @@ export default function Profile() {
           </div>
           <div><button className="btn btn-primary btn-sm" disabled={!!busy || !detailsChanged} onClick={saveDetails}>Save details</button></div>
           <dl className="details">
+            <dt>DMS account no.</dt><dd><b>{profile.accountNo || 'Given when your account is approved'}</b></dd>
             <dt>Email</dt><dd>{profile.email}</dd>
             <dt>Office</dt><dd>{profile.office || '—'}{isHead && <> <span className="badge badge-blue">Office head</span></>}</dd>
             <dt>Role</dt><dd>{ROLE_NAMES[profile.role] || profile.role}</dd>

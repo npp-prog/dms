@@ -13,6 +13,7 @@ import { withApprover } from './approver.js';
 import { copiedData } from './forms.js';
 import { localDay, withParents } from './archiveFiles.js';
 import { notify } from './social.js';
+import { formatAccountNo, nextAccountNo } from './accountNo.js';
 import { afterDeclined, afterSigned, buildSignRequest, isMyTurn } from './signRequest.js';
 
 // ---------- Users ----------
@@ -117,8 +118,45 @@ const preparerExtras = (user) => ({
 // someone by name or email; no roles).
 export const directoryEntry = (p) => ({
   displayName: p.displayName || '', office: p.office || '', email: p.email || '', external: p.role === 'payee',
-  position: p.position || '', idNo: p.idNo || '', photo: p.photo || '',
+  position: p.position || '', idNo: p.idNo || '', photo: p.photo || '', accountNo: p.accountNo || '',
 });
+
+// ---------- DMS account numbers (lib/accountNo.js) ----------
+// Each active user gets one, once: the next after meta/accountNumbers.last, kept in their profile
+// (users/{uid}.accountNo) and claimed in accountNumbers/{no} (which can be created only once, so no
+// number is given twice). The user gets theirs when they sign in; administrators give the missing
+// ones when they sign in (users approved or added since). Returns the number.
+export async function assignAccountNo(uid) {
+  return runTransaction(db, async (tx) => {
+    const userRef = doc(db, 'users', uid);
+    const user = await tx.get(userRef);
+    if (!user.exists() || !user.data().active) return '';
+    if (user.data().accountNo) return user.data().accountNo;
+    const counterRef = doc(db, 'meta', 'accountNumbers');
+    const counter = await tx.get(counterRef);
+    // Numbers already claimed (a counter behind, e.g. two sign-ins at once): skip them.
+    let n = nextAccountNo(counter.exists() ? counter.data().last : 0);
+    for (let tries = 0; tries < 20; tries += 1) {
+      if (!(await tx.get(doc(db, 'accountNumbers', formatAccountNo(n)))).exists()) break;
+      n = nextAccountNo(n);
+    }
+    const no = formatAccountNo(n);
+    tx.set(counterRef, { last: n });
+    tx.set(doc(db, 'accountNumbers', no), { uid, at: new Date().toISOString() });
+    tx.update(userRef, { accountNo: no });
+    return no;
+  });
+}
+
+// Administrators: the active users still without a number (oldest accounts first). Sets
+// u.accountNo on the list given.
+export async function assignMissingAccountNos(users) {
+  const missing = (users || []).filter((u) => u.active && !u.accountNo)
+    .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  // (One the administrator may not edit, such as another administrator, gets it at their own sign-in.)
+  for (const u of missing) u.accountNo = await assignAccountNo(u.id || u.uid).catch(() => '') || '';
+  return missing.length;
+}
 
 // Switching the office the user acts for (one of their offices: lib/offices.js).
 export async function switchOffice(uid, entry) {

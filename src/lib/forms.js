@@ -1,3 +1,4 @@
+import { dmsNoKey, isAccountNo, uidKey, unlinkedPeople } from './accountNo.js';
 import { toNumber } from './template.js';
 import { isChecked } from './checklists.js';
 import { localDay } from './archiveFiles.js';
@@ -104,6 +105,8 @@ export function copiedData(type, src) {
   for (const f of type?.fields || []) {
     if (f.filledBy || skip.has(f.key) || f.key === 'date' || !(f.key in (src?.data || {}))) continue;
     data[f.key] = JSON.parse(JSON.stringify(src.data[f.key]));
+    // A person field: their DMS account no. and user go with the name.
+    if (f.type === 'person') for (const k of [dmsNoKey(f.key), uidKey(f.key)]) data[k] = src.data[k] ?? '';
   }
   return data;
 }
@@ -134,8 +137,11 @@ function isEmpty(field, value) {
   return value === undefined || value === null || String(value).trim() === '';
 }
 
+// Required fields left empty, and person fields (or person columns of a table) with a name not
+// chosen from DMS (no DMS account no.: lib/accountNo.js).
 export function missingFields(fields, data) {
-  return (fields || []).filter((f) => f.required && isEmpty(f, data?.[f.key]));
+  return (fields || []).filter((f) => (f.required && (isEmpty(f, data?.[f.key]) || (f.type === 'person' && !isAccountNo(data?.[dmsNoKey(f.key)]))))
+    || unlinkedPeople([f], data).length > 0);
 }
 
 export function missingChecklist(checklist, state) {

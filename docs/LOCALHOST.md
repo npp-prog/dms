@@ -84,6 +84,8 @@ A new person can click **Create an account**. An administrator then approves the
 
 Open **My Profile** (left menu, or click your picture at the top right). Under **Details**, set your **Name**, your **Position** (job title or designation) and your **ID No.** (employee ID number), then click **Save details**. Your name and position show with you across DMS: at the top of the Dashboard, in Users, in Messages and when someone searches for a person to send or refer a document to (they can also search by position or ID No.). The documents you prepare keep your name and position, and print the position under your name (*Prepared by*; templates use `{{preparedByPosition}}` and `{{preparedByIdNo}}`).
 
+**DMS account no.** Every DMS user, LGU employee or not (suppliers and payees too), has a DMS account number of 6 digits (e.g. *000123*), shown under **Details** in My Profile and in Users. It is given automatically when the account is approved (or at the next sign-in for accounts approved earlier), is never given twice and cannot be changed. People can be found by it when choosing a person.
+
 **More than one office.** If an administrator gave you more than one office, the box at the top of the screen shows the office you are acting for (with *(head)* where you are its office head). Choose another to switch: DMS opens the Dashboard for that office, and your documents to act on, Tracking, folders, office-head rights and the documents you prepare follow the office you chose, until you switch again.
 
 **Profile picture.** If you sign in with Google, DMS uses your Google picture until you change it. Otherwise, or to change it, click **Upload picture** (or **Change picture**) and choose a JPG, PNG or WebP: DMS crops the middle into a square and saves it. **Remove** takes it off, and your initials show instead. Everyone in DMS sees your picture next to your name.
@@ -176,6 +178,8 @@ For line items, click **+ Add row**. On the DV, the **Explanation** is a paragra
 
 ![DV particulars](images/10-dv-particulars.png)
 
+
+**Names of employees and other persons (DMS account no.).** A field that names a person (the **Travelers** of a Travel Order, the **Name** on an Itinerary of Travel, the **Employees** of a Payroll, and any field an administrator makes a *Person* field, such as the parties of a contract) is filled by choosing the person from DMS: type part of their name, email or DMS account no. and pick them. Their name and DMS account no. are recorded together (their position fills an empty Position), and the form prints *DMS No. 000123* under the name, for control. **Change** chooses someone else. The person must have a DMS account; a name typed in an older document shows until the person is chosen, and the document cannot be completed until then.
 
 **Signatories (formats without them).** Some document formats (made by an administrator) do not print the standard signatories of Settings, nor have signatory fields of their own. Their form then has a **Signatories** step: **Add a person** (type a name or email: their name and position fill in) or **+ Add someone not in DMS**, and for each, what they sign as (Noted by, Approved by…), their name and position. They print at the end of the document, in that order, each with a line to sign on (a format may place them elsewhere with `{{signatoriesBlock}}`). The step is optional: skip it if the document needs none.
 ### Checklist step: choose the transaction, tick what you attached
@@ -382,6 +386,8 @@ In the **Checklist** tab, **Checklist source** decides where the checklist comes
 The **Processing Guide** tab has the routing steps: which office receives the document, in what order, and what each does.
 
 ![Processing guide editor](images/21-admin-processing-guide.png)
+
+A field (or a table column) of type **Person (DMS account)** is filled by choosing a DMS user: it stores the name under its key, the person's DMS account no. under *key*`DmsNo` (print it with `{{keyDmsNo|dms}}`, e.g. `{{nameDmsNo|dms}}` → *DMS No. 000123*; inside a table loop the same, per line) and the user under *key*`Uid`. A table printed with `{{table:key}}` puts the DMS No. under the name by itself. The Travel Order, Itinerary of Travel and Payroll use it for the travelers and employees (sites with these formats unedited are updated automatically; an edited one: **Update format**).
 
 Fields can be **computed**: in a table column or a field, the formula combines other keys with `+`, `-` and `*`, and `sum:table.column` adds up a table column. For example, `qty*unitCost`, `gross-deductions` or `sum:items.amount-cashAdvance`.
 

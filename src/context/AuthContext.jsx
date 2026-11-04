@@ -5,7 +5,7 @@ import {
   signInWithRedirect, signOut, updateProfile,
 } from 'firebase/auth';
 import { auth } from '../firebase.js';
-import { ensureUserProfile, getFolderAccess, getSettings, listUsers, setupSite, syncDirectory, syncDirectoryEntry, syncFolderGrants, recordsPositionToRole, updateUser } from '../lib/api.js';
+import { assignAccountNo, assignMissingAccountNos, ensureUserProfile, getFolderAccess, getSettings, listUsers, setupSite, syncDirectory, syncDirectoryEntry, syncFolderGrants, recordsPositionToRole, updateUser } from '../lib/api.js';
 import { isAdminRole, managesSettings, managesUsers } from '../lib/roles.js';
 
 const AuthContext = createContext(null);
@@ -38,13 +38,18 @@ export function AuthProvider({ children }) {
     if (p.active && !('photo' in p) && /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//.test(firebaseUser.photoURL || '')) {
       await updateUser(firebaseUser.uid, { photo: firebaseUser.photoURL }).then(() => { p.photo = firebaseUser.photoURL; }).catch(() => {});
     }
+    // Their DMS account number, once (lib/accountNo.js).
+    if (p.active && !p.accountNo) p.accountNo = await assignAccountNo(firebaseUser.uid).catch(() => '') || '';
     setProfile(p);
     if (p.active) {
       setSettings(await getSettings().catch(() => ({})));
       setFolderGrant(p.role !== 'payee' ? await getFolderAccess(firebaseUser.uid).catch(() => null) : null);
       syncDirectoryEntry(firebaseUser.uid, p).catch(() => {});
       if (isAdminRole(p.role)) {
-        listUsers().then((users) => Promise.all([syncDirectory(users), syncFolderGrants(users),
+        listUsers().then(async (users) => {
+          if (['admin', 'superadmin', 'itadmin'].includes(p.role)) await assignMissingAccountNos(users).catch(() => {});
+          return users;
+        }).then((users) => Promise.all([syncDirectory(users), syncFolderGrants(users),
           ['admin', 'superadmin'].includes(p.role) ? recordsPositionToRole(users) : null])).catch(() => {});
       }
     }

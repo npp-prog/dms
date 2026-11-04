@@ -1,7 +1,7 @@
 import { OFFICE_LIMIT, officesPatch, otherOffices } from '../../lib/offices.js';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { addPosition, deleteInvite, inviteKey, listInvites, listUsers, saveInvite, setFolderAccess, syncDirectory, updateUser } from '../../lib/api.js';
+import { addPosition, assignAccountNo, deleteInvite, inviteKey, listInvites, listUsers, saveInvite, setFolderAccess, syncDirectory, updateUser } from '../../lib/api.js';
 import { positionsOf } from '../../lib/defaults.js';
 import Select from '../../components/Select.jsx';
 import PositionsPicker from '../../components/PositionsPicker.jsx';
@@ -22,7 +22,7 @@ function UserRow({ u, me, isSuper, givesStaff, settings, offices, canManage, onC
         <div className="user-who">
           <span className="user-name"><b>{u.displayName || u.email}</b>{u.id === me.uid && <span className="muted"> (you)</span>}</span>
           <span className="small muted">{u.email}</span>
-          {(u.position || u.idNo) && <span className="xs muted">{[u.position, u.idNo && `ID No. ${u.idNo}`].filter(Boolean).join(' · ')}</span>}
+          {(u.position || u.idNo || u.accountNo) && <span className="xs muted">{[u.accountNo && `DMS No. ${u.accountNo}`, u.position, u.idNo && `ID No. ${u.idNo}`].filter(Boolean).join(' · ')}</span>}
         </div>
         <div className="user-office">
           <span className="small">{u.office || (u.role === 'payee' ? 'Not LGU personnel' : 'No office')}</span>
@@ -199,6 +199,8 @@ export default function Users() {
       // Deactivated (not the same as never approved, for "Pending approval"); approved again.
       const full = { ...withOffices, ...(patch.active === false ? { deactivated: true } : patch.active === true ? { deactivated: false } : {}) };
       await updateUser(u.id, full);
+      // Approved: their DMS account number at once.
+      if (patch.active === true && !u.accountNo) await assignAccountNo(u.id).catch(() => {});
       // Deactivated: an invitation left for that email would let them back in.
       if (patch.active === false && u.email) { await deleteInvite(u.email).catch(() => {}); loadInvites(); }
       // Deactivated, made a third party or moved to another office: the folder access they had
@@ -217,7 +219,7 @@ export default function Users() {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = (users || [])
     .filter((u) => filter === 'all' || (filter === 'pending' ? !u.active && !u.deactivated : u.active))
-    .filter((u) => words.every((w) => `${u.displayName} ${u.email} ${u.office || ''} ${(u.positions || []).join(' ')} ${ROLE_NAMES[u.role] || u.role}`.toLowerCase().includes(w)));
+    .filter((u) => words.every((w) => `${u.displayName} ${u.email} ${u.accountNo || ''} ${u.office || ''} ${(u.positions || []).join(' ')} ${ROLE_NAMES[u.role] || u.role}`.toLowerCase().includes(w)));
   const pending = (users || []).filter((u) => !u.active && !u.deactivated).length;
   // Added, not signed up yet: no account with that email.
   const emails = new Set((users || []).map((u) => inviteKey(u.email)));

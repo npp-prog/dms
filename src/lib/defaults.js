@@ -664,7 +664,7 @@ const IT = {
   active: true,
   checklistSource: 'own',
   // No checklist: only the DV and the Liquidation Report have one (v2).
-  starterVersion: 3,
+  starterVersion: 4,
   steps: [
     { id: 's1', title: 'Traveler', instructions: 'Name, position and official station of the traveler, date and purpose of travel.' },
     { id: 's2', title: 'Itinerary', instructions: 'One line per leg: date, place visited (destination), time of departure and arrival, means of transportation, fare, per diem and other expenses. The line total is computed.' },
@@ -673,7 +673,7 @@ const IT = {
   fields: [
     fundField('s1'),
     { key: 'itNo', label: 'No.', type: 'text', step: 's1' },
-    { key: 'name', label: 'Name', type: 'text', required: true, step: 's1' },
+    { key: 'name', label: 'Name', type: 'person', required: true, step: 's1', help: 'Choose the traveler from DMS: their DMS account no. is recorded with the name.' },
     { key: 'position', label: 'Position', type: 'text', required: true, step: 's1' },
     { key: 'station', label: 'Official Station', type: 'text', required: true, step: 's1' },
     { key: 'dateOfTravel', label: 'Date of Travel', type: 'date', required: true, step: 's1' },
@@ -704,7 +704,7 @@ const IT = {
   template: `<div class="ph"><img src="{{lgu.seal}}" alt=""><div class="l1">{{lgu.name|upper}}</div><div class="l3" style="margin-top:0">ITINERARY OF TRAVEL</div></div>
   <table class="pmeta-t"><tr><td>Fund: <b>{{fund}}</b></td><td class="r">No.: <b>{{itNo}}</b></td></tr></table>
   <table class="pt">
-    <tr><td style="width:52%">Name: <b>{{name|upper}}</b></td><td>Date of Travel: <b>{{dateOfTravel|date}}</b></td></tr>
+    <tr><td style="width:52%">Name: <b>{{name|upper}}</b> <span class="dms-no dms-inline">{{nameDmsNo|dms}}</span></td><td>Date of Travel: <b>{{dateOfTravel|date}}</b></td></tr>
     <tr><td>Position: <b>{{position|upper}}</b></td><td rowspan="2">Purpose of Travel:<br><b>{{purpose|upper}}</b></td></tr>
     <tr><td>Official Station: <b>{{station|upper}}</b></td></tr>
   </table>
@@ -735,11 +735,11 @@ const TO = {
   orientation: 'portrait',
   active: true,
   checklistSource: 'own',
-  starterVersion: 3,
+  starterVersion: 4,
   // The letterhead (title, email, contact no.) of the issuing office, from Settings.
   headerOffice: 'Office of the Municipal Mayor',
   steps: [
-    { id: 's1', title: 'Travelers', instructions: 'One line per person directed to travel: the name and the position.' },
+    { id: 's1', title: 'Travelers', instructions: 'One line per person directed to travel: choose them from DMS (by name, email or DMS account no.), then their position.' },
     { id: 's2', title: 'Travel', instructions: 'The date or dates of travel as they should read on the order, and one line per purpose, in the order they are listed. The Travel Order No. is assigned by the Office of the Mayor.' },
     { id: 's3', title: 'Issue', instructions: 'The date the order is given and signed, and who approves: the Mayor or, in their place, the Vice Mayor (names from Settings).' },
   ],
@@ -748,7 +748,7 @@ const TO = {
     {
       key: 'travelers', label: 'Travelers', type: 'table', required: true, step: 's1',
       columns: [
-        { key: 'name', label: 'Name', type: 'text' },
+        { key: 'name', label: 'Name', type: 'person' },
         { key: 'position', label: 'Position', type: 'text', keepCase: true },
       ],
     },
@@ -777,7 +777,7 @@ const TO = {
     <div class="to-office">{{office.letterhead}}</div></div>
   <div class="to-title">TRAVEL ORDER NO.: {{toNo}}</div>
   <div>Series of {{givenDate|year}}</div>
-  <table class="to-to"><tr><td class="to-k">TO</td><td class="to-c">:</td><td><table class="to-who">{{#each travelers}}<tr><td class="to-n"><b>{{name}}</b></td><td class="to-c">-</td><td>{{position}}</td></tr>{{/each}}</table></td></tr></table>
+  <table class="to-to"><tr><td class="to-k">TO</td><td class="to-c">:</td><td><table class="to-who">{{#each travelers}}<tr><td class="to-n"><b>{{name}}</b><span class="dms-no">{{nameDmsNo|dms}}</span></td><td class="to-c">-</td><td>{{position}}</td></tr>{{/each}}</table></td></tr></table>
   <p>You are hereby directed to travel with the following Purpose/s on {{travelDates}}</p>
   <table class="to-list">{{#each purposes}}<tr><td class="to-no">{{@no}}.</td><td>{{purpose}}</td></tr>{{/each}}</table>
   <p class="to-gap">This travel order is issued for the good public service.</p>
@@ -801,10 +801,10 @@ const PAYROLL = {
   active: true,
   checklistSource: 'own',
   // No checklist: only the DV and the Liquidation Report have one (v2).
-  starterVersion: 3,
+  starterVersion: 4,
   steps: [
     { id: 's1', title: 'Payroll', instructions: 'The period covered, fund, office and the approved OBR No. The Payroll No. is assigned by Accounting.' },
-    { id: 's2', title: 'Employees', instructions: 'One line per employee: name, position, employee no., gross amount earned and total deductions. The net amount due is computed.' },
+    { id: 's2', title: 'Employees', instructions: 'One line per employee: choose them from DMS (by name, email or DMS account no.), then the position, employee no., gross amount earned and total deductions. The net amount due is computed.' },
     { id: 's3', title: 'Box A', instructions: 'The authorized official certifies that services were duly rendered. Boxes B, C and D print the Accountant, Treasurer and Mayor from Settings.' },
   ],
   fields: [
@@ -816,7 +816,7 @@ const PAYROLL = {
     {
       key: 'employees', label: 'Employees', type: 'table', required: true, step: 's2', minRows: 10,
       columns: [
-        { key: 'name', label: 'Name', type: 'text' },
+        { key: 'name', label: 'Name', type: 'person' },
         { key: 'position', label: 'Position', type: 'text' },
         { key: 'employeeNo', label: 'Employee No.', type: 'text' },
         { key: 'gross', label: 'Gross Amount Earned', type: 'currency', total: true },
@@ -841,7 +841,7 @@ const PAYROLL = {
     <tr><td colspan="2">We acknowledge receipt of cash shown opposite our name as full compensation for services rendered for the period covered.</td></tr></table>
   <table class="pt" data-grow style="font-size:9.5px">
     <thead><tr><th style="width:4%">Serial No.</th><th>Name</th><th>Position</th><th>Employee No.</th><th>Gross Amount Earned</th><th>Total Deductions</th><th>Net Amount Due</th><th style="width:14%">Signature of Recipient</th></tr></thead>
-    <tbody>{{#each employees}}<tr class="blank"><td class="c">{{@no}}</td><td>{{name|upper}}</td><td>{{position}}</td><td class="c">{{employeeNo}}</td><td class="r">{{gross|currency}}</td><td class="r">{{deductions|currency}}</td><td class="r">{{net|currency}}</td><td></td></tr>{{/each}}
+    <tbody>{{#each employees}}<tr class="blank"><td class="c">{{@no}}</td><td>{{name|upper}}<span class="dms-no">{{nameDmsNo|dms}}</span></td><td>{{position}}</td><td class="c">{{employeeNo}}</td><td class="r">{{gross|currency}}</td><td class="r">{{deductions|currency}}</td><td class="r">{{net|currency}}</td><td></td></tr>{{/each}}
       <tr><td colspan="4" class="r"><b>TOTAL</b></td><td class="r"><b>{{sum:employees.gross|currency}}</b></td><td class="r"><b>{{sum:employees.deductions|currency}}</b></td><td class="r"><b>{{sum:employees.net|currency}}</b></td><td></td></tr></tbody>
   </table>
   <table class="pt">
@@ -942,6 +942,7 @@ export const FIELD_TYPES = [
   { value: 'currency', label: 'Amount (₱)' },
   { value: 'date', label: 'Date' },
   { value: 'select', label: 'Dropdown' },
+  { value: 'person', label: 'Person (DMS account)' },
   { value: 'table', label: 'Table / line items' },
 ];
 
@@ -951,6 +952,7 @@ export const COLUMN_TYPES = [
   { value: 'number', label: 'Number' },
   { value: 'currency', label: 'Amount (₱)' },
   { value: 'date', label: 'Date' },
+  { value: 'person', label: 'Person (DMS account)' },
 ];
 
 export const STATUSES = {

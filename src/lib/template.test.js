@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderTemplate, generateDefaultTemplate } from './template.js';
+import { renderTemplate, renderTable, generateDefaultTemplate } from './template.js';
 import { amountToWords } from './numberToWords.js';
 import { readFileSync } from 'node:fs';
 import { buildSteps, capsFor, computeFields, computeRow, evaluate, missingChecklist, missingFields, slugKey } from './forms.js';
@@ -73,7 +73,9 @@ test('starter types are consistent and render', () => {
     const stepIds = new Set(type.steps.map((s) => s.id));
     for (const f of type.fields) assert.ok(Boolean(f.filledBy) || stepIds.has(f.step), `${type.code}.${f.key} has unknown step`);
     assert.equal(buildSteps(type).length, type.steps.length);
-    const columns = type.fields.flatMap((f) => (f.columns || []).map((c) => c.key));
+    // (A person field or column also stores its DMS account no. under `${key}DmsNo`.)
+    const columns = type.fields.flatMap((f) => (f.columns || []).flatMap((c) => (c.type === 'person' ? [c.key, `${c.key}DmsNo`] : [c.key])))
+      .concat(type.fields.filter((f) => f.type === 'person').map((f) => `${f.key}DmsNo`));
     const known = new Set([...keys, ...columns, 'controlNo', 'lgu', 'sig', 'today', 'preparedBy', 'docType', 'office']);
     const refs = [...type.template.matchAll(/\{\{\s*(?:#if\s+|table:|sum:)?([\w]+)/g)].map((m) => m[1]);
     for (const r of refs) assert.ok(known.has(r), `${type.code} template references unknown "${r}"`);
@@ -595,4 +597,12 @@ test('signatories set on a document whose type has none print at the end, or whe
   const placed = renderTemplate('<p>A</p>{{signatoriesBlock}}<p>B</p>', { signatories: { custom } });
   assert.match(placed, /<p>A<\/p><div class="sig-block">.*<\/div><p>B<\/p>$/);
   assert.equal(renderTemplate('<p>A</p>{{signatoriesBlock}}', {}), '<p>A</p>');
+});
+
+test('person fields print the DMS account no. under the name', () => {
+  const to = STARTER_TYPES.find((t) => t.code === 'TO');
+  const html = renderTemplate(to.template, { fields: to.fields, data: { travelers: [{ name: 'JUAN DELA CRUZ', nameDmsNo: '000012', position: 'Engineer II' }] } });
+  assert.match(html, /JUAN DELA CRUZ<\/b><span class="dms-no">DMS No\. 000012<\/span>/);
+  const table = renderTable({ columns: [{ key: 'name', label: 'Name', type: 'person' }] }, [{ name: 'ANA', nameDmsNo: '000003' }]);
+  assert.match(table, /ANA<span class="dms-no">DMS No\. 000003<\/span>/);
 });

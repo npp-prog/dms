@@ -432,6 +432,9 @@ details summary { cursor: pointer; font-weight: 600; margin-top: .8rem; }
 .doc-render .to-to { border-collapse: collapse; margin: 26px 0 16px; }
 .doc-render .to-to td { padding: 0; vertical-align: top; }
 .doc-render .to-who { border-collapse: collapse; }
+.doc-render .dms-no { display: block; font-size: .78em; font-weight: normal; letter-spacing: .02em; }
+.doc-render .dms-no:empty { display: none; }
+.doc-render .dms-inline { display: inline; margin-left: .4em; }
 .doc-render .to-who td { padding: 0 0 4px; }
 .doc-render .to-k { width: 38px; }
 .doc-render .to-c { width: 26px; text-align: center; }
@@ -1700,3 +1703,7 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .precheck-meta ul { margin: .3rem 0; padding-left: 1.1rem; }
 .spinner-inline { display: inline-block; width: .9em; height: .9em; border: 2px solid var(--line-2); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; vertical-align: -2px; margin-right: .3rem; }
 .precheck-list li .badge { min-width: 5.4rem; justify-content: center; }
+/* Person fields (chosen from DMS, with their DMS account no.) */
+.person-field { display: grid; gap: .3rem; min-width: 220px; }
+.person-field.person-chosen { padding: .4rem .6rem; }
+.warn-text { color: var(--warn, #9a6700); }
