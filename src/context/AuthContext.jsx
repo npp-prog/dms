@@ -98,6 +98,8 @@ export function AuthProvider({ children }) {
     isHead: Boolean(profile?.active && profile.office && profile.head),
     // The Records Officer (a role, Users) keeps the records and the archive.
     isRecords: Boolean(profile?.active && profile.role === 'records'),
+    // Document Types and Workflow: administrators, not the Records Officer.
+    canManageFormats: Boolean(profile?.active && ['admin', 'superadmin', 'itadmin'].includes(profile.role)),
     // A supplier or payee (not LGU personnel): only the documents referred to them.
     isExternal: Boolean(profile?.active && profile.role === 'payee'),
     // May refer a document they hold to any active user outside its route (Users > May route to

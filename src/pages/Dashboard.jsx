@@ -37,7 +37,7 @@ function InboxRow({ icon, tone = '', title, sub, n, to }) {
 }
 
 export default function Dashboard() {
-  const { user, profile, isAdmin, isHead, isRecords, canManageUsers, setupNotice, dismissSetupNotice } = useAuth();
+  const { user, profile, isAdmin, isHead, isRecords, canManageUsers, canManageFormats, setupNotice, dismissSetupNotice } = useAuth();
   // The Records Officer: archive backups that are due (none yet, or older than the schedule).
   const [backupsDue, setBackupsDue] = useState(0);
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function Dashboard() {
 
   const items = [
     canManageUsers && pendingUsers > 0 && <InboxRow key="u" icon="user" tone="red" title="Registrations to approve" sub="New accounts waiting for access" n={pendingUsers} to="/admin/users" />,
-    isAdmin && types.length === 0 && <InboxRow key="t" icon="types" tone="red" title="No document formats yet" sub="Load the starter formats or create a document type" n="!" to="/admin/types" />,
+    canManageFormats && types.length === 0 && <InboxRow key="t" icon="types" tone="red" title="No document formats yet" sub="Load the starter formats or create a document type" n="!" to="/admin/types" />,
     backupsDue > 0 && <InboxRow key="b" icon="archive" tone="red" title="Archive backup due" sub="Back up the archive to the Records Office's devices" n={backupsDue} to="/archive" />,
     toSign.length > 0 && <InboxRow key="sg" icon="sign" tone="red" title="Waiting for your signature" sub={toSign.length === 1 ? `${toSign[0].controlNo}${toSign[0].title ? ` — ${toSign[0].title}` : ''}` : 'Documents you were asked to sign'} n={toSign.length} to={toSign.length === 1 ? `/documents/${toSign[0].id}` : '/documents'} />,
     waiting > 0 && <InboxRow key="w" icon="inbox" tone="blue" title="Waiting in your office" sub="Documents to act on and route to the next office" n={waiting} to="/notifications" />,

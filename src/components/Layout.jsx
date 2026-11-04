@@ -41,7 +41,7 @@ function OfficeSwitch() {
 const EXTERNAL_PAGES = /^\/(notifications|messages|profile|documents\/[^/]+)\/?$/;
 
 export default function Layout() {
-  const { user, actor, profile, settings, isAdmin, isSuper, canManageUsers, canManageSettings, isHead, isRecords, isExternal, logout } = useAuth();
+  const { user, actor, profile, settings, isAdmin, isSuper, canManageUsers, canManageSettings, canManageFormats, isHead, isRecords, isExternal, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const location = useLocation();
   useEffect(() => setOpen(false), [location.pathname]);
@@ -107,14 +107,14 @@ export default function Layout() {
     isAdmin && {
       label: 'Administration',
       items: [
-        ['/admin/types', 'types', 'Document Types'],
-        ['/admin/workflow', 'workflow', 'Workflow'],
+        canManageFormats && ['/admin/types', 'types', 'Document Types'],
+        canManageFormats && ['/admin/workflow', 'workflow', 'Workflow'],
         canManageUsers && ['/admin/users', 'users', 'Users'],
         canManageSettings && ['/admin/board-templates', 'formats', 'Board Templates'],
         canManageSettings && ['/admin/settings', 'settings', 'Settings'],
       ].filter(Boolean),
     },
-  ].filter(Boolean);
+  ].filter((g) => g && (!g.items || g.items.length));
 
   // The page name in the header: the menu item the page belongs to.
   const titles = [

@@ -8,7 +8,7 @@ import ProcessingGuide from '../components/ProcessingGuide.jsx';
 
 export default function FormatView() {
   const { typeId } = useParams();
-  const { settings, isAdmin } = useAuth();
+  const { settings, canManageFormats } = useAuth();
   const [type, setType] = useState(null);
   const [error, setError] = useState('');
 
@@ -31,7 +31,7 @@ export default function FormatView() {
         </div>
         <div className="row gap">
           <button className="btn btn-ghost" onClick={() => window.print()}>Print blank form</button>
-          {isAdmin && <Link className="btn btn-ghost" to={`/admin/types/${type.id}`}>Edit</Link>}
+          {canManageFormats && <Link className="btn btn-ghost" to={`/admin/types/${type.id}`}>Edit</Link>}
           {type.active !== false && <Link className="btn btn-primary" to={`/new/${type.id}`}>Prepare this document</Link>}
         </div>
       </div>

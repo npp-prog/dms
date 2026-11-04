@@ -40,9 +40,9 @@ function StaffOnly({ children }) {
   return isExternal ? <Navigate to="/notifications" replace /> : children;
 }
 
-function AdminOnly({ children, settings = false, users = false }) {
-  const { isAdmin, canManageSettings, canManageUsers } = useAuth();
-  if (settings ? !canManageSettings : users ? !canManageUsers : !isAdmin) return <Navigate to="/" replace />;
+function AdminOnly({ children, settings = false, users = false, formats = false }) {
+  const { isAdmin, canManageSettings, canManageUsers, canManageFormats } = useAuth();
+  if (settings ? !canManageSettings : users ? !canManageUsers : formats ? !canManageFormats : !isAdmin) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -99,10 +99,10 @@ export default function App() {
         <Route path="documents" element={<Documents />} />
         <Route path="documents/:docId" element={<DocumentView />} />
         <Route path="documents/:docId/edit" element={<PrepareDocument />} />
-        <Route path="admin/types" element={<AdminOnly><DocumentTypes /></AdminOnly>} />
-        <Route path="admin/types/new" element={<AdminOnly><DocumentTypeEditor /></AdminOnly>} />
-        <Route path="admin/types/:typeId" element={<AdminOnly><DocumentTypeEditor /></AdminOnly>} />
-        <Route path="admin/workflow" element={<AdminOnly><Workflow /></AdminOnly>} />
+        <Route path="admin/types" element={<AdminOnly formats><DocumentTypes /></AdminOnly>} />
+        <Route path="admin/types/new" element={<AdminOnly formats><DocumentTypeEditor /></AdminOnly>} />
+        <Route path="admin/types/:typeId" element={<AdminOnly formats><DocumentTypeEditor /></AdminOnly>} />
+        <Route path="admin/workflow" element={<AdminOnly formats><Workflow /></AdminOnly>} />
         <Route path="admin/users" element={<AdminOnly users><Users /></AdminOnly>} />
         <Route path="admin/settings" element={<AdminOnly settings><Settings /></AdminOnly>} />
         <Route path="admin/board-templates" element={<AdminOnly settings><BoardTemplates /></AdminOnly>} />

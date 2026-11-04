@@ -373,7 +373,8 @@ service cloud.firestore {
     // ---- Document types (formats, guided steps, processing guides) ----
     match /documentTypes/{typeId} {
       allow read: if isActive();
-      allow write: if isAdmin();
+      // Document Types and Workflow: administrators, not the Records Officer.
+      allow write: if isAdmin() && profile().role != 'records';
     }
 
     // ---- Checklist library (requirements per transaction type, keyed by checklist no.) ----
