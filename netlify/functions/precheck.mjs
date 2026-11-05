@@ -22,10 +22,12 @@ export default async (req) => {
   if (!PRECHECK_TYPES.includes(d.typeCode)) return json(200, { configured: true, supported: false });
   const r = await getStore({ name: 'prechecks', consistency: 'strong' }).get(docId, { type: 'json' }).catch(() => null);
   const running = r?.state === 'running' && Date.now() - Date.parse(r.startedAt) < 8 * 60 * 1000;
+  // An error left by the former AI service (Anthropic, before OpenAI): not shown (the check runs anew).
+  const oldError = r?.state === 'error' && (/^claude/i.test(r.model || '') || /anthropic/i.test(r.error || ''));
   return json(200, {
     configured: true, supported: true, canRun: canRunPrecheck(user.profile),
-    state: running ? 'running' : r?.state === 'running' ? 'error' : r?.state || 'none',
-    error: r?.state === 'running' && !running ? 'The check did not finish. Please run it again.' : r?.error || '',
+    state: running ? 'running' : r?.state === 'running' ? 'error' : oldError ? (r?.result ? 'done' : 'none') : r?.state || 'none',
+    error: r?.state === 'running' && !running ? 'The check did not finish. Please run it again.' : oldError ? '' : r?.error || '',
     result: r?.result || null, read: r?.read || [], skipped: r?.skipped || [], pages: r?.pages || 0,
     at: r?.at || '', byName: r?.byName || '', model: r?.model || '',
     stale: Boolean(r?.result) && r.basis !== precheckBasis(d),
