@@ -104,8 +104,6 @@ export default function Login() {
               <>
                 <div><label className="field-label" htmlFor="nm">Full name</label>
                   <input id="nm" required value={form.displayName} onChange={set('displayName')} /></div>
-                <div><label className="field-label" htmlFor="of">Office / Department <span className="muted small">(an administrator confirms it)</span></label>
-                  <input id="of" value={form.office} onChange={set('office')} /></div>
               </>
             )}
             <div><label className="field-label" htmlFor="em">Email address</label>

@@ -27,13 +27,18 @@ function UserRow({ u, me, isSuper, givesStaff, settings, offices, canManage, onC
         <div className="user-office">
           <span className="small">{u.office || (u.role === 'payee' ? 'Not LGU personnel' : 'No office')}</span>
           {others.length > 0 && <span className="xs muted">Also: {others.map((e) => `${e.office}${e.head ? ' (head)' : ''}`).join(', ')}</span>}
-          {u.requestedOffice && u.requestedOffice !== u.office && <span className="xs muted">Asked for: {u.requestedOffice}</span>}
+          {!u.active && (u.requestedOffice || u.requestedExternal) && (u.requestedOffice !== u.office || u.requestedHead) && (
+            <span className="xs muted">Asked for: <b>{u.requestedExternal ? 'Not with an LGU office (third party)' : u.requestedOffice}</b>{u.requestedHead ? ' · office head' : ''}</span>
+          )}
           {tags.length > 0 && <span className="user-tags">{tags.map((t) => <span key={t} className="chip">{t}</span>)}</span>}
         </div>
         <div className="user-side">
           <span className="small muted user-role">{ROLE_NAMES[u.role] || u.role}</span>
           <span className={`badge ${u.active ? 'badge-green' : u.deactivated ? 'badge-gray' : 'badge-yellow'}`}>{u.active ? 'Active' : u.deactivated ? 'Deactivated' : 'Pending'}</span>
-          {canManage && !u.active && <button className="btn btn-primary btn-sm" onClick={() => onChange({ active: true })}>Approve</button>}
+          {canManage && !u.active && (
+            <button className="btn btn-primary btn-sm" title={!u.office && u.requestedOffice ? `Approves the account, in ${u.requestedOffice}${u.requestedHead ? ' as its office head' : ''}, as asked (change it under Edit)` : 'Approves the account'}
+              onClick={() => onChange({ active: true, ...(!u.office && u.requestedOffice && offices.includes(u.requestedOffice) ? { office: u.requestedOffice, head: Boolean(u.requestedHead) } : {}) })}>Approve</button>
+          )}
           {editable && <button className="btn btn-ghost btn-sm" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Close' : 'Edit'}</button>}
         </div>
       </div>

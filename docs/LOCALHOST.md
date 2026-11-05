@@ -78,7 +78,7 @@ Sign in as **user@fts.local** / **user123**.
 
 ![Sign-in screen](images/01-sign-in.png)
 
-A new person can click **Create an account**. An administrator then approves the account under **Users**. If an administrator already added your email in **Users** (**+ Add user**), there is nothing to approve: sign in with **Continue with Google** using that email, or create an account with it and open the verification link sent to your inbox, and DMS opens with the office, role and positions they set.
+A new person can click **Create an account** (or **Continue with Google**). At the first sign-in, either way, the **Waiting for approval** page asks **Which office do you belong to?** (the list of offices in Settings, or *Not with an LGU office* for a supplier or payee) and **Are you the head of this office?**, then **Save** (**Change** later if needed). An administrator then approves the account under **Users**, where the row shows *Asked for: office · office head*; **Approve** gives the account that office (and office head) as asked, which the administrator can change under **Edit**. If an administrator already added your email in **Users** (**+ Add user**), there is nothing to approve: sign in with **Continue with Google** using that email, or create an account with it and open the verification link sent to your inbox, and DMS opens with the office, role and positions they set.
 
 ### My Profile: name, position, DMS account no. and picture
 

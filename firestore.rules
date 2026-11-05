@@ -166,7 +166,8 @@ service cloud.firestore {
 
     // ---- System metadata ----
     match /meta/settings {
-      allow read: if isActive();
+      // (also a new account waiting for approval: it chooses its office from the list)
+      allow read: if signedIn();
       allow write: if managesSettings();
     }
     // The privacy notice's contacts (the Data Protection Officer): public, like the notice itself.

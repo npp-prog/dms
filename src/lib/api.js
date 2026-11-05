@@ -1724,3 +1724,14 @@ export function watchPresence(onChange, onError) {
 export function watchMyPresence(uid, onChange) {
   return onSnapshot(doc(db, 'presence', uid), (snap) => onChange(snap.exists() ? snap.data() : null), () => onChange(null));
 }
+
+// A new account waiting for approval tells its office (from the list in Settings) and whether it
+// heads it (requestedOffice, requestedHead; requestedExternal: not with an LGU office, e.g. a
+// supplier or payee). Only a request: an administrator approves it (Users).
+export async function requestOffice(uid, { office = '', head = false, external = false }) {
+  await updateDoc(doc(db, 'users', uid), {
+    requestedOffice: external ? '' : String(office).slice(0, 120),
+    requestedHead: !external && Boolean(head),
+    requestedExternal: Boolean(external),
+  });
+}
