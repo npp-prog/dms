@@ -3,7 +3,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { getFileBytes, getPdfBytes } from './api.js';
-import { docFolder, filesOf, isArchived, processedAt, withParents } from './archiveFiles.js';
+import { docFolder, filesOf, isArchived, processedAt, supportingDocs, withParents } from './archiveFiles.js';
 
 export { filesOf };
 
@@ -126,7 +126,10 @@ export async function buildBackup(docs, onProgress = () => {}) {
     onProgress(`Adding ${i + 1} of ${docs.length}: ${d.controlNo}`);
     const folder = docFolder(d).join('/');
     const names = new Set();
-    for (const f of filesOf(d)) {
+    // Its supporting documents that are DMS documents of their own: their final PDFs in its folder.
+    const related = {};
+    for (const s of supportingDocs(d)) related[s.id] = await getDoc(doc(db, 'documents', s.id)).then((x) => (x.exists() ? { id: x.id, ...x.data() } : null)).catch(() => null);
+    for (const f of filesOf(d, related)) {
       let name = f.name;
       for (let n = 2; names.has(name); n++) name = f.name.replace(/(\.[^.]+)?$/, ` (${n})$1`);
       names.add(name);

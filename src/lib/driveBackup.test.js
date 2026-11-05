@@ -133,3 +133,20 @@ test('a backup keeps the final PDF only, and the supporting documents', async ()
   assert.deepEqual(filesOf(d).map((f) => f.path), ['v4', 'att.pdf', 'box-e.pdf', 'sup.pdf']);
   assert.deepEqual(filesOf({ controlNo: 'X' }), []);
 });
+
+test('a backup puts the final PDFs of the supporting DMS documents in the document\'s folder', async () => {
+  const { filesOf, supportingDocs } = await import('./archiveFiles.js');
+  const dv = { typeCode: 'DV', controlNo: 'DMS-1', pdf: { files: [{ path: 'dv.pdf', kind: 'signed' }] },
+    transaction: { items: [{ id: 'i2', label: 'Obligation Request' }] },
+    links: { i2: [{ kind: 'fts', id: 'obr', typeCode: 'OBR', controlNo: 'DMS-2' }, { kind: 'file', path: 'att/or.pdf', name: 'OR.pdf' }] },
+    stepFiles: [{ kind: 'fts', id: 'jev', label: 'JEV', typeCode: 'JEV', controlNo: 'DMS-3' }] };
+  assert.deepEqual(supportingDocs(dv).map((s) => `${s.id}:${s.label}`), ['obr:Obligation Request', 'jev:JEV']);
+  const related = { obr: { typeCode: 'OBR', controlNo: 'DMS-2', pdf: { files: [{ path: 'obr0.pdf' }, { path: 'obr1.pdf' }] } }, jev: null };
+  assert.deepEqual(filesOf(dv, related).map((f) => f.name), ['DV DMS-1.pdf', 'attachments/OR.pdf', 'supporting/Obligation Request - OBR DMS-2.pdf']);
+  assert.equal(filesOf(dv, related).at(-1).path, 'obr1.pdf', 'its final PDF only');
+  // the automatic Drive backup reads them too
+  const f = fakes([{ id: 'a', raw: '2026-11-05T01:00:00Z', data: { ...dv, title: 'X', workflow: { state: 'done', events: [{ type: 'completed', at: '2026-11-05T01:00:00Z' }] } } }]);
+  f.source.getDocument = async (id) => related[id] || null;
+  await runBackup({ ...f });
+  assert.ok(f.files().includes('DMS Archive/2026/DV/DMS-1 X/supporting/Obligation Request - OBR DMS-2.pdf'));
+});

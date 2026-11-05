@@ -1,4 +1,4 @@
-import { docFolder, filesOf, isArchived } from '../../src/lib/archiveFiles.js';
+import { docFolder, filesOf, isArchived, supportingDocs } from '../../src/lib/archiveFiles.js';
 
 // The automatic backup of the Archive to Google Drive. Each run goes on from where the last one
 // stopped (documents in the order they last changed), for as long as its time allows: a processed
@@ -51,7 +51,10 @@ export async function runBackup({ source, drive, store, budgetMs = 20000, now = 
     const parent = await folderFor(parts.slice(0, 2));
     const same = kept.parent === parent;
     const entry = { parent, folder: same && kept.folder ? kept.folder : await drive.folder(parts[2], parent), record: same ? kept.record || '' : '', files: { ...(same ? kept.files : {}) } };
-    for (const f of filesOf(d)) {
+    // Its supporting documents that are DMS documents of their own: their final PDFs in its folder.
+    const related = {};
+    if (source.getDocument) for (const s of supportingDocs(d)) related[s.id] = await source.getDocument(s.id).catch(() => null);
+    for (const f of filesOf(d, related)) {
       if (entry.files[key(f.path)]) continue;
       if (timeUp()) { await store.set(`doc/${d.id}`, entry); return false; }
       const [sub, name] = f.name.includes('/') ? f.name.split(/\/(.+)/) : ['', f.name];

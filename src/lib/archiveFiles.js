@@ -39,7 +39,9 @@ export function finalPdf(d) {
 // route steps uploaded and its supplemental documents. name may hold a subfolder (attachments/...).
 // (Supporting documents saved as DMS documents of their own go into the Archive, and its backups,
 // with their main document.)
-export function filesOf(d) {
+// related: the supporting documents that are DMS documents of their own (a linked OBR, TO, JEV…),
+// by id ({ id: document }): their final PDFs go in this document's folder too, under supporting/.
+export function filesOf(d, related = {}) {
   const out = [];
   const final = finalPdf(d);
   if (final?.path) out.push({ path: final.path, name: `${safe(`${d.typeCode || 'DOC'} ${d.controlNo || ''}`)}.pdf`, pdf: true });
@@ -49,7 +51,29 @@ export function filesOf(d) {
   for (const f of d.stepFiles || []) if (f?.path) out.push({ path: f.path, name: `step files/${safe(f.label)} ${safe(f.name)}` });
   // Supplemental documents (files that go with it, not on its checklist).
   for (const f of d.supplements || []) if (f?.path) out.push({ path: f.path, name: `supplements/${safe(f.label || f.name) || 'file'}` });
+  const seen = new Set(out.map((f) => f.path));
+  for (const s of supportingDocs(d)) {
+    const final = finalPdf(related[s.id]);
+    if (!final?.path || seen.has(final.path)) continue;
+    seen.add(final.path);
+    const r = related[s.id];
+    out.push({ path: final.path, name: `supporting/${safe(`${s.label ? `${s.label} - ` : ''}${r.typeCode || s.typeCode || ''} ${r.controlNo || s.controlNo || ''}`) || 'document'}.pdf`, pdf: true });
+  }
   return out;
+}
+
+// The supporting documents of a document that are DMS documents of their own: linked to its
+// checklist or as attachments, its supplemental documents, and those attached along its route
+// (e.g. the JEV). Each { id, label, typeCode, controlNo }, once.
+export function supportingDocs(d) {
+  const items = Object.fromEntries([...(d?.transaction?.items || []), ...(d?.extraItems || []), ...(d?.additionalDocs || []).map((label, i) => ({ id: `add${i}`, label }))]
+    .map((i) => [i.id, String(i.label || '').split('\n')[0]]));
+  const out = new Map();
+  const add = (l, label) => { if (l?.kind === 'fts' && l.id && !out.has(l.id)) out.set(l.id, { id: l.id, label: String(label || '').slice(0, 60), typeCode: l.typeCode || '', controlNo: l.controlNo || '' }); };
+  for (const [itemId, list] of Object.entries(d?.links || {})) for (const l of list || []) add(l, items[itemId]);
+  for (const l of d?.supplements || []) add(l, l.label || 'Supplemental');
+  for (const l of d?.stepFiles || []) add(l, l.label);
+  return [...out.values()];
 }
 
 // The folder of a document in a backup: year processed / type / control no. and payee.

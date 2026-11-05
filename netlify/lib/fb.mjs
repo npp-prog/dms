@@ -65,6 +65,12 @@ export async function firebaseAs(refreshToken, fetchImpl = fetch) {
         id: x.document.name.split('/').pop(), raw: x.document.fields?.updatedAt?.timestampValue || '1970-01-01T00:00:00Z', data: fromFields(x.document.fields),
       }));
     },
+    // One document (null if it cannot be read), e.g. a supporting document of an archived one.
+    async getDocument(id) {
+      const r = await fetchImpl(`${FS}/documents/${encodeURIComponent(id)}`, { headers: auth });
+      if (!r.ok) return null;
+      return { id, ...fromFields((await r.json()).fields) };
+    },
     async download(path) {
       const f = await fetchImpl(`https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${encodeURIComponent(path)}?alt=media`, { headers: auth });
       if (!f.ok) throw new Error(`file ${path}: ${f.status}`);
