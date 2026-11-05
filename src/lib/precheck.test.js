@@ -49,3 +49,16 @@ test('only the Accounting Office runs the pre-audit check', async () => {
   assert.equal(canRunPrecheck({ office: 'Municipal Accounting Office', role: 'payee' }), false);
   assert.equal(canRunPrecheck({ office: 'Municipal Accounting Office', active: false }), false);
 });
+
+test('the pre-audit check: DVs and Liquidation Reports only, each with its own instructions', async () => {
+  const { PRECHECK_TYPES, precheckSystem, precheckBrief, precheckFiles } = await import('./precheck.js');
+  assert.deepEqual(PRECHECK_TYPES, ['DV', 'LR']);
+  assert.match(precheckSystem('DV'), /Disbursement Vouchers/);
+  assert.match(precheckSystem('LR'), /Liquidation Reports \(LR\) of cash advances/);
+  const lr = { typeCode: 'LR', controlNo: 'DMS-9', data: { cashAdvance: 15000, dvNo: '2026-11-0012', items: [{ particulars: 'Hotel', amount: 5000 }], totalSpent: 5000, refund: 10000, refundOrNo: '123' }, pdf: { files: [{ path: 'p.pdf' }] } };
+  const brief = precheckBrief(lr, [{ label: 'The Liquidation Report itself (DMS-9)' }]);
+  assert.match(brief, /Cash advance: 15000, DV No\. 2026-11-0012/);
+  assert.match(brief, /Hotel: 5000/);
+  assert.match(brief, /OR No\. 123/);
+  assert.equal(precheckFiles(lr)[0].label, 'The Liquidation Report itself (DMS-9)');
+});

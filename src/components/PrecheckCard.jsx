@@ -8,7 +8,9 @@ const VERDICT = { no_issues: ['No issues found', 'badge-green'], issues: ['Possi
 
 // DV pre-audit check (AI): reads the DV, its checklist and every attached PDF, and lists possible
 // issues for the Accounting Office. Suggestions only: the reviewer decides; it changes nothing.
-export default function PrecheckCard({ docId, version }) {
+// typeCode: DV or LR (its wording).
+export default function PrecheckCard({ docId, version, typeCode = 'DV' }) {
+  const name = typeCode === 'LR' ? 'Liquidation Report' : 'DV';
   const [s, setS] = useState(null);
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
@@ -39,11 +41,13 @@ export default function PrecheckCard({ docId, version }) {
       {error && <div className="alert small">{error}</div>}
       {s?.error && !running && <div className="alert small">{s.error}</div>}
       {!s && !error && <div className="spinner" />}
-      {running && <p className="small"><span className="spinner-inline" /> Checking the DV and its attachments… This takes a minute or two; you can keep working.</p>}
-      {!r && s && !running && <p className="small muted">Reads the DV, its checklist and every attached PDF, and lists what a pre-auditor may question: amounts, payee, dates, the OBR, signatures, missing or wrong attachments.</p>}
+      {running && <p className="small"><span className="spinner-inline" /> Checking the {name} and its supporting documents… This takes a minute or two; you can keep working.</p>}
+      {!r && s && !running && <p className="small muted">{typeCode === 'LR'
+        ? 'Reads the Liquidation Report, its checklist and every supporting PDF, and lists what a pre-auditor may question: the cash advance, receipts, totals, the refund or reimbursement, dates, signatures, missing or wrong attachments.'
+        : 'Reads the DV, its checklist and every supporting PDF, and lists what a pre-auditor may question: amounts, payee, dates, the OBR, signatures, missing or wrong attachments.'}</p>}
       {r && (
         <>
-          {s.stale && !running && <div className="alert-info small">The DV or its attachments changed since this check: run it again.</div>}
+          {s.stale && !running && <div className="alert-info small">The {name} or its supporting documents changed since this check: run it again.</div>}
           {r.summary && <p className="small">{r.summary}</p>}
           {r.findings.length > 0 && (
             <ul className="precheck-list">
@@ -74,7 +78,7 @@ export default function PrecheckCard({ docId, version }) {
           </button>
         </div>
       )}
-      <p className="xs muted">AI suggestions only: it can miss or misread things. The Accounting Office decides; nothing on the DV is changed.</p>
+      <p className="xs muted">AI suggestions only: it can miss or misread things. The Accounting Office decides; nothing on the {name} is changed.</p>
     </section>
   );
 }

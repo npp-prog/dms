@@ -2,7 +2,10 @@
 // no Firebase, no network (netlify/functions/precheck-background.mjs does the work).
 // The check only points things out: it never approves, returns, routes or signs anything.
 
-export const PRECHECK_TYPES = ['DV'];
+// Only Disbursement Vouchers and Liquidation Reports have it (each read with its supporting documents:
+// checklist attachments, linked DMS documents, step files, supplemental documents); no other type.
+export const PRECHECK_TYPES = ['DV', 'LR'];
+export const PRECHECK_NAMES = { DV: 'DV', LR: 'Liquidation Report' };
 // The OpenAI model (Netlify may choose another: OPENAI_MODEL). It must read PDFs.
 export const PRECHECK_MODEL = 'gpt-4.1';
 // What one check may read (cost and time): PDFs, pages and bytes in all.
@@ -22,7 +25,7 @@ const s = (v) => (v === undefined || v === null ? '' : String(v));
 export function precheckFiles(d) {
   const out = [];
   const current = (d.pdf?.files || []).at(-1);
-  if (current?.path) out.push({ label: `The DV itself (${d.controlNo || 'this document'})`, path: current.path, main: true });
+  if (current?.path) out.push({ label: `The ${PRECHECK_NAMES[d.typeCode] || 'document'} itself (${d.controlNo || 'this document'})`, path: current.path, main: true });
   const items = Object.fromEntries([...(d.transaction?.items || []), ...(d.additionalDocs || []).map((label, i) => ({ id: `add${i}`, label }))].map((i) => [i.id, i.label]));
   for (const [itemId, list] of Object.entries(d.links || {})) {
     for (const l of list || []) {
@@ -80,9 +83,51 @@ Answer with JSON only, no other text, in exactly this form:
 {"summary": "one or two sentences", "verdict": "no_issues" | "issues" | "cannot_check", "findings": [{"severity": "high" | "medium" | "low", "area": "Amounts" | "Payee" | "Dates" | "OBR" | "Signatures" | "Checklist" | "Attachments" | "Details" | "Other", "finding": "what is wrong or must be checked", "where": "which document and page", "evidence": "what you saw, quoted briefly"}]}
 high: the DV should not pass pre-audit as it is; medium: to check or correct; low: a minor note. No findings: an empty list and verdict "no_issues".`;
 
+// The instructions for the type of document (DV or Liquidation Report).
+export const precheckSystem = (typeCode) => (typeCode === 'LR' ? PRECHECK_SYSTEM_LR : PRECHECK_SYSTEM);
+
+export const PRECHECK_SYSTEM_LR = `You assist the Municipal Accounting Office of the Municipal Government of Candoni (Negros Occidental, Philippines) with the pre-audit of Liquidation Reports (LR) of cash advances, under COA rules and the Government Accounting Manual for LGUs.
+
+You receive the Liquidation Report's details as encoded in DMS, its checklist of requirements as the preparer ticked it, and the PDFs: the Liquidation Report itself first, then its supporting documents, each titled with what it is supposed to be.
+
+Check the Liquidation Report against its supporting documents and the checklist, as a careful pre-auditor would, and report only what you can see in what was given. Look in particular for:
+- the cash advance: the amount and the DV No. and date as on the cash advance DV (if attached);
+- the particulars: each expense supported by an official receipt, invoice or other proof; the amounts on the receipts matching the particulars; the total spent adding up;
+- the balance: cash advance minus total spent; a refund with its OR No., date and amount matching; or the amount to be reimbursed computed right;
+- dates: receipts and expenses within the period covered (and the travel dates, for travel), none dated before the cash advance purpose began or after the report; a liquidation submitted late;
+- for travel: the Travel Order, the Itinerary of Travel, the Certificate of Appearance or attendance, and the report of travel, consistent with each other (names, places, dates);
+- the boxes: Box A (the claimant) and Box B (the immediate supervisor) certified and signed;
+- the checklist: a required item not ticked; an item ticked as attached with nothing linked; an attachment that is not what its checklist item says; illegible, blank or cut pages;
+- arithmetic, wrong or missing details, and anything else a pre-auditor would return the Liquidation Report for.
+
+Do not invent problems. If something cannot be checked from what was given (a page is unreadable, an attachment is missing), say so as a finding. You never approve or reject the Liquidation Report: the Accounting Office decides. Write in plain English, briefly.
+
+Answer with JSON only, no other text, in exactly this form:
+{"summary": "one or two sentences", "verdict": "no_issues" | "issues" | "cannot_check", "findings": [{"severity": "high" | "medium" | "low", "area": "Amounts" | "Cash advance" | "Receipts" | "Refund" | "Dates" | "Signatures" | "Checklist" | "Attachments" | "Details" | "Other", "finding": "what is wrong or must be checked", "where": "which document and page", "evidence": "what you saw, quoted briefly"}]}
+high: the Liquidation Report should not pass pre-audit as it is; medium: to check or correct; low: a minor note. No findings: an empty list and verdict "no_issues".`;
+
 // The text part of the request: the encoded details and the checklist.
 export function precheckBrief(d, read = [], skipped = []) {
   const data = d.data || {};
+  const given = `PDFs given, in order: ${read.map((f, i) => `${i + 1}. ${f.label}`).join('; ') || 'none'}.${skipped.length ? `\nNot given (too many pages, not readable or no access): ${skipped.map((f) => `${f.label}${f.why ? ` (${f.why})` : ''}`).join('; ')}.` : ''}`;
+  const checklist = checklistRows(d).map((r) => `- ${r.item}${r.required ? ' (required)' : ''}: ${r.ticked}${r.linked.length ? `; linked: ${r.linked.join(', ')}` : ''}`).join('\n');
+  if (d.typeCode === 'LR') {
+    const items = (data.items || []).map((p) => `- ${s(p.particulars || p.description)}: ${s(p.amount)}`).join('\n');
+    return `Liquidation Report ${s(d.controlNo)}${data.serialNo ? `, Serial No. ${s(data.serialNo)}` : ''}${data.date ? `, dated ${s(data.date)}` : ''}
+Office: ${s(data.office)}. Function/program/project: ${s(data.fpp)}. Fund: ${s(data.fund)}. Period covered: ${s(data.periodCovered)}
+Cash advance: ${s(data.cashAdvance)}, DV No. ${s(data.dvNo)}${data.dvDate ? `, dated ${s(data.dvDate)}` : ''}
+Particulars:
+${items || '(none encoded)'}
+Total spent (encoded): ${s(data.totalSpent)}
+Refund: ${s(data.refund) || '(none)'}${data.refundOrNo ? `, OR No. ${s(data.refundOrNo)}` : ''}${data.refundDate ? `, ${s(data.refundDate)}` : ''}
+Amount to be reimbursed (encoded): ${s(data.reimburse)}
+Box A claimant: ${s(data.claimant)}. Box B immediate supervisor: ${s(data.supervisor)}
+Type of liquidation: ${s(d.transaction?.code)} ${s(d.transaction?.title)}
+Checklist as ticked:
+${checklist || '(no checklist)'}
+
+${given}`;
+  }
   const parts = (data.particulars || []).map((p) => `- ${s(p.explanation || p.description || p.particulars)}: ${s(p.amount)}`).join('\n');
   const adj = (data.adjustments || []).map((a) => `- ${s(a.explanation || a.description)}: ${s(a.amount)}`).join('\n');
   const rows = checklistRows(d).map((r) => `- ${r.item}${r.required ? ' (required)' : ''}: ${r.ticked}${r.linked.length ? `; linked: ${r.linked.join(', ')}` : ''}`).join('\n');

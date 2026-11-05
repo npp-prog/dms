@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { PRECHECK_TYPES } from '../lib/precheck.js';
 import Icon from '../components/Icon.jsx';
 import { tabLabel } from '../lib/tabLabel.js';
 import { copyDocument, deleteDocument, ensureCheck, getDocument, getTypeForDocument, saveAccountingEntries, saveDocumentLinks, saveExtraItems, getFileBytes, getPdfBytes, uploadAttachment, saveSupplements, fillStepFields, addStepFile, addStepLink, forwardDocument, reviewDocument, setDocumentStatus, startWorkflow, workflowAction, assignRefNo, referDocument, chooseStepOffices, setDocumentAccess, setDocumentRestricted, addPdfVersion, requestSignatures, declineSignature, cancelSignRequest, markProcessed, watchDocument, linkedDocs, markLinked } from '../lib/api.js';
@@ -453,9 +454,10 @@ function DocumentPage({ docId }) {
               onCancel={() => run(() => cancelSignRequest(docId, actor))}
               onProcessed={() => run(() => markProcessed(docId, actor))} />
           )}
-          {/* DV pre-audit check (AI): possible issues for the Accounting Office (suggestions only). */}
-          {!isExternal && docData.typeCode === 'DV' && (docData.pdf?.files || []).length > 0 && docData.status !== 'cancelled' && (
-            <PrecheckCard docId={docId} version={(docData.pdf?.files || []).at(-1)?.path} />
+          {/* Pre-audit check (AI), on DVs and Liquidation Reports only (read with their supporting
+              documents): possible issues for the Accounting Office (suggestions only). */}
+          {!isExternal && PRECHECK_TYPES.includes(docData.typeCode) && (docData.pdf?.files || []).length > 0 && docData.status !== 'cancelled' && (
+            <PrecheckCard docId={docId} typeCode={docData.typeCode} version={(docData.pdf?.files || []).at(-1)?.path} />
           )}
           {/* Supplemental documents: between the PDF and the workflow. */}
           {type && !isExternal && (

@@ -1,7 +1,7 @@
 import { PDFDocument } from 'pdf-lib';
 import { firebaseConfig } from '../../src/firebase-config.js';
 import { fromFields } from './fb.mjs';
-import { PRECHECK_LIMITS, PRECHECK_MODEL, PRECHECK_SYSTEM, parsePrecheck, precheckBasis, precheckBrief, precheckFiles } from '../../src/lib/precheck.js';
+import { PRECHECK_LIMITS, PRECHECK_MODEL, PRECHECK_NAMES, parsePrecheck, precheckSystem, precheckBasis, precheckBrief, precheckFiles } from '../../src/lib/precheck.js';
 
 // The DV pre-audit check, as the signed-in user (their Firebase ID token): it reads only what they
 // may read (firestore.rules and storage.rules decide, as in the app), then asks OpenAI (Responses API:
@@ -58,21 +58,22 @@ export async function runPrecheck(d, token, { fetchImpl = fetch, apiKey = proces
       skipped.push({ label: f.label, why: e.message });
     }
   }
-  if (!read.length) throw new Error('No PDF of this DV could be read: convert it to PDF first.');
+  const name = PRECHECK_NAMES[d.typeCode] || 'document';
+  if (!read.length) throw new Error(`No PDF of this ${name} could be read: convert it to PDF first.`);
 
   const content = [{ type: 'input_text', text: precheckBrief(d, read, skipped) }];
   read.forEach((f, i) => {
     content.push({ type: 'input_text', text: `PDF ${i + 1} of ${read.length}: ${f.label} (${f.pages} page${f.pages === 1 ? '' : 's'})` });
     content.push({ type: 'input_file', filename: `pdf-${i + 1}.pdf`, file_data: `data:application/pdf;base64,${f.data.toString('base64')}` });
   });
-  content.push({ type: 'input_text', text: 'Pre-audit this DV now. Answer with the JSON only.' });
+  content.push({ type: 'input_text', text: `Pre-audit this ${name} now. Answer with the JSON only.` });
 
   const r = await fetchImpl(OPENAI_URL, {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       model,
-      instructions: PRECHECK_SYSTEM,
+      instructions: precheckSystem(d.typeCode),
       input: [{ role: 'user', content }],
       max_output_tokens: 16000,
       text: { format: { type: 'json_object' } },
