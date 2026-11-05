@@ -1,9 +1,10 @@
-// DV pre-audit check (AI): what is sent to Claude, the instructions, and reading its answer. Pure:
+// DV pre-audit check (AI): what is sent to the AI (OpenAI), the instructions, and reading its answer. Pure:
 // no Firebase, no network (netlify/functions/precheck-background.mjs does the work).
 // The check only points things out: it never approves, returns, routes or signs anything.
 
 export const PRECHECK_TYPES = ['DV'];
-export const PRECHECK_MODEL = 'claude-sonnet-5-5';
+// The OpenAI model (Netlify may choose another: OPENAI_MODEL). It must read PDFs.
+export const PRECHECK_MODEL = 'gpt-4.1';
 // What one check may read (cost and time): PDFs, pages and bytes in all.
 export const PRECHECK_LIMITS = { files: 15, pages: 80, bytes: 24 * 1024 * 1024 };
 export const SEVERITIES = { high: 'Must fix', medium: 'Check', low: 'Note' };
@@ -101,7 +102,7 @@ ${rows || '(no checklist)'}
 PDFs given, in order: ${read.map((f, i) => `${i + 1}. ${f.label}`).join('; ') || 'none'}.${skipped.length ? `\nNot given (too many pages, not readable or no access): ${skipped.map((f) => `${f.label}${f.why ? ` (${f.why})` : ''}`).join('; ')}.` : ''}`;
 }
 
-// Claude's answer → { summary, verdict, findings } (findings cleaned; anything else dropped).
+// The AI's answer → { summary, verdict, findings } (findings cleaned; anything else dropped).
 export function parsePrecheck(text) {
   const t = String(text || '');
   const start = t.indexOf('{'); const end = t.lastIndexOf('}');

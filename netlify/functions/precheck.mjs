@@ -10,7 +10,7 @@ const json = (status, body) => new Response(JSON.stringify(body), { status, head
 
 export default async (req) => {
   if (req.method !== 'POST') return json(405, { error: 'Use POST.' });
-  if (!process.env.ANTHROPIC_API_KEY) return json(200, { configured: false });
+  if (!process.env.OPENAI_API_KEY) return json(200, { configured: false });
   const user = await userFromRequest(req);
   if (!user) return json(401, { error: 'Please sign in again.' });
   let body;

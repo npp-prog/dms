@@ -1,18 +1,18 @@
 import { getStore } from '@netlify/blobs';
 import { userFromRequest } from '../lib/fb.mjs';
 import { takeQuestion } from '../lib/askLimit.mjs';
-import { precheckError, readDocument, runPrecheck } from '../lib/precheckRun.mjs';
-import { PRECHECK_MODEL, PRECHECK_TYPES, canRunPrecheck } from '../../src/lib/precheck.js';
+import { precheckError, precheckModel, readDocument, runPrecheck } from '../lib/precheckRun.mjs';
+import { PRECHECK_TYPES, canRunPrecheck } from '../../src/lib/precheck.js';
 
 // The DV pre-audit check (AI), run in the background (it reads every PDF of the DV, which can take a
 // minute or more). The browser starts it with the signed-in user's Firebase ID token, then asks
 // netlify/functions/precheck.mjs for the result. Results are kept in Netlify Blobs (prechecks/<doc id>),
 // shown only to those who may open the document. Daily limit per person: PRECHECK_DAILY_LIMIT
-// (default 20). The Anthropic key (ANTHROPIC_API_KEY) never leaves Netlify.
+// (default 20). The OpenAI key (OPENAI_API_KEY) never leaves Netlify.
 const RUNNING_FOR = 8 * 60 * 1000; // a check still "running" after this is treated as failed
 
 export default async (req) => {
-  if (req.method !== 'POST' || !process.env.ANTHROPIC_API_KEY) return;
+  if (req.method !== 'POST' || !process.env.OPENAI_API_KEY) return;
   const user = await userFromRequest(req);
   // Only the Accounting Office runs it (checked here, not only in the browser).
   if (!user || !canRunPrecheck(user.profile)) return;
@@ -26,7 +26,7 @@ export default async (req) => {
   const d = await readDocument(docId, user.token).catch(() => null);
   if (!d || !PRECHECK_TYPES.includes(d.typeCode)) return;
 
-  const base = { by: user.uid, byName: user.profile.displayName || user.profile.email || '', startedAt: new Date().toISOString(), model: PRECHECK_MODEL };
+  const base = { by: user.uid, byName: user.profile.displayName || user.profile.email || '', startedAt: new Date().toISOString(), model: precheckModel() };
   const limit = Number(process.env.PRECHECK_DAILY_LIMIT) > 0 ? Number(process.env.PRECHECK_DAILY_LIMIT) : 20;
   try {
     const turn = await takeQuestion(getStore({ name: 'precheck-usage', consistency: 'strong' }), user.uid, { limit });

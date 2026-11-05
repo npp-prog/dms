@@ -15,7 +15,6 @@
     "deploy:rules": "npx -y firebase-tools@15.34.1 deploy --only firestore:rules,firestore:indexes,storage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.3.0",
     "@netlify/blobs": "^8.1.0",
     "@signpdf/placeholder-plain": "3.3.0",
     "@signpdf/signer-p12": "3.3.0",

@@ -1,11 +1,23 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { PDFDocument } from 'pdf-lib';
 import { firebaseConfig } from '../../src/firebase-config.js';
 import { fromFields } from './fb.mjs';
 import { PRECHECK_LIMITS, PRECHECK_MODEL, PRECHECK_SYSTEM, parsePrecheck, precheckBasis, precheckBrief, precheckFiles } from '../../src/lib/precheck.js';
 
 // The DV pre-audit check, as the signed-in user (their Firebase ID token): it reads only what they
-// may read (firestore.rules and storage.rules decide, as in the app), then asks Claude.
+// may read (firestore.rules and storage.rules decide, as in the app), then asks OpenAI (Responses API:
+// the DV's details and its PDFs; OPENAI_API_KEY, model OPENAI_MODEL or PRECHECK_MODEL).
+const OPENAI_URL = 'https://api.openai.com/v1/responses';
+export const precheckModel = () => process.env.OPENAI_MODEL || PRECHECK_MODEL;
+
+// An error of the OpenAI API: its HTTP status, type and code, for precheckError.
+class OpenAIError extends Error {
+  constructor(status, body) {
+    super(body?.error?.message || `OpenAI error ${status}`);
+    this.status = status;
+    this.type = body?.error?.type || '';
+    this.code = body?.error?.code || '';
+  }
+}
 const FS = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents`;
 
 export async function readDocument(id, token, fetchImpl = fetch) {
@@ -20,9 +32,9 @@ async function download(path, token, fetchImpl = fetch) {
   return Buffer.from(await r.arrayBuffer());
 }
 
-// Gathers the PDFs within the limits, asks Claude, returns { result, read, skipped, basis }.
-// (client, fetchImpl: stand-ins in tests.)
-export async function runPrecheck(d, token, { client = null, fetchImpl = fetch } = {}) {
+// Gathers the PDFs within the limits, asks OpenAI, returns { result, read, skipped, basis }.
+// (fetchImpl: a stand-in in tests, for Firebase and OpenAI alike.)
+export async function runPrecheck(d, token, { fetchImpl = fetch, apiKey = process.env.OPENAI_API_KEY, model = precheckModel() } = {}) {
   const read = [];
   const skipped = [];
   let pages = 0;
@@ -48,22 +60,31 @@ export async function runPrecheck(d, token, { client = null, fetchImpl = fetch }
   }
   if (!read.length) throw new Error('No PDF of this DV could be read: convert it to PDF first.');
 
-  const content = [{ type: 'text', text: precheckBrief(d, read, skipped) }];
+  const content = [{ type: 'input_text', text: precheckBrief(d, read, skipped) }];
   read.forEach((f, i) => {
-    content.push({ type: 'text', text: `PDF ${i + 1} of ${read.length}: ${f.label} (${f.pages} page${f.pages === 1 ? '' : 's'})` });
-    content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data.toString('base64') } });
+    content.push({ type: 'input_text', text: `PDF ${i + 1} of ${read.length}: ${f.label} (${f.pages} page${f.pages === 1 ? '' : 's'})` });
+    content.push({ type: 'input_file', filename: `pdf-${i + 1}.pdf`, file_data: `data:application/pdf;base64,${f.data.toString('base64')}` });
   });
-  content.push({ type: 'text', text: 'Pre-audit this DV now. Answer with the JSON only.' });
+  content.push({ type: 'input_text', text: 'Pre-audit this DV now. Answer with the JSON only.' });
 
-  const final = await (client || new Anthropic()).beta.messages.stream({
-    model: PRECHECK_MODEL,
-    max_tokens: 16000,
-    output_config: { effort: 'medium' },
-    system: PRECHECK_SYSTEM,
-    messages: [{ role: 'user', content }],
-  }).finalMessage();
-  if (final.stop_reason === 'refusal') throw new Error('The check declined to answer for this document.');
-  const text = final.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+  const r = await fetchImpl(OPENAI_URL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      instructions: PRECHECK_SYSTEM,
+      input: [{ role: 'user', content }],
+      max_output_tokens: 16000,
+      text: { format: { type: 'json_object' } },
+    }),
+    signal: AbortSignal.timeout(10 * 60 * 1000),
+  });
+  const final = await r.json().catch(() => ({}));
+  if (!r.ok) throw new OpenAIError(r.status, final);
+  const parts = (final.output || []).filter((o) => o.type === 'message').flatMap((o) => o.content || []);
+  if (parts.some((c) => c.type === 'refusal')) throw new Error('The check declined to answer for this document.');
+  const text = parts.filter((c) => c.type === 'output_text').map((c) => c.text).join('');
+  if (final.status === 'incomplete' && !text) throw new Error('The check stopped before answering (too long). Please try again.');
   return {
     result: parsePrecheck(text),
     read: read.map((f) => ({ label: f.label, pages: f.pages })),
@@ -71,16 +92,20 @@ export async function runPrecheck(d, token, { client = null, fetchImpl = fetch }
     pages,
     basis: precheckBasis(d),
     usage: { input: final.usage?.input_tokens || 0, output: final.usage?.output_tokens || 0 },
+    model,
   };
 }
 
 // What went wrong, for the person (never the key).
 export function precheckError(e) {
-  const detail = String(e?.error?.error?.message || e?.message || '').replace(/sk-ant-[\w-]+/g, '[key]').slice(0, 300);
-  if (e instanceof Anthropic.AuthenticationError) return 'The Anthropic API key in Netlify (ANTHROPIC_API_KEY) was not accepted: an administrator must check it.';
-  if (e instanceof Anthropic.RateLimitError) return 'The AI service is busy. Please try again in a minute.';
-  if (e instanceof Anthropic.BadRequestError && /credit balance/i.test(detail)) return 'The Anthropic account has no credits left: an administrator must add credits.';
-  if (/identity verification/i.test(detail)) return 'Anthropic asks the owner of the API key\'s account to verify their identity first: an administrator signs in at console.anthropic.com and completes the identity verification it asks for, then runs the check again.';
-  if (e instanceof Anthropic.APIError) return `The AI service could not check it (error ${e.status}): ${detail}`;
+  const detail = String(e?.message || '').replace(/sk-[\w-]+/g, '[key]').slice(0, 300);
+  if (e instanceof OpenAIError) {
+    if (e.status === 401) return 'The OpenAI API key in Netlify (OPENAI_API_KEY) was not accepted: an administrator must check it.';
+    if (e.code === 'insufficient_quota') return 'The OpenAI account has no credit left (or reached its budget): an administrator must add credit or raise the limit.';
+    if (e.status === 429) return 'The AI service is busy. Please try again in a minute.';
+    if (e.code === 'model_not_found' || e.status === 404) return `The OpenAI model "${precheckModel()}" is not available to this key: an administrator sets OPENAI_MODEL in Netlify to one it may use.`;
+    return `The AI service could not check it (error ${e.status}): ${detail}`;
+  }
+  if (e?.name === 'TimeoutError') return 'The AI service took too long. Please try again.';
   return detail || 'The check could not finish. Please try again.';
 }

@@ -46,8 +46,8 @@ export default function Privacy({ standalone = false }) {
       <p>DMS runs on Google Firebase (accounts, database and files) and Netlify (the website), which store the data on our behalf under their
         data processing terms. Processed documents are backed up to the municipality's Google Drive accounts.
         When the Accounting Office runs the <b>Pre-audit check (AI)</b> on a disbursement voucher, that DV, its details and the PDFs attached to it
-        (which they may already open) are sent to Anthropic's AI service to list possible issues; Anthropic does not use them to train
-        its models. The result is kept by DMS and shown only to those who may open the DV.
+        (which they may already open) are sent to OpenAI's AI service (the OpenAI API) to list possible issues; OpenAI does not use data
+        sent through its API to train its models. The result is kept by DMS and shown only to those who may open the DV.
         Notifications may be sent by email.</p>
 
       <h2>How long</h2>
