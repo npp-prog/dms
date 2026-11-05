@@ -68,7 +68,10 @@ export default function PrecheckCard({ docId, version }) {
       {s && !running && !s.canRun && <p className="xs muted">Only the Municipal Accounting Office runs this check.</p>}
       {s && !running && s.canRun && (
         <div className="row gap wrap" style={{ marginTop: '.5rem' }}>
-          <button type="button" className={`btn btn-sm ${r && !s.stale ? 'btn-ghost' : 'btn-primary'}`} disabled={starting} onClick={run}>{r ? 'Check again' : 'Run pre-audit check'}</button>
+          <button type="button" className={`btn btn-sm btn-ai${r && !s.stale ? ' btn-ai-quiet' : ''}`} disabled={starting} onClick={run}>
+            <svg className="ai-spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" /></svg>
+            {starting ? 'Starting…' : r ? 'Check again with AI' : 'Run pre-audit check with AI'}
+          </button>
         </div>
       )}
       <p className="xs muted">AI suggestions only: it can miss or misread things. The Accounting Office decides; nothing on the DV is changed.</p>
