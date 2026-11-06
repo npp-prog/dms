@@ -8,8 +8,8 @@ import { isOwnerEmail } from './owner.js';
 import { controlNumber, DEFAULT_REF_PATTERN, refFieldLabel, refNumber } from './naming.js';
 import { CHECKLIST_LIBRARY_VERSION, DEFAULT_SETTINGS, FORMAT_KEYS, STARTER_TYPES, positionsOf } from './defaults.js';
 import { checkRecord, pdfIsPublic } from './publicRecord.js';
-import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing } from './workflow.js';
-import { withApprover } from './approver.js';
+import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing, routeFromGuide, MAX_ROUTE_STEPS } from './workflow.js';
+import { withApprover, isApprovalStep } from './approver.js';
 import { copiedData } from './forms.js';
 import { localDay, withParents } from './archiveFiles.js';
 import { notify } from './social.js';
@@ -327,18 +327,46 @@ export async function saveDocumentType(id, data, user) {
   const payload = { ...clean, updatedAt: serverTimestamp(), updatedBy: user.uid };
   if (id) {
     await updateDoc(doc(db, 'documentTypes', id), { ...payload, version: (Number(data.version) || 1) + 1 });
+    await ensureTypeRoutes().catch(() => {});
     return id;
   }
   const ref = await addDoc(collection(db, 'documentTypes'), {
     ...payload, version: 1, createdAt: serverTimestamp(), createdBy: user.uid,
   });
+  await ensureTypeRoutes().catch(() => {});
   return ref.id;
+}
+
+// Every document type with a processing guide has a saved route (route): the security rules start a
+// document's route only as its type's saved route says (firestore.rules startsTypeRoute). A type
+// without one gets the route of its processing guide (routeAuto: kept in step with the guide when
+// the starter format is updated, until an administrator saves its route in Workflow).
+export async function ensureTypeRoutes(offices) {
+  const list = offices || (settingsCache || await getSettings().catch(() => ({}))).offices || DEFAULT_SETTINGS.offices;
+  const types = await getDocs(collection(db, 'documentTypes'));
+  let n = 0;
+  for (const t of types.docs) {
+    const d = t.data();
+    if ((d.route || []).length) {
+      // a route saved before approval steps were saved as signing (the rules check the signatures)
+      if (d.route.some((s) => isApprovalStep(s) && !s.sign)) {
+        await updateDoc(t.ref, { route: d.route.map((s) => (isApprovalStep(s) ? { ...s, sign: true } : s)) });
+        n += 1;
+      }
+      continue;
+    }
+    if (!(d.processing || []).length) continue;
+    await updateDoc(t.ref, { route: cleanSteps(routeFromGuide(d, list)), routeAuto: true });
+    n += 1;
+  }
+  return n;
 }
 
 // The route of a document type (Administration > Workflow). Not part of the format: saving it
 // does not change the format's version, and starter-format updates keep it.
 const cleanSteps = (route) => route.map((s) => ({
-  office: s.office || '', action: String(s.action || '').trim(), sign: Boolean(s.sign),
+  // (an approval step always signs, as lib/workflow.js routeSteps: so saved, the rules check it)
+  office: s.office || '', action: String(s.action || '').trim(), sign: Boolean(s.sign) || isApprovalStep(s),
   ...(s.assign?.field ? { assign: { field: s.assign.field, dateField: s.assign.dateField || '', pattern: String(s.assign.pattern || '').trim(),
     ...(String(s.assign.altPattern || '').trim() ? { altPattern: String(s.assign.altPattern).trim() } : {}), ...(s.assign.noStamp ? { noStamp: true } : {}) } } : {}),
   // the head of the preparer's office only; signs unless a field of the form is filled; an approval
@@ -355,9 +383,10 @@ const cleanSteps = (route) => route.map((s) => ({
 }));
 // The route of a type; a step may have alternate offices.
 export async function saveRoute(typeId, route, user) {
+  if (route.length > MAX_ROUTE_STEPS) throw new Error(`A route has at most ${MAX_ROUTE_STEPS} steps.`);
   await updateDoc(doc(db, 'documentTypes', typeId), {
     route: cleanSteps(route),
-    routeName: deleteField(), altRoutes: deleteField(),
+    routeName: deleteField(), altRoutes: deleteField(), routeAuto: deleteField(),
     routeUpdatedAt: serverTimestamp(), routeUpdatedBy: user.displayName || user.email,
   });
 }
@@ -375,6 +404,7 @@ export async function importDocumentTypes(types, user) {
     });
   }
   await batch.commit();
+  await ensureTypeRoutes().catch(() => {});
 }
 
 // ---------- Checklist library ----------
@@ -422,12 +452,16 @@ export async function loadBundledChecklists() {
 
 // Replaces a document type's format with the starter format DMS ships (e.g. the redrawn DV).
 // Documents already prepared keep their own frozen copy.
-export function applyStarterFormat(id, starter) {
-  return updateDoc(doc(db, 'documentTypes', id), {
+export async function applyStarterFormat(id, starter) {
+  const cur = (await getDoc(doc(db, 'documentTypes', id))).data() || {};
+  await updateDoc(doc(db, 'documentTypes', id), {
     ...Object.fromEntries(FORMAT_KEYS.map((k) => [k, starter[k] ?? null])),
     starterVersion: starter.starterVersion || 1,
+    // a route taken from the processing guide follows the new guide (a route saved in Workflow stays)
+    ...(cur.routeAuto ? { route: deleteField(), routeAuto: deleteField() } : {}),
     updatedAt: serverTimestamp(),
   });
+  if (cur.routeAuto) await ensureTypeRoutes().catch(() => {});
 }
 
 // Runs when an admin signs in. On a new site it installs what DMS needs: the starter formats
@@ -451,6 +485,9 @@ export async function setupSite(user) {
     }
     if (updated.length) done.push(`updated the ${updated.join(', ')} format`);
   }
+  // Every type's route saved (the rules check a document's route against it).
+  const routed = await ensureTypeRoutes().catch(() => 0);
+  if (routed) done.push(`saved the route of ${routed} document type(s) (Workflow: from their processing guide, or approval steps marked as signing)`);
 
   // Documents routed before atPreparer existed: set it, so the office they wait in can see them.
   const moving = await getDocs(query(collection(db, 'documents'), where('workflow.state', '==', 'in-progress')));
@@ -872,6 +909,10 @@ export async function startWorkflow(id, type, user, offices) {
     if (!d || d.workflow) return;
     if (d.signRequest?.state === 'open') throw new Error('It is out for signature: withdraw the request (Signatures) before starting its route.');
     const live = d.typeId ? (await tx.get(doc(db, 'documentTypes', d.typeId))).data() : null;
+    // (the rules start a route only as its type's saved route says: an administrator saves it in
+    // Workflow, or signs in once, which saves the routes of types that have only a processing guide)
+    if (live && !(live.route || []).length && (live.processing || []).length) throw new Error('The route of this document type is not saved yet. Ask an administrator to sign in, or to save it in Administration → Workflow.');
+    if (live && (live.route || []).length > MAX_ROUTE_STEPS) throw new Error(`The route of this document type has more than ${MAX_ROUTE_STEPS} steps. Ask an administrator to shorten it in Administration → Workflow.`);
     const start = buildWorkflow(live || type, d, offices, user);
     if (!start) return;
     tx.update(ref, { ...start, updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('routing started', user)] });
@@ -978,10 +1019,11 @@ export async function assignRefNo(id, user) {
     // Every data field set here is listed in refNos (the security rules allow only those).
     const refNos = {
       ...(d.refNos || {}),
-      [assign.field]: { value: number, label: field?.label || assign.field, ...who },
+      // (its counter and number in the series: the rules check the counter moved to it, refAssignOk)
+      [assign.field]: { value: number, label: field?.label || assign.field, counter: counterRef.id, seq: value, assigned: number, ...who },
       ...(assign.dateField ? { [assign.dateField]: { value: localDay(now), label: 'Date', of: assign.field, ...who } } : {}),
     };
-    tx.set(counterRef, { value });
+    tx.set(counterRef, { value, doc: id, field: assign.field });
     patch.data = data;
     patch.refNos = refNos;
     patch.workflow = { ...d.workflow, events: [...d.workflow.events, { type: 'assigned', stage: d.workflow.stage, office: step.routedTo || d.office || '', by: user.displayName || user.email, uid: user.uid, at: iso, remarks: `${field?.label || assign.field} ${number}` }] };
@@ -1306,7 +1348,8 @@ export async function editRefNo(id, user, { stage, value, date }) {
     const { assign } = d.workflow.steps[stage];
     const at = new Date().toISOString();
     const data = { ...(d.data || {}), [assign.field]: number };
-    const refNos = { ...(d.refNos || {}), [assign.field]: { ...d.refNos[assign.field], value: number, by: user.displayName || user.email, at } };
+    // (it keeps its counter, number in the series and the number first assigned: edited)
+    const refNos = { ...(d.refNos || {}), [assign.field]: { ...d.refNos[assign.field], value: number, by: user.displayName || user.email, at, ...(number !== d.refNos[assign.field]?.value ? { edited: true } : {}) } };
     if (assign.dateField && date) {
       data[assign.dateField] = date;
       refNos[assign.dateField] = { ...d.refNos[assign.dateField], value: date, at };

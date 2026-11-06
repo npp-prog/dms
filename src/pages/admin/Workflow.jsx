@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { addPosition, listDocumentTypes, saveRoute } from '../../lib/api.js';
 import { positionsOf } from '../../lib/defaults.js';
 import PositionsPicker from '../../components/PositionsPicker.jsx';
-import { THIRD_PARTY, routeFromGuide } from '../../lib/workflow.js';
+import { MAX_ROUTE_STEPS, THIRD_PARTY, routeFromGuide } from '../../lib/workflow.js';
 import Icon from '../../components/Icon.jsx';
 import { BUILTIN_REF_FIELD, DEFAULT_REF_PATTERN, refFieldLabel, refNumber } from '../../lib/naming.js';
 import Select from '../../components/Select.jsx';
@@ -123,11 +123,12 @@ function RouteEditor({ type, offices, actor, onSaved }) {
   };
   const problems = [
     !route.length && 'Add at least one step.',
+    route.length > MAX_ROUTE_STEPS && `A route has at most ${MAX_ROUTE_STEPS} steps: merge or remove some.`,
     route.some((s) => !s.action.trim()) && 'Every step needs an action (what the office does).',
     route.some((s, i) => i > 0 && s.office !== THIRD_PARTY && s.office === route[i - 1].office && same([...(s.positions || [])].sort(), [...(route[i - 1].positions || [])].sort())) && 'Two steps in a row are for the same people (office and positions): merge them, or change the office or who acts.',
     route.some((s) => s.office && s.office !== THIRD_PARTY && !offices.includes(s.office)) && 'A step names an office that is not in Settings: users of that office will not receive it.',
   ].filter(Boolean);
-  const blocking = !route.length || route.some((s) => !s.action.trim());
+  const blocking = !route.length || route.length > MAX_ROUTE_STEPS || route.some((s) => !s.action.trim());
 
   const save = async () => {
     setBusy(true); setMsg(null);
@@ -326,7 +327,7 @@ function RouteEditor({ type, offices, actor, onSaved }) {
           </li>
         ))}
       </ol>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setRoute([...route, { office: offices[0] || '', action: '', sign: false }]); setOpen(route.length); }}>+ Add step</button>
+      <button type="button" className="btn btn-ghost btn-sm" disabled={route.length >= MAX_ROUTE_STEPS} onClick={() => { setRoute([...route, { office: offices[0] || '', action: '', sign: false }]); setOpen(route.length); }}>+ Add step</button>
 
       {problems.length > 0 && <ul className="route-problems small">{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
       {msg && <div className={msg.ok ? 'alert alert-ok' : 'alert'}>{msg.text}</div>}

@@ -84,6 +84,10 @@ export function routeFromGuide(type, offices = []) {
 // office head always may act (holdsPosition, and firestore.rules holdsStepPosition).
 export const HEAD_ONLY = 'Office Head';
 
+// A route has at most this many steps (firestore.rules checks a new route against its type's
+// route step by step, up to this many).
+export const MAX_ROUTE_STEPS = 8;
+
 // The steps a new document of this type follows: the admin's route, else the processing guide.
 // A step may name alternate offices (e.g. the Vice Mayor instead of the Mayor); the preparer
 // chooses which office handles it before first releasing the document.

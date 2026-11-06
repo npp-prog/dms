@@ -418,9 +418,11 @@ service cloud.firestore {
       }
       // The route step names who in the office acts (positions): the user holds one, or it names
       // none. The office head always may.
-      function holdsStepPosition() {
+      // (With the profile values docUpdateOk reads once: each profile() call rebuilds its
+      // path, and every expression counts toward the limit of 1000 a request may evaluate.)
+      function holdsStepPosition(head, p) {
         let wanted = resource.data.workflow.steps[resource.data.workflow.stage].get('positions', []);
-        return isHead() || wanted.size() == 0 || profile().get('positions', []).hasAny(wanted);
+        return head || wanted.size() == 0 || p.get('positions', []).hasAny(wanted);
       }
       // The office that referred it keeps seeing it while it is out (read only).
       function referredByMyOffice() {
@@ -429,10 +431,10 @@ service cloud.firestore {
       }
       // Referring a document to a person: admins, and users allowed to route to any person.
       // Or released to a third-party step of its route: to the person the preparer designated.
-      function referralAllowed() {
+      function referralAllowed(admin, p) {
         return !request.resource.data.get('currentOffice', '').matches('person:.*')
           || resource.data.get('currentOffice', '').matches('person:.*')
-          || isAdmin() || profile().get('canRefer', false) == true
+          || admin || p.get('canRefer', false) == true
           || (request.resource.data.workflow.steps[request.resource.data.workflow.stage].get('office', '') == '@third-party'
               && request.resource.data.currentOffice == 'person:' + request.resource.data.workflow.steps[request.resource.data.workflow.stage].get('party', {}).get('uid', '-'));
       }
@@ -516,9 +518,11 @@ service cloud.firestore {
       // the rules' limit of 1000 expressions). Not once processed or cancelled; never the archive
       // entry, reviews or access; its route only while it is with their office (or not routed yet);
       // a signature request only started or withdrawn (preparerSignChange).
-      function preparerEditOk() {
+      function preparerEditOk(off) {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
-        return resource.data.status != 'cancelled'
+        // (a route starts only as its document type's route says: startsTypeRoute, below)
+        return ('workflow' in resource.data || !('workflow' in request.resource.data))
+          && resource.data.status != 'cancelled'
           && resource.data.get('workflow', {}).get('state', '') != 'done' && resource.data.get('closed', null) == null
           && (!('closed' in request.resource.data) || !('workflow' in resource.data))
           && !changed.hasAny(['archive', 'reviews', 'access', 'editors', 'restricted'])
@@ -526,12 +530,51 @@ service cloud.firestore {
           && (!('signRequest' in changed) || preparerSignChange())
           && (!changed.hasAny(['workflow', 'currentOffice', 'routeOffices', 'atPreparer'])
               || ((!('workflow' in resource.data)
-                   || (resource.data.workflow.state == 'in-progress' && (holder() == '' || holder() == myOffice())))
+                   || (resource.data.workflow.state == 'in-progress' && (holder() == '' || holder() == off)
+                       // at their own step only (a step of their office for someone else, e.g. its head,
+                       // is the holder's: routeMoveOk, holdsStepPosition); they may cancel it there
+                       && (resource.data.get('atPreparer', true) == true || request.resource.data.get('workflow', {}).get('state', '') == 'cancelled')))
                   && preparerRouteOk() && placedRight()));
       }
-      // The workflow fields change only through the office holding the document.
-      function workflowUntouched() {
-        return unchanged(['workflow', 'currentOffice', 'routeOffices', 'atPreparer']);
+      // A route starts (startWorkflow) with its document type's route as saved in Workflow
+      // (documentTypes/{typeId}.route): the same offices in the same order, the same signatures,
+      // positions or office head, numbers and their patterns, details to fill in and documents to
+      // attach; a step may only gain the Vice Mayor's office as an alternate (Mayor's steps) and
+      // be routed to one of its alternates. lib/workflow.js routeSteps/buildWorkflow make it.
+      function typeRoute() {
+        return get(/databases/$(database)/documents/documentTypes/$(resource.data.get('typeId', '-'))).data.get('route', []);
+      }
+      function stepMatches(s, t, docOffice) {
+        return s.diff(t).affectedKeys().hasOnly(['office', 'routedTo', 'sign', 'alternates', 'positions', 'bySignatory', 'thirdParty', 'approval']) && s.office == (t.office == '' ? 'Requesting office' : t.office) && (s.sign || !t.sign || t.get('signUnless', '') != '') && s.get('positions', []) == (t.get('headOnly', false) ? ['Office Head'] : (t.office == '' ? [] : t.get('positions', []))) && (t.office == '' ? (s.routedTo == '' || (t.get('headOnly', false) && s.routedTo == docOffice)) : (s.routedTo == t.office || s.routedTo in s.get('alternates', []))) && (s.get('alternates', []) == t.get('alternates', []) || (s.get('bySignatory', false) == true && t.office.matches('.*[Mm]ayor.*') && s.alternates.removeAll(t.get('alternates', [])).size() == 1 && s.alternates.removeAll(t.get('alternates', []))[0].matches('.*[Vv]ice [Mm]ayor.*')));
+      }
+      function startsTypeRoute() {
+        let steps = request.resource.data.workflow.steps;
+        let route = typeRoute();
+        let n = route.size();
+        let off = resource.data.get('office', '');
+        return steps.size() == n && n > 0 && n <= 8
+          && stepMatches(steps[0], route[0], off)
+          && (n < 2 || stepMatches(steps[1], route[1], off))
+          && (n < 3 || stepMatches(steps[2], route[2], off))
+          && (n < 4 || stepMatches(steps[3], route[3], off))
+          && (n < 5 || stepMatches(steps[4], route[4], off))
+          && (n < 6 || stepMatches(steps[5], route[5], off))
+          && (n < 7 || stepMatches(steps[6], route[6], off))
+          && (n < 8 || stepMatches(steps[7], route[7], off));
+      }
+      // A reference no. the current step assigns (e.g. the DV No.): when it is first set, its counter
+      // (counters/{counter}) moves to exactly its number in the same write; changed afterwards (Edit),
+      // it keeps its counter, number in the series and the number first assigned.
+      function refAssignOk() {
+        let f = resource.data.workflow.steps[resource.data.workflow.stage].get('assign', {}).get('field', '-');
+        let r0 = resource.data.get('refNos', {}).get(f, null);
+        let r1 = request.resource.data.get('refNos', {}).get(f, null);
+        return r1 == r0
+          || (r0 == null && r1 != null && r1.get('counter', '') is string && r1.get('counter', '').size() > 0
+              && getAfter(/databases/$(database)/documents/counters/$(r1.counter)).data.get('value', -1) == r1.get('seq', -2)
+              && getAfter(/databases/$(database)/documents/counters/$(r1.counter)).data.get('doc', '') == docId)
+          || (r0 != null && r1 != null && r1.get('counter', '') == r0.get('counter', '')
+              && r1.get('seq', 0) == r0.get('seq', 0) && r1.get('assigned', '') == r0.get('assigned', ''));
       }
       // A document attached to another (a TO, an OBR... linked to a DV or an LR: linkedTo, its first
       // three) is seen by those who see that one along its route: its preparer, the offices it has
@@ -561,6 +604,32 @@ service cloud.firestore {
             || request.auth.uid in resource.data.get('access', []) || folderGranted();
       }
       allow read: if isActive() && (readsItself() || linkedViaParent());
+      // Its route starts (startWorkflow): by its preparer (or an editor), as its type's route says.
+      allow update: if 'workflow' in resource.data ? false : ('workflow' in request.resource.data
+        && resource.data.createdBy == request.auth.uid && isActive() && resource.data.get('status', '') != 'cancelled'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['workflow', 'currentOffice', 'atPreparer', 'routeOffices', 'updatedAt', 'history'])
+        && appended('history')
+        && request.resource.data.workflow.state == 'in-progress' && request.resource.data.workflow.stage == 0
+        && request.resource.data.workflow.get('referral', null) == null && request.resource.data.workflow.get('hold', null) == null
+        && request.resource.data.workflow.events.size() == 1
+        && request.resource.data.get('routeOffices', []).hasOnly([resource.data.get('office', '')])
+        && request.resource.data.get('currentOffice', '') == resource.data.get('office', '') && request.resource.data.get('atPreparer', false) == true
+        && startsTypeRoute());
+      // The preparer chooses the office of a step with alternates, or the third party, before the
+      // document first leaves their office (lib/workflow.js chooseOffices). (Its own rule, its cheap
+      // test first: through the general rule below, it would spend most of the 1000 expressions a
+      // request may evaluate. An editor of the document chooses through that rule.)
+      allow update: if 'workflow' in resource.data && resource.data.workflow.stage == 0
+        && request.resource.data.get('workflow', {}).get('steps', []) != resource.data.workflow.steps
+        && resource.data.createdBy == request.auth.uid && profile().active == true
+        && resource.data.workflow.state == 'in-progress' && resource.data.workflow.get('referral', null) == null
+        && resource.data.get('routeOffices', []).size() <= 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['workflow', 'currentOffice', 'atPreparer', 'routeOffices', 'updatedAt', 'history'])
+        && request.resource.data.workflow.diff(resource.data.workflow).affectedKeys().hasOnly(['steps', 'events', 'choose'])
+        && request.resource.data.get('routeOffices', []).hasOnly([resource.data.get('office', '')])
+        && appended('history') && appendedList(resource.data.workflow.events, request.resource.data.workflow.events)
+        && choicesOnly(resource.data.workflow.steps, request.resource.data.workflow.steps)
+        && placedRight();
       // Attached to a document (linkedTo): recorded by that document's preparer, who sees this one
       // (it was linked from their list); only added, never removed or changed otherwise.
       // (Its cheap test first: every other update (route moves...) stops there, and every expression
@@ -612,7 +681,25 @@ service cloud.firestore {
         let w1 = request.resource.data.get('workflow', {});
         return !('workflow' in resource.data)
           || (appendedList(w0.get('events', []), w1.get('events', []))
-              && (w1.get('steps', []) == w0.get('steps', []) || resource.data.get('routeOffices', []).size() <= 1));
+              && (w1.get('steps', []) == w0.get('steps', [])
+                  || (resource.data.get('routeOffices', []).size() <= 1 && choicesOnly(w0.steps, w1.steps))));
+      }
+      function choicesOnly(a, b) {
+        let n = a.size();
+        return b.size() == n && n <= 8
+          && choiceOnly(a[0], b[0])
+          && (n < 2 || choiceOnly(a[1], b[1])) && (n < 3 || choiceOnly(a[2], b[2])) && (n < 4 || choiceOnly(a[3], b[3]))
+          && (n < 5 || choiceOnly(a[4], b[4])) && (n < 6 || choiceOnly(a[5], b[5])) && (n < 7 || choiceOnly(a[6], b[6]))
+          && (n < 8 || choiceOnly(a[7], b[7]));
+      }
+      // Before the document first leaves the preparer's office, a step may change only by the office
+      // chosen among its alternates (routedTo) or the third party designated (party).
+      function choiceOnly(a, b) {
+        return a == b
+          || (b.diff(a).affectedKeys().hasOnly(['routedTo', 'party'])
+              && (b.get('routedTo', '') == a.get('routedTo', '') || b.get('routedTo', '') == a.get('office', '')
+                  || b.get('routedTo', '') in a.get('alternates', [])
+                  || (a.get('office', '') == 'Requesting office' && b.get('routedTo', '') == '')));
       }
       // After any change to the route, the document is where its step says (as lib/workflow.js
       // placement): with the office of its current step (the preparer's office at a step routed to
@@ -642,10 +729,24 @@ service cloud.firestore {
           // On hold: it stays where it is (no move, no referral) until taken off hold.
           && (w0.get('hold', null) == null || (w1.stage == w0.stage && w1.state == w0.state && w1.get('referral', null) == null));
       }
-      allow update: if isActive()
+      // (Starting a route is the rule above, startsTypeRoute: tested first, so that it does not spend
+      // the 1000 expressions a request may evaluate on the branches below.)
+      allow update: if docUpdateOk();
+      // (One function, so that the user's profile is read once: let p.)
+      function docUpdateOk() {
+        let p = hasProfile() ? profile() : {};
+        let off = p.get('office', '');
+        let active = p.get('active', false) == true;
+        let role = p.get('role', '');
+        let admin = active && role in ['admin', 'superadmin', 'itadmin', 'records'];
+        let records = active && role == 'records';
+        let head = off != '' && p.get('head', false) == true;
+        let held = off != '' && holder() == off && resource.data.get('atPreparer', true) == false;
+        return ('workflow' in resource.data || !('workflow' in request.resource.data) || admin)
+        && active
         && unchanged(['createdBy', 'createdAt', 'typeId', 'controlNo', 'typeSnapshot', 'office'])
-        && referralAllowed()
-        && (isAdmin()
+        && referralAllowed(admin, p)
+        && (admin
             // The person whose turn it is on a signature request signs it, or declines. (Its first
             // test is cheap, so route moves below lose almost nothing to it.)
             || (signTurn()
@@ -656,28 +757,30 @@ service cloud.firestore {
             // The office holding a routed document receives, releases or returns it, and signs its PDF.
             // (Its office head too, also at the preparer's step.) On receiving, it may assign a
             // reference no.: only the field (and date) its own route step assigns change.
-            || ((heldByMyOffice() || (isHead() && holder() == myOffice()))
-                && holdsStepPosition()
+            || ((held || (head && holder() == off))
+                && holdsStepPosition(head, p)
                 && request.resource.data.diff(resource.data).affectedKeys()
                      .hasOnly(['workflow', 'currentOffice', 'routeOffices', 'atPreparer', 'pdf', 'updatedAt', 'history', 'data', 'refNos', 'stepFiles', 'sharedWith', 'forwards', 'supplements', 'referred'])
                 && request.resource.data.get('referred', []).hasAll(resource.data.get('referred', []))
                 && appended('history') && pdfAppended() && routeRecordKept() && routeMoveOk() && placedRight()
                 && request.resource.data.get('data', {}).diff(resource.data.get('data', {})).affectedKeys().hasOnly(assignedKeys())
-                && request.resource.data.get('refNos', {}).diff(resource.data.get('refNos', {})).affectedKeys().hasOnly(assignedKeys()))
+                && request.resource.data.get('refNos', {}).diff(resource.data.get('refNos', {})).affectedKeys().hasOnly(assignedKeys())
+                && refAssignOk())
             // Anyone on its route (staff of an office it has reached, the office holding it, the person
             // it is referred to) adds supplemental documents while it is on its way: only added.
-            || ((routeStaff() || heldByMyOffice() || request.auth.uid in resource.data.get('referred', []))
+            || (((off != '' && off != resource.data.get('office', '') && off in resource.data.get('routeOffices', []))
+                 || held || request.auth.uid in resource.data.get('referred', []))
                 && resource.data.get('status', '') != 'cancelled' && resource.data.get('workflow', {}).get('state', '') == 'in-progress'
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['supplements', 'updatedAt', 'history'])
                 && request.resource.data.get('supplements', []).hasAll(resource.data.get('supplements', []))
                 && appended('history'))
             // The Records Officer files a processed document in the Archive (where it is kept).
-            || (isRecords() && (resource.data.get('workflow', {}).get('state', '') == 'done' || resource.data.get('closed', null) != null) && appended('history')
+            || (records && (resource.data.get('workflow', {}).get('state', '') == 'done' || resource.data.get('closed', null) != null) && appended('history')
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archive', 'updatedAt', 'history']))
             // The head of the office that prepared it (or the Records Officer) gives people of the
             // office access to it (viewer, or editor: also in editors), takes it back, or restricts
             // it (no access through folders).
-            || (((isHead() && resource.data.get('office', '') == myOffice()) || isRecords()) && appended('history')
+            || (((head && resource.data.get('office', '') == off) || records) && appended('history')
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['access', 'editors', 'restricted', 'history'])
                 && request.resource.data.get('restricted', false) is bool
                 && request.resource.data.get('access', []).hasAll(request.resource.data.get('editors', [])))
@@ -693,7 +796,8 @@ service cloud.firestore {
             // The preparer (or an editor) edits the document; its route only while it is with their
             // office (or before it is routed).
             // Not once processed (it is in the Archive), and never the archive entry, reviews or access.
-            || (actsAsPreparer() && preparerEditOk()));
+            || (actsAsPreparer() && preparerEditOk(off)));
+      }
       // Only the superadmin deletes any document (administrators cannot). The preparer (or an
       // editor) deletes a draft: one never completed, or one routed and returned to their step and
       // saved as a draft again. Not while it is complete or out on its route.
@@ -1088,8 +1192,17 @@ service cloud.firestore {
     // ---- Control number sequences ----
     match /counters/{counterId} {
       allow read: if isStaff();
-      allow create: if isStaff() && request.resource.data.value == 1;
-      allow update: if isStaff() && request.resource.data.value == resource.data.value + 1;
+      // A reference no.'s series (…_REF_…): it moves only with the document given that number, in
+      // the same write (refNos[field]: { counter, seq }, see documents refAssignOk).
+      function refCounterOk() {
+        return !counterId.matches('.*REF_.*')
+          || (request.resource.data.keys().hasOnly(['value', 'doc', 'field'])
+              && request.resource.data.doc is string && request.resource.data.field is string
+              && getAfter(/databases/$(database)/documents/documents/$(request.resource.data.doc)).data.get('refNos', {}).get(request.resource.data.field, {}).get('counter', '') == counterId
+              && getAfter(/databases/$(database)/documents/documents/$(request.resource.data.doc)).data.get('refNos', {}).get(request.resource.data.field, {}).get('seq', -1) == request.resource.data.value);
+      }
+      allow create: if isStaff() && request.resource.data.value == 1 && refCounterOk();
+      allow update: if isStaff() && request.resource.data.value == resource.data.value + 1 && refCounterOk();
       allow delete: if isSuper();
     }
   }
