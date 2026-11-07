@@ -16,6 +16,7 @@ import { arrivalPlan, arrivalRecipients } from '../lib/arrival.mjs';
 //   SMTP_PASS   its password (for Gmail: an App Password, not the account password)
 //   SMTP_HOST   optional, default smtp.gmail.com; SMTP_PORT optional, default 465
 //   EMAIL_FROM  optional, default "DMS <SMTP_USER>"
+//               (an alias of that mailbox, e.g. DMS <dms@mgocandoni.com>: the mailbox must be allowed to send as it)
 // Without them nothing is emailed (notifications still show in DMS). Nobody who turned DMS emails
 // off (My Profile: directory emailOff) is emailed.
 //

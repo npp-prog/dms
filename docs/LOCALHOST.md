@@ -437,12 +437,12 @@ Work management (boards, projects, reports) needs the latest `firestore.rules` p
 4. **Deploys → Trigger deploy**; then Logs → Functions → **work-reminders → Run now** to test.
 5. Delete the downloaded file. Without these settings, reminders are still sent, but only when someone on the board opens DMS that day.
 
-**Email from dms@mgocandoni.com.** DMS emails its notifications from the mailbox set in Netlify (none set: no emails, notifications still show in DMS). Set it up once:
-1. Create the mailbox **dms@mgocandoni.com** with the provider that hosts mail for mgocandoni.com. On Google Workspace: turn on 2-Step Verification for it, then make an **App password** (Google Account → Security → App passwords).
-2. In Netlify → Site configuration → **Environment variables** (scope Functions, mark them secret): **SMTP_USER** = `dms@mgocandoni.com`, **SMTP_PASS** = the app password (or the mailbox password your provider gives for SMTP), **EMAIL_FROM** = `DMS <dms@mgocandoni.com>`. Not Google Workspace: also **SMTP_HOST** and **SMTP_PORT** from your provider (default `smtp.gmail.com`, `465`).
-3. **Deploys → Trigger deploy.** Route a test document to another office: its people get the email.
+**Email from dms@mgocandoni.com.** DMS emails its notifications from the mailbox set in Netlify (none set: no emails, notifications still show in DMS). dms@mgocandoni.com is an alias: DMS signs in to the mailbox it belongs to and sends as the alias. Set it up once:
+1. In that mailbox, allow sending as the alias. Google Workspace: Gmail → Settings → **Accounts** → *Send mail as* → **Add another email address** → `dms@mgocandoni.com`, name *DMS*, *Treat as an alias* ticked (without this, Gmail sends as the mailbox's own address). Then turn on 2-Step Verification for the mailbox and make an **App password** (Google Account → Security → App passwords).
+2. In Netlify → Site configuration → **Environment variables** (scope Functions, mark them secret): **SMTP_USER** = the mailbox's own address (the one the alias belongs to, not the alias), **SMTP_PASS** = its app password, **EMAIL_FROM** = `DMS <dms@mgocandoni.com>`. Not Google Workspace: also **SMTP_HOST** and **SMTP_PORT** from your provider (default `smtp.gmail.com`, `465`), and check it lets that mailbox send as the alias.
+3. **Deploys → Trigger deploy.** Route a test document to another office: its people get the email from dms@mgocandoni.com.
 4. So the emails are not marked as spam, the domain's DNS needs the provider's SPF and DKIM records (your mail provider's setup page lists them).
-Type the password only into Netlify, never into a chat or a document. Each user can turn the emails off in My Profile.
+Type the password only into Netlify, never into a chat or a document. Replies to the emails go to the alias, so to that mailbox. Each user can turn the emails off in My Profile.
 
 ### Settings and users
 
