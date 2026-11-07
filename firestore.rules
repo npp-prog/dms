@@ -844,7 +844,8 @@ service cloud.firestore {
       // external: a supplier or payee
       allow read: if isActive();
       // position, idNo, photo: from My Profile (checked there).
-      allow create, update: if isActive() && request.resource.data.keys().hasOnly(['displayName', 'office', 'email', 'external', 'position', 'idNo', 'photo', 'accountNo', 'head', 'positions'])
+      // emailOff: the user turned off DMS emails (My Profile: emailNotify false in their profile).
+      allow create, update: if isActive() && request.resource.data.keys().hasOnly(['displayName', 'office', 'email', 'external', 'position', 'idNo', 'photo', 'accountNo', 'head', 'positions', 'emailOff'])
         && ((request.auth.uid == uid
               && request.resource.data.get('external', false) == (profile().role == 'payee')
               && request.resource.data.office == myOffice()
@@ -854,7 +855,8 @@ service cloud.firestore {
               && request.resource.data.get('idNo', '') == profile().get('idNo', '')
               && request.resource.data.get('accountNo', '') == profile().get('accountNo', '')
               && request.resource.data.get('head', false) == (profile().role != 'payee' && profile().get('head', false))
-              && request.resource.data.get('positions', []) == profile().get('positions', []))
+              && request.resource.data.get('positions', []) == profile().get('positions', [])
+              && request.resource.data.get('emailOff', false) == (profile().get('emailNotify', true) == false))
             || (isAdmin()
               && get(/databases/$(database)/documents/users/$(uid)).data.active == true
               && request.resource.data.get('external', false) == (get(/databases/$(database)/documents/users/$(uid)).data.role == 'payee')
@@ -862,7 +864,8 @@ service cloud.firestore {
               && request.resource.data.email == get(/databases/$(database)/documents/users/$(uid)).data.get('email', '')
               && request.resource.data.get('accountNo', '') == get(/databases/$(database)/documents/users/$(uid)).data.get('accountNo', '')
               && request.resource.data.get('head', false) == (get(/databases/$(database)/documents/users/$(uid)).data.role != 'payee' && get(/databases/$(database)/documents/users/$(uid)).data.get('head', false))
-              && request.resource.data.get('positions', []) == get(/databases/$(database)/documents/users/$(uid)).data.get('positions', [])));
+              && request.resource.data.get('positions', []) == get(/databases/$(database)/documents/users/$(uid)).data.get('positions', [])
+              && request.resource.data.get('emailOff', false) == (get(/databases/$(database)/documents/users/$(uid)).data.get('emailNotify', true) == false)));
       allow delete: if isAdmin();
     }
 

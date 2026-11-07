@@ -12,7 +12,7 @@ import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, ch
 import { withApprover, isApprovalStep } from './approver.js';
 import { copiedData } from './forms.js';
 import { localDay, withParents } from './archiveFiles.js';
-import { notify } from './social.js';
+import { emailArrival, notify } from './social.js';
 import { formatAccountNo, nextAccountNo } from './accountNo.js';
 import { afterDeclined, afterSigned, buildSignRequest, isMyTurn } from './signRequest.js';
 
@@ -122,6 +122,8 @@ export const directoryEntry = (p) => ({
   head: p.role !== 'payee' && Boolean(p.head),
   // the positions they hold (Users → Position), besides their job title (position)
   positions: Array.isArray(p.positions) ? p.positions.map(String) : [],
+  // emails of DMS notifications turned off (My Profile; netlify/functions/email.mjs skips them)
+  emailOff: p.emailNotify === false,
 });
 
 // ---------- DMS account numbers (lib/accountNo.js) ----------
@@ -945,6 +947,7 @@ export async function referDocument(id, to, note, user) {
     publishCheck(tx, id, { ...d, ...patch });
   });
   tellPreparer(d, id, `referred by ${user.displayName || user.email} to ${to.displayName || to.email}${note ? ` — ${note}` : ''}.`, user);
+  emailArrival(id);
 }
 
 // Release, return or complete the current step. Runs as a transaction: the step must
@@ -982,6 +985,8 @@ export async function workflowAction(id, action, user, { stage, remarks = '' } =
     resume: () => `taken off hold by ${who}: it goes on along its route.`,
   }[action];
   if (text) tellPreparer(d, id, text(), user);
+  // (emailed to the office, or the person, that has it now)
+  if (['release', 'return', 'back'].includes(action)) emailArrival(id);
 }
 
 // The office holding the document opens it at a step that assigns a reference no. (e.g.

@@ -33,6 +33,17 @@ export function emailNotices(items) {
     .catch(() => {});
 }
 
+// The document this user just routed, returned or referred: its new holders who act on the step
+// are emailed (netlify/lib/arrival.mjs checks it is this user's move). Never fails the action.
+export function emailArrival(docId) {
+  if (!docId || !auth?.currentUser || import.meta.env?.VITE_USE_EMULATOR === 'true') return;
+  auth.currentUser.getIdToken()
+    .then((token) => fetch('/.netlify/functions/email', {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ arrived: docId }), keepalive: true,
+    }))
+    .catch(() => {});
+}
+
 export async function notify(to, { kind, text, link = '' }, me) {
   if (!to || !me?.uid || to === me.uid) return;
   const ref = await addDoc(collection(db, 'users', to, 'notifications'), {

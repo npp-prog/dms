@@ -69,6 +69,11 @@ export default function Profile() {
     setMsg({ ok: true, text: 'Your details were saved.' });
   });
 
+  const toggleEmail = (on) => run('Saving…', async () => {
+    await updateMyProfile({ emailNotify: on });
+    setMsg({ ok: true, text: on ? 'DMS will email you its notifications.' : 'DMS will no longer email you; notifications still show in DMS.' });
+  });
+
   const changePhoto = (f) => run('Saving your picture…', async () => {
     if (!f) return;
     const url = await savePhoto(user.uid, await squarePhoto(f));
@@ -172,6 +177,12 @@ export default function Profile() {
             {(profile.positions || []).length > 0 && <><dt>Acts as</dt><dd>{profile.positions.join(', ')}</dd></>}
           </dl>
           <p className="small muted">Your office, role and the positions that decide which steps you act on (Acts as) are set by an administrator.</p>
+          <div className="field">
+            <label className="check"><input type="checkbox" checked={profile.emailNotify !== false} disabled={!!busy}
+              onChange={(e) => toggleEmail(e.target.checked)} /> Email me DMS notifications</label>
+            <span className="xs muted">Documents that reach your office for you to act on, what happens to the documents you prepared, signature
+              requests, circulars and messages, sent to {profile.email} from the DMS mailbox. They also show under Notifications in DMS either way.</span>
+          </div>
         </section>
 
         <section className="card">

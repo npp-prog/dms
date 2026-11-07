@@ -83,7 +83,8 @@ export async function runReminders({ base, token, today, sent, now = new Date() 
       } });
       if (r.status === 200) {
         result.created += 1;
-        const email = dir[`directory/${to}`]?.email;
+        // (not to someone who turned DMS emails off: My Profile)
+        const email = dir[`directory/${to}`]?.emailOff ? '' : dir[`directory/${to}`]?.email;
         if (email) {
           if (!emails.has(text)) emails.set(text, { text, link, kind: 'reminder', fromName: '', to: [] });
           emails.get(text).to.push(email);

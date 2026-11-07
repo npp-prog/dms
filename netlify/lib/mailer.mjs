@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer';
 export const mailConfigured = () => Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
 
 const escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const LABEL = { document: 'Your document', circular: 'Circular', community: 'Community', work: 'Work item', mention: 'Mention', reminder: 'Reminder' };
+const LABEL = { action: 'For your action', document: 'Your document', circular: 'Circular', community: 'Community', work: 'Work item', mention: 'Mention', reminder: 'Reminder' };
 
 // groups: [{ text, link, kind, fromName, to: [emails] }] — one email per group (one recipient: To;
 // several: Bcc in groups of 50, so nobody sees the others' addresses). Returns how many were sent.

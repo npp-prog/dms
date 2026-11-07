@@ -92,6 +92,8 @@ Open **My Profile** (left menu, or click your picture at the top right). Under *
 
 Your office, role, Office head and the positions that decide which workflow steps you act on (**Acts as**) are set by an administrator in Users, not here.
 
+**Email notifications.** Under **Details**, **Email me DMS notifications** (on unless you turn it off) has DMS email you from its mailbox (dms@mgocandoni.com) at your sign-in address: a document that reaches your office for you to act on (only those of the office who act on that step: its positions, and the office head), one referred to you, what happens to the documents you prepare, signature requests, circulars, community and work notices, and deadline reminders. Each email says what happened and has **Open in DMS**. Untick it to stop the emails; everything still shows under Notifications in DMS.
+
 ### Dashboard
 
 ![Dashboard](images/02-dashboard.png)
@@ -434,6 +436,13 @@ Work management (boards, projects, reports) needs the latest `firestore.rules` p
 3. In Netlify → Site configuration → **Environment variables** (scope Functions, secret): **GOOGLE_SA_EMAIL** = the file's *client_email*, **GOOGLE_SA_PRIVATE_KEY** = its *private_key* (from `-----BEGIN PRIVATE KEY-----` to `-----END PRIVATE KEY-----`).
 4. **Deploys → Trigger deploy**; then Logs → Functions → **work-reminders → Run now** to test.
 5. Delete the downloaded file. Without these settings, reminders are still sent, but only when someone on the board opens DMS that day.
+
+**Email from dms@mgocandoni.com.** DMS emails its notifications from the mailbox set in Netlify (none set: no emails, notifications still show in DMS). Set it up once:
+1. Create the mailbox **dms@mgocandoni.com** with the provider that hosts mail for mgocandoni.com. On Google Workspace: turn on 2-Step Verification for it, then make an **App password** (Google Account → Security → App passwords).
+2. In Netlify → Site configuration → **Environment variables** (scope Functions, mark them secret): **SMTP_USER** = `dms@mgocandoni.com`, **SMTP_PASS** = the app password (or the mailbox password your provider gives for SMTP), **EMAIL_FROM** = `DMS <dms@mgocandoni.com>`. Not Google Workspace: also **SMTP_HOST** and **SMTP_PORT** from your provider (default `smtp.gmail.com`, `465`).
+3. **Deploys → Trigger deploy.** Route a test document to another office: its people get the email.
+4. So the emails are not marked as spam, the domain's DNS needs the provider's SPF and DKIM records (your mail provider's setup page lists them).
+Type the password only into Netlify, never into a chat or a document. Each user can turn the emails off in My Profile.
 
 ### Settings and users
 

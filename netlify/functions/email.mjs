@@ -2,6 +2,8 @@ import { getStore } from '@netlify/blobs';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { firebaseConfig } from '../../src/firebase-config.js';
 import { mailConfigured, sendGroups } from '../lib/mailer.mjs';
+import { fromFields } from '../lib/fb.mjs';
+import { arrivalPlan, arrivalRecipients } from '../lib/arrival.mjs';
 
 // Emails DMS notifications (users/{uid}/notifications). The browser that just wrote them sends
 // their ids with the signed-in user's Firebase ID token; this function reads each one with that
@@ -14,7 +16,12 @@ import { mailConfigured, sendGroups } from '../lib/mailer.mjs';
 //   SMTP_PASS   its password (for Gmail: an App Password, not the account password)
 //   SMTP_HOST   optional, default smtp.gmail.com; SMTP_PORT optional, default 465
 //   EMAIL_FROM  optional, default "DMS <SMTP_USER>"
-// Without them nothing is emailed (notifications still show in DMS).
+// Without them nothing is emailed (notifications still show in DMS). Nobody who turned DMS emails
+// off (My Profile: directory emailOff) is emailed.
+//
+// { arrived: documentId }: the document this user just routed, returned or referred is with an
+// office (or a person) now: its people who act on the step are emailed (lib/arrival.mjs checks
+// the move is this user's, and recent).
 
 const PROJECT = firebaseConfig.projectId;
 const KEYS = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
@@ -29,6 +36,32 @@ async function read(path, token) {
   return r.ok ? (await r.json()).fields || {} : null;
 }
 
+// The directory entries of an office (or one person's).
+async function holders(plan, token) {
+  if (plan.person) {
+    const p = await read(`directory/${plan.person}`, token);
+    return p ? [{ uid: plan.person, ...fromFields(p) }] : [];
+  }
+  const r = await fetch(`${BASE}:runQuery`, {
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'directory' }], where: { fieldFilter: { field: { fieldPath: 'office' }, op: 'EQUAL', value: { stringValue: plan.holder } } }, limit: 300 } }),
+  });
+  if (!r.ok) return [];
+  return ((await r.json()) || []).filter((x) => x.document).map((x) => ({ uid: x.document.name.split('/').pop(), ...fromFields(x.document.fields) }));
+}
+
+async function arrived(id, uid, token) {
+  if (!/^[A-Za-z0-9]{10,40}$/.test(id)) return 0;
+  const fields = await read(`documents/${id}`, token);
+  const plan = fields && arrivalPlan({ id, ...fromFields(fields) }, uid);
+  if (!plan) return 0;
+  const store = getStore('email-sent');
+  if (await store.get(plan.key)) return 0;
+  const to = arrivalRecipients(await holders(plan, token), plan, uid);
+  await store.set(plan.key, '1');
+  if (!to.length) return 0;
+  return sendGroups([{ text: plan.text, link: plan.link, kind: 'action', fromName: '', to }]);
+}
 
 export default async (req) => {
   if (req.method !== 'POST') return json(405, { error: 'Use POST.' });
@@ -42,6 +75,7 @@ export default async (req) => {
   }
   let body;
   try { body = await req.json(); } catch { return json(400, { error: 'Bad request.' }); }
+  if (typeof body.arrived === 'string') return json(200, { sent: await arrived(body.arrived, uid, token) });
   const items = (Array.isArray(body.items) ? body.items : []).slice(0, MAX)
     .filter((x) => /^[A-Za-z0-9]{10,40}$/.test(x?.to || '') && /^[A-Za-z0-9]{10,40}$/.test(x?.id || ''));
 
@@ -54,7 +88,7 @@ export default async (req) => {
     if (await sentStore.get(`${to}/${id}`)) return;
     const [n, person] = await Promise.all([read(`users/${to}/notifications/${id}`, token), read(`directory/${to}`, token)]);
     const email = str(person, 'email');
-    if (!n || str(n, 'from') !== uid || !email) return;
+    if (!n || str(n, 'from') !== uid || !email || person?.emailOff?.booleanValue) return;
     sending.push(`${to}/${id}`);
     const key = `${str(n, 'text')}\n${str(n, 'link')}`;
     if (!groups.has(key)) groups.set(key, { text: str(n, 'text'), link: str(n, 'link'), kind: str(n, 'kind'), fromName: str(n, 'fromName'), to: [] });
