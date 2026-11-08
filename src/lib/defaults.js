@@ -735,7 +735,7 @@ const TO = {
   orientation: 'portrait',
   active: true,
   checklistSource: 'own',
-  starterVersion: 10,
+  starterVersion: 11,
   // The letterhead (title, email, contact no.) of the issuing office, from Settings.
   headerOffice: 'Office of the Municipal Mayor',
   steps: [
@@ -787,7 +787,7 @@ const TO = {
     <div class="to-office">{{office.letterhead}}</div></div>
   <div class="to-title">TRAVEL ORDER NO.: {{toNo}}</div>
   <div>Series of {{givenDate|year}}</div>
-  <table class="to-to"><tr><td class="to-k">TO</td><td class="to-c">:</td><td><table class="to-who">{{#each travelers}}<tr><td class="to-n"><b>{{name}}</b><span class="dms-no">{{nameDmsNo|dms}}</span></td><td class="to-c">-</td><td>{{position}}</td></tr>{{/each}}</table></td></tr></table>
+  <table class="to-to"><tr><td class="to-k">TO</td><td class="to-c">:</td><td><table class="to-who">{{#each travelers}}<tr><td class="to-n"><b>{{name}}</b></td><td class="to-c">-</td><td>{{position}}</td></tr>{{/each}}</table></td></tr></table>
   <p>You are hereby directed to travel{{#if destination}} to <b>{{destination}}</b>{{/if}} with the following Purpose/s on {{travelDates}}</p>
   <table class="to-list">{{#each purposes}}<tr><td class="to-no">{{@no}}.</td><td>{{purpose}}</td></tr>{{/each}}</table>
   <p class="to-gap">This travel order is issued for the good public service.</p>

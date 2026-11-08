@@ -615,10 +615,11 @@ test('signatories set on a document whose type has none print at the end, or whe
   assert.equal(renderTemplate('<p>A</p>{{signatoriesBlock}}', {}), '<p>A</p>');
 });
 
-test('person fields print the DMS account no. under the name', () => {
+test('person fields print the DMS account no. under the name (not on the Travel Order)', () => {
   const to = STARTER_TYPES.find((t) => t.code === 'TO');
   const html = renderTemplate(to.template, { fields: to.fields, data: { travelers: [{ name: 'JUAN DELA CRUZ', nameDmsNo: '000012', position: 'Engineer II' }] } });
-  assert.match(html, /JUAN DELA CRUZ<\/b><span class="dms-no">DMS No\. 000012<\/span>/);
+  assert.match(html, /JUAN DELA CRUZ<\/b><\/td>/);
+  assert.doesNotMatch(html, /DMS No\. 000012/);
   const table = renderTable({ columns: [{ key: 'name', label: 'Name', type: 'person' }] }, [{ name: 'ANA', nameDmsNo: '000003' }]);
   assert.match(table, /ANA<span class="dms-no">DMS No\. 000003<\/span>/);
 });
