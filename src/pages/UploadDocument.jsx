@@ -3,7 +3,11 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Icon from '../components/Icon.jsx';
 import { loadPdfjs, pdfText } from '../lib/pdfjs.js';
-import { addPdfVersion, createUploadedDocument, deleteDocument, getDocument, listDocumentTypes, setDocumentStatus, startWorkflow } from '../lib/api.js';
+import { addPdfVersion, createTransitionDocument, createUploadedDocument, deleteDocument, getDocument, listDocumentTypes, setDocumentStatus, startTransitionWorkflow, startWorkflow } from '../lib/api.js';
+import PersonPicker from '../components/PersonPicker.jsx';
+import { THIRD_PARTY, transitionSteps } from '../lib/workflow.js';
+import { APPROVERS, APPROVER_LABELS, withApprover } from '../lib/approver.js';
+import { refFieldLabel } from '../lib/naming.js';
 import Select from '../components/Select.jsx';
 import { verifyUrl } from '../lib/qr.js';
 import { withDmsQr } from '../lib/qrStamp.js';
@@ -19,8 +23,12 @@ const OTHER = { id: '', code: 'DOC', name: 'Other document', fields: [], steps: 
 const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp';
 const size = (n) => (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
+// Transition uploads (Settings → Transition uploads): open until the end of that day.
+const transitionOpen = (settings) => Boolean(settings?.transitionUntilMs) && Date.now() < settings.transitionUntilMs;
+const stepOffice = (t, docOffice) => (t.office === THIRD_PARTY ? 'Third party' : t.office || `Preparer's office${docOffice ? ` (${docOffice})` : ''}`);
+
 export default function UploadDocument() {
-  const { actor, settings } = useAuth();
+  const { actor, settings, isAdmin } = useAuth();
   const navigate = useNavigate();
   const id = useId();
   const [types, setTypes] = useState(null);
@@ -32,6 +40,10 @@ export default function UploadDocument() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [drag, setDrag] = useState(false);
+  // Already partway through its route (transition): who prepared it, the step it is at, the steps
+  // before (who, when, numbers), this step (number, signed), choices, hold.
+  const [tr, setTr] = useState({ on: false, preparer: null, stage: 0, done: [], numbers: {}, signedHere: false, picks: {}, hold: false, reason: '', approver: APPROVERS[0] });
+  const setT = (patch) => setTr((t) => ({ ...t, ...patch }));
 
   useEffect(() => { listDocumentTypes({ activeOnly: true }).then(setTypes).catch((e) => setError(e.message)); }, []);
   // Copy as new draft of an uploaded document (?copy=<id>): its type, payee, fund and notes.
@@ -47,6 +59,10 @@ export default function UploadDocument() {
     }).catch((e) => setError(e.message));
   }, [copyId]);
   const type = (types || []).find((t) => t.id === typeId) || OTHER;
+  const route = type.route || [];
+  const hasApprover = (withApprover(type).fields || []).some((f) => f.key === 'approver');
+  const canTransition = transitionOpen(settings) && Boolean(type.id) && route.length > 1;
+  const allowed = transitionSteps(route, tr.preparer?.office || '', actor?.office || '', isAdmin);
   const set = (k) => (e) => setForm({ ...form, [k]: k === 'notes' || k === 'refNo' ? e.target.value : e.target.value.toUpperCase() });
 
   const submit = async (e) => {
@@ -69,7 +85,18 @@ export default function UploadDocument() {
       await Promise.all([loadPdfjs(), import('pdf-lib'), import('../lib/signing.js'), import('../lib/qr.js')]);
       const contentText = kind === 'application/pdf' ? await pdfText(pdf) : '';
       // A draft until its file is stored: if anything below fails, the draft is removed again.
-      const created = await createUploadedDocument(type, { ...form, title: form.title.trim(), refNo: form.refNo.trim(), fileName: file.name, contentText, copiedFrom }, actor);
+      const transition = tr.on && type.id;
+      if (transition) {
+        if (!tr.preparer) throw new Error('Choose who prepared it.');
+        if (!tr.stage) throw new Error('Choose the step it is at now.');
+        if (tr.hold && !tr.reason.trim()) throw new Error('Say why it is on hold.');
+      }
+      const created = transition
+        ? await createTransitionDocument(type, {
+          ...form, title: form.title.trim(), refNo: form.refNo.trim(), fileName: file.name, contentText,
+          approver: hasApprover ? tr.approver : '', preparer: tr.preparer, stage: tr.stage, done: tr.done, signedHere: tr.signedHere, numbers: tr.numbers,
+        }, actor)
+        : await createUploadedDocument(type, { ...form, title: form.title.trim(), refNo: form.refNo.trim(), fileName: file.name, contentText, copiedFrom }, actor);
       try {
         // The QR code of its public check page on every page (lib/qrStamp.js: also on a signed PDF,
         // in an update after its signatures, where the PDF allows it).
@@ -80,6 +107,21 @@ export default function UploadDocument() {
       } catch (err) {
         await deleteDocument(created.id).catch(() => {});
         throw err;
+      }
+      if (transition) {
+        try {
+          await startTransitionWorkflow(created.id, actor, settings.offices || [], {
+            picks: Object.fromEntries(Object.entries(tr.picks).filter(([, v]) => v)), hold: tr.hold ? tr.reason.trim() : '',
+          });
+        } catch (err) {
+          // (not started: back to a draft, and removed)
+          const h = (await getDocument(created.id).catch(() => null))?.history || [];
+          await setDocumentStatus(created.id, 'draft', actor, h).catch(() => {});
+          await deleteDocument(created.id).catch(() => {});
+          throw err;
+        }
+        navigate(`/documents/${created.id}`, { replace: true });
+        return;
       }
       // It follows its route (Administration > Workflow) at once, like a document converted to PDF.
       if ((type.route || type.processing || []).length) await startWorkflow(created.id, type, actor, settings.offices || []);
@@ -131,6 +173,106 @@ export default function UploadDocument() {
           <label className="field-label" htmlFor={`${id}-n`}>Notes <span className="muted">(optional)</span></label>
           <input id={`${id}-n`} value={form.notes} onChange={set('notes')} />
         </div>
+
+        {canTransition && (
+          <div className="field upload-wide transition-box">
+            <label className="check"><input type="checkbox" checked={tr.on} onChange={(e) => setT({ on: e.target.checked })} /> Already partway through its route</label>
+            <span className="small muted">For documents prepared before DMS (2026) that some offices have already signed or acted on: it is uploaded at the
+              step it is at now and goes on in DMS from there. Upload it from the office that has it now. Allowed until {settings.transitionUntil}.</span>
+            {tr.on && (
+              <div className="transition-fields">
+                <div className="field">
+                  <span className="field-label">Prepared by</span>
+                  <PersonPicker value={tr.preparer} onChange={(p) => setT({ preparer: p, stage: 0 })} />
+                  <span className="xs muted">The DMS user who prepared it: the document is theirs and their office&apos;s, and they are told of its progress.</span>
+                </div>
+                {hasApprover && (
+                  <div className="field">
+                    <label className="field-label" htmlFor={`${id}-ap`}>Approved or disapproved by</label>
+                    <Select id={`${id}-ap`} value={tr.approver} onChange={(e) => setT({ approver: e.target.value })}>
+                      {APPROVERS.map((a) => <option key={a} value={a}>{APPROVER_LABELS[a]}</option>)}
+                    </Select>
+                  </div>
+                )}
+                {tr.preparer && (
+                  <div className="field">
+                    <label className="field-label" htmlFor={`${id}-st`}>It is now at</label>
+                    <Select id={`${id}-st`} value={String(tr.stage || '')} onChange={(e) => setT({ stage: Number(e.target.value) || 0 })}>
+                      <option value="">Choose the step…</option>
+                      {route.map((t, i) => (i > 0 && allowed[i]
+                        ? <option key={i} value={i}>Step {i + 1}: {stepOffice(t, tr.preparer.office)}{t.action ? ` (${t.action})` : ''}</option> : null))}
+                    </Select>
+                    {!allowed.some(Boolean) && <span className="xs sig-problem">No step of this route is at your office: the office that has it now (or the Records Officer) uploads it.</span>}
+                  </div>
+                )}
+                {tr.stage > 0 && (
+                  <>
+                    <div className="field-label">Done outside DMS</div>
+                    <ol className="transition-steps">
+                      {route.slice(0, tr.stage).map((t, i) => (
+                        <li key={i}>
+                          <b>Step {i + 1}: {stepOffice(t, tr.preparer.office)}</b>{t.action && <span className="small muted"> · {t.action}</span>}
+                          <div className="row gap wrap">
+                            <input aria-label={`Step ${i + 1}: done by`} placeholder="Who acted" value={tr.done[i]?.by || ''} maxLength={120}
+                              onChange={(e) => { const done = [...tr.done]; done[i] = { ...done[i], by: e.target.value }; setT({ done }); }} />
+                            <input type="date" aria-label={`Step ${i + 1}: date`} value={tr.done[i]?.date || ''}
+                              onChange={(e) => { const done = [...tr.done]; done[i] = { ...done[i], date: e.target.value }; setT({ done }); }} />
+                            {t.assign?.field && (
+                              <input aria-label={refFieldLabel(t.assign.field, type.fields)} placeholder={refFieldLabel(t.assign.field, type.fields)} value={tr.numbers[t.assign.field] || ''} maxLength={60}
+                                onChange={(e) => setT({ numbers: { ...tr.numbers, [t.assign.field]: e.target.value } })} />
+                            )}
+                            {(t.alternates || []).length > 0 && (
+                              <Select aria-label={`Step ${i + 1}: office`} value={tr.picks[i] || t.office} onChange={(e) => setT({ picks: { ...tr.picks, [i]: e.target.value } })}>
+                                {[t.office, ...t.alternates].map((o) => <option key={o} value={o}>{o}</option>)}
+                              </Select>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                    <span className="xs muted">Who acted on each step and the date (both optional), as on the paper{route.slice(0, tr.stage).some((t) => t.assign?.field) ? ', and the reference no. a step gave' : ''}.</span>
+                    {(() => {
+                      const t = route[tr.stage];
+                      return (
+                        <div className="transition-now">
+                          <div className="field-label">Step {tr.stage + 1}: {stepOffice(t, tr.preparer.office)} (now)</div>
+                          {(t.alternates || []).length > 0 && (
+                            <Select aria-label="Office handling it now" value={tr.picks[tr.stage] || t.office} onChange={(e) => setT({ picks: { ...tr.picks, [tr.stage]: e.target.value } })}>
+                              {[t.office, ...t.alternates].map((o) => <option key={o} value={o}>{o}</option>)}
+                            </Select>
+                          )}
+                          {t.office === THIRD_PARTY && (
+                            <PersonPicker external value={tr.picks[tr.stage] ? { ...tr.picks[tr.stage], displayName: tr.picks[tr.stage].name } : null}
+                              onChange={(p) => setT({ picks: { ...tr.picks, [tr.stage]: p ? { uid: p.uid, name: p.displayName || p.email } : null } })} />
+                          )}
+                          {t.assign?.field && (
+                            <div className="field">
+                              <label className="field-label" htmlFor={`${id}-now-no`}>{refFieldLabel(t.assign.field, type.fields)} <span className="muted">(if already given)</span></label>
+                              <input id={`${id}-now-no`} value={tr.numbers[t.assign.field] || ''} maxLength={60} onChange={(e) => setT({ numbers: { ...tr.numbers, [t.assign.field]: e.target.value } })} />
+                              <span className="xs muted">Empty: this office assigns it in DMS, from its series (Workflow → Last number used).</span>
+                            </div>
+                          )}
+                          {(t.sign || t.approval || /mayor/i.test(t.office || '')) && (
+                            <label className="check"><input type="checkbox" checked={tr.signedHere} onChange={(e) => setT({ signedHere: e.target.checked })} /> This office already signed it on the paper</label>
+                          )}
+                          <label className="check"><input type="checkbox" checked={tr.hold} onChange={(e) => setT({ hold: e.target.checked })} /> It is on hold at this office</label>
+                          {tr.hold && <input aria-label="Why it is on hold" value={tr.reason} maxLength={300} onChange={(e) => setT({ reason: e.target.value })} />}
+                        </div>
+                      );
+                    })()}
+                    {route.slice(tr.stage + 1).map((t, j) => (t.office === THIRD_PARTY ? (
+                      <div className="field" key={j}>
+                        <span className="field-label">Step {tr.stage + j + 2}: third party</span>
+                        <PersonPicker external value={tr.picks[tr.stage + j + 1] ? { ...tr.picks[tr.stage + j + 1], displayName: tr.picks[tr.stage + j + 1].name } : null}
+                          onChange={(p) => setT({ picks: { ...tr.picks, [tr.stage + j + 1]: p ? { uid: p.uid, name: p.displayName || p.email } : null } })} />
+                      </div>
+                    ) : null))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="field upload-wide">
           <span className="field-label">File</span>

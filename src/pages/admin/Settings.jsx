@@ -48,6 +48,10 @@ export default function Settings() {
       const { updatedAt, ...rest } = form;
       const clean = { ...rest, offices: lines(officeText), positions: lines(positionText), funds: lines(fundText) };
       clean.controlNo = controlNoSettings({ controlNo: ctl });
+      // Transition uploads (documents already partway through their route): until the end of this day.
+      const until = String(form.transitionUntil || '').slice(0, 10);
+      clean.transitionUntil = until;
+      clean.transitionUntilMs = until ? new Date(`${until}T23:59:59+08:00`).getTime() : 0;
       await saveSettings(clean);
       for (const id of changed) await saveRoute(id, routes[id], actor);
       setChanged(new Set());
@@ -120,6 +124,16 @@ export default function Settings() {
         <div className="fields">
           <div className="field field-wide">
             <textarea rows={4} value={fundText} onChange={(e) => setFundText(e.target.value)} aria-label="Funds" />
+          </div>
+        </div>
+        <h3>Transition uploads</h3>
+        <p className="small muted">Until this date (end of the day), the office holding a document already partway through its route (for
+          example a 2026 DV signed by Accounting and on hold at the Treasurer&apos;s Office), the Records Officer and administrators can upload
+          it at the step it is at (Upload document → <i>Already partway through its route</i>). Leave it empty to stop these uploads.</p>
+        <div className="fields">
+          <div className="field">
+            <label className="field-label" htmlFor="transition-until">Allowed until</label>
+            <input id="transition-until" type="date" value={form.transitionUntil || ''} onChange={(e) => setForm({ ...form, transitionUntil: e.target.value })} />
           </div>
         </div>
         <h3>Positions</h3>

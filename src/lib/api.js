@@ -8,7 +8,7 @@ import { isOwnerEmail } from './owner.js';
 import { controlNumber, DEFAULT_REF_PATTERN, refFieldLabel, refNumber } from './naming.js';
 import { CHECKLIST_LIBRARY_VERSION, DEFAULT_SETTINGS, FORMAT_KEYS, STARTER_TYPES, positionsOf } from './defaults.js';
 import { checkRecord, pdfIsPublic } from './publicRecord.js';
-import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing, routeFromGuide, MAX_ROUTE_STEPS } from './workflow.js';
+import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing, routeFromGuide, MAX_ROUTE_STEPS, transitionWorkflow } from './workflow.js';
 import { withApprover, isApprovalStep } from './approver.js';
 import { copiedData } from './forms.js';
 import { localDay, withParents } from './archiveFiles.js';
@@ -599,6 +599,80 @@ export async function createUploadedDocument(type, { title, fund = '', notes = '
     history: [historyEntry('uploaded', user, fileName)],
   });
   return { id: ref.id, controlNo };
+}
+
+// ---------- Transition (2026 → 2027): a document already partway through its route ----------
+// Uploaded by the office holding it now (or the Records Officer, an administrator), until the date
+// in Settings (transitionUntil). Its preparer is the DMS user who prepared it (createdBy, their
+// office); `transition` records the upload: the step it is at, who did the steps before it and
+// when (outside DMS), and whether this step already signed it on the paper. numbers: reference
+// nos. those steps gave (data fields), as they are on the paper. Step 1 of 2: the draft.
+export async function createTransitionDocument(type, { title, fund = '', notes = '', refNo = '', approver = '', fileName, contentText = '', preparer, stage, done = [], signedHere = false, numbers = {} }, user) {
+  if (!preparer?.uid || !preparer.office) throw new Error('Choose who prepared it (a DMS user of the office that prepared it).');
+  const controlNo = await nextControlNo();
+  const clean = Object.fromEntries(Object.entries(numbers).map(([k, v]) => [k, String(v || '').trim().slice(0, 60)]).filter(([, v]) => v));
+  const ref = await addDoc(collection(db, 'documents'), {
+    restricted: false,
+    typeId: type.id, typeCode: type.code, typeName: type.name, typeVersion: type.version || 1, typeSnapshot: snapshotType(type),
+    controlNo,
+    data: { payee: title, fund, notes, ...(approver ? { approver } : {}), ...(String(refNo || '').trim() ? { refNo: String(refNo).trim().slice(0, 60) } : {}), ...clean },
+    checklist: {}, additionalDocs: [], links: {}, transaction: null, signatories: null,
+    status: 'draft',
+    uploaded: { name: fileName, at: new Date().toISOString() },
+    ...(contentText ? { contentText } : {}),
+    transition: {
+      by: user.uid, byName: user.displayName || user.email, byOffice: user.office || '', at: new Date().toISOString(),
+      stage, signedHere: Boolean(signedHere),
+      done: done.slice(0, stage).map((x) => ({ by: String(x?.by || '').trim().slice(0, 120), date: String(x?.date || '').slice(0, 10) })),
+    },
+    title,
+    createdBy: preparer.uid,
+    createdByName: preparer.displayName || preparer.email || '',
+    ...preparerExtras({ position: preparer.position, accountNo: preparer.accountNo }),
+    office: preparer.office,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    history: [historyEntry('uploaded (transition)', user, `${fileName} · at step ${stage + 1}`)],
+  });
+  return { id: ref.id, controlNo };
+}
+
+// Step 2: its route starts at that step (lib/workflow.js transitionWorkflow).
+export async function startTransitionWorkflow(id, user, offices, { picks = {}, hold = '' } = {}) {
+  const ref = doc(db, 'documents', id);
+  let d;
+  await runTransaction(db, async (tx) => {
+    d = (await tx.get(ref)).data();
+    if (!d || d.workflow || !d.transition) return;
+    const live = (await tx.get(doc(db, 'documentTypes', d.typeId))).data();
+    if (!(live?.route || []).length) throw new Error('The route of this document type is not saved yet. Ask an administrator to save it in Administration → Workflow.');
+    const start = transitionWorkflow(live, d, offices, user, { stage: d.transition.stage, done: d.transition.done || [], picks, hold });
+    tx.update(ref, { ...start, updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('routing started at a later step (transition)', user, hold ? `on hold: ${hold}` : '')] });
+    publishCheck(tx, id, { ...d, ...start });
+  });
+  if (d) tellPreparer(d, id, `uploaded to DMS by ${user.displayName || user.email}${user.office ? ` (${user.office})` : ''}, already at step ${d.transition.stage + 1} of its route: it goes on in DMS from there.`, user);
+}
+
+// An administrator sets the last number used in a reference no. series (numbers given outside
+// DMS): the next one DMS assigns follows it. counterId: as assignRefNo makes it.
+export async function setSeriesLastNumber(counterId, value, user) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n >= 1000000) throw new Error('Type the last number used (0 or more).');
+  await setDoc(doc(db, 'counters', counterId), { value: n, setBy: user.displayName || user.email, setAt: new Date().toISOString() });
+}
+export async function getSeriesValue(counterId) {
+  const s = await getDoc(doc(db, 'counters', counterId));
+  return s.exists() ? s.data().value || 0 : 0;
+}
+
+// The counter id of a reference no. series (as assignRefNo): the type, the alternate office
+// handling the step (its own series), and the pattern's series for that fund and date.
+export function seriesCounterId(typeCode, step, { fund = '', date = new Date(), office = '' } = {}) {
+  const assign = step.assign || {};
+  const byAlternate = office && office !== step.office ? `${office.replace(/[^A-Za-z0-9]+/g, '')}_` : '';
+  const base = refNumber(assign.pattern || DEFAULT_REF_PATTERN, { fund, date });
+  const series = byAlternate && assign.altPattern ? refNumber(assign.altPattern, { fund, date }) : base;
+  return { id: `${typeCode}_${byAlternate}${series.counterId}`.slice(0, 140), format: series.format };
 }
 
 // Tells the preparer what happened to their document (Notifications): never fails the action.

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { addPosition, listDocumentTypes, saveRoute } from '../../lib/api.js';
+import { addPosition, getSeriesValue, listDocumentTypes, saveRoute, seriesCounterId, setSeriesLastNumber } from '../../lib/api.js';
+import { fundsOf } from '../../lib/defaults.js';
 import { positionsOf } from '../../lib/defaults.js';
 import PositionsPicker from '../../components/PositionsPicker.jsx';
 import { MAX_ROUTE_STEPS, THIRD_PARTY, routeFromGuide } from '../../lib/workflow.js';
@@ -78,6 +79,50 @@ function Routes() {
         ))}
       </div>
       {type ? <RouteEditor key={type.id} type={type} offices={offices} actor={actor} onSaved={load} /> : <div className="card muted">No document types yet.</div>}
+    </div>
+  );
+}
+
+// Where a reference no. series continues: numbers already given outside DMS (e.g. in 2026), so the
+// next one DMS assigns follows the last one used. A series is per fund and period, as the pattern
+// says (and per alternate office, e.g. the Vice Mayor's).
+function SeriesStart({ type, step, actor, offices }) {
+  const { settings } = useAuth();
+  const [fund, setFund] = useState(fundsOf(settings)[0] || '');
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const vm = (offices || []).find((o) => /vice mayor/i.test(o));
+  const owners = [step.office, ...(step.alternates || []), ...(/mayor/i.test(step.office || '') && !/vice/i.test(step.office || '') && vm ? [vm] : [])].filter(Boolean);
+  const [office, setOffice] = useState(step.office || '');
+  const [cur, setCur] = useState(null);
+  const [value, setValue] = useState('');
+  const [msg, setMsg] = useState('');
+  const series = seriesCounterId(type.code, step, { fund, date: new Date(`${month}-15T12:00:00`), office });
+  useEffect(() => { setCur(null); getSeriesValue(series.id).then(setCur).catch(() => setCur(null)); }, [series.id]);
+  const save = async () => {
+    setMsg('');
+    try {
+      await setSeriesLastNumber(series.id, value, actor);
+      setCur(Number(value)); setValue(''); setMsg('Saved.');
+    } catch (e) { setMsg(e.message); }
+  };
+  return (
+    <div className="series-start">
+      <div className="field-label">Last number used</div>
+      <div className="row gap wrap">
+        <Select aria-label="Fund" value={fund} onChange={(e) => setFund(e.target.value)}>
+          {fundsOf(settings).map((f) => <option key={f} value={f}>{f}</option>)}
+        </Select>
+        <input type="month" aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value || month)} />
+        {owners.length > 1 && (
+          <Select aria-label="Office numbering it" value={office} onChange={(e) => setOffice(e.target.value)}>
+            {owners.map((o) => <option key={o} value={o}>{o}</option>)}
+          </Select>
+        )}
+        <input type="number" min="0" aria-label="Last number used" value={value} onChange={(e) => setValue(e.target.value)} />
+        <button type="button" className="btn btn-ghost btn-sm" disabled={value === ''} onClick={save}>Set</button>
+      </div>
+      <span className="help">Numbers already given outside DMS (e.g. in 2026): type the last one used in that series, and DMS goes on from the next.
+        {cur !== null && <> This series: next is <b>{series.format(cur + 1)}</b>{cur ? ` (last used ${series.format(cur)})` : ''}.</>} {msg}</span>
     </div>
   );
 }
@@ -319,6 +364,7 @@ function RouteEditor({ type, offices, actor, onSaved }) {
                       <p className="help assign-help">Next number: <b>{refNumber(s.assign.pattern || DEFAULT_REF_PATTERN, { fund: 'General Fund' }).format(1)}</b>
                         {' · '}{'{YYYY}'} year, {'{YY}'}, {'{MM}'} month, {'{DD}'}, {'{FUND}'} fund (GF, SEF, TF), {'{####}'} the series, which starts again
                         whenever the rest changes. The date field gets today&apos;s date.</p>
+                      <SeriesStart type={type} step={s} actor={actor} offices={offices} />
                     </div>
                   )}
                 </div>

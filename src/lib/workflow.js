@@ -171,6 +171,65 @@ export function buildWorkflow(type, doc, offices, user, at = new Date().toISOStr
   return { workflow, ...placement(workflow, doc) };
 }
 
+// ---------- Transition (2026 → 2027): a document already partway through its route ----------
+// Uploaded at step `stage` of its type's route: the steps before it were done outside DMS (who and
+// when, as the uploader says: done[i] = { by, date }), and it is with that step's office now.
+// picks: { stage: office } for steps with alternates up to `stage`, { stage: { uid, name } } for
+// third parties; hold: a reason to put it on hold at once. firestore.rules checks it against the
+// type's saved route (startsTypeRoute) and the uploader's office.
+export function transitionWorkflow(type, doc, offices, user, { stage, done = [], picks = {}, hold = '' }, at = new Date().toISOString()) {
+  const start = buildWorkflow(type, doc, offices, user, at);
+  if (!start) throw new Error('This document type has no route.');
+  const wf0 = start.workflow;
+  if (!(stage >= 1 && stage < wf0.steps.length)) throw new Error('Choose the step it is at now.');
+  const steps = wf0.steps.map((s, i) => {
+    if (isThirdParty(s)) {
+      const p = picks[i];
+      if (p?.uid) return { ...s, party: { uid: p.uid, name: p.name || 'Third party' } };
+      if (i >= stage) throw new Error(`Step ${i + 1}: choose the third party (supplier, payee…).`);
+      return s;
+    }
+    if (picks[i] === undefined || !s.alternates?.length || i > stage) return s;
+    const main = s.office === 'Requesting office' ? '' : s.office;
+    if (![main, ...s.alternates].includes(picks[i])) throw new Error(`Step ${i + 1}: choose one of its offices.`);
+    return { ...s, routedTo: picks[i] };
+  });
+  const when = (d) => {
+    const t = d ? new Date(`${d}T12:00:00`) : null;
+    return t && !Number.isNaN(t.getTime()) && t.toISOString() < at ? t.toISOString() : at;
+  };
+  const outside = (type, i) => ({
+    type, stage: i, office: officeOf(steps[i], doc), by: String(done[i]?.by || '').trim().slice(0, 120) || 'Outside DMS', uid: '',
+    at: when(done[i]?.date), remarks: 'Done outside DMS (before DMS)', outside: true,
+  });
+  const events = [
+    outside('started', 0),
+    ...steps.slice(0, stage).map((_, i) => outside('released', i)),
+    { type: 'imported', stage, office: officeOf(steps[stage], doc), by: user.displayName || user.email, uid: user.uid, at, remarks: 'Uploaded at this step (transition to DMS)' },
+  ];
+  const reason = String(hold || '').trim().slice(0, 300);
+  if (reason) events.push({ type: 'held', stage, office: officeOf(steps[stage], doc), by: user.displayName || user.email, uid: user.uid, at, remarks: reason });
+  const { choose, ...rest } = wf0;
+  const next = {
+    ...rest, stage, steps, events,
+    ...(reason ? { hold: { office: officeOf(steps[stage], doc), by: user.displayName || user.email, uid: user.uid, at, reason } } : {}),
+  };
+  return { workflow: next, ...placement(next, doc) };
+}
+
+// The offices a user may upload a transition document for, at each step (step index → true):
+// the office of the step (the preparer's office for its own steps), one of its alternates, or the
+// Vice Mayor's for the Mayor's steps (as firestore.rules holdsRouteStep). All for administrators.
+export function transitionSteps(route = [], docOffice = '', myOffice = '', admin = false) {
+  return route.map((t, i) => {
+    if (i === 0) return false;
+    if (admin) return true;
+    const o = t.office || '';
+    return Boolean(myOffice) && (myOffice === (o || docOffice) || (t.alternates || []).includes(myOffice)
+      || (/mayor/i.test(o) && /vice mayor/i.test(myOffice)));
+  });
+}
+
 // currentOffice, atPreparer and routeOffices for the security rules and the Inbox.
 // routeOffices: only the offices the document has reached so far (the furthest step it was
 // released to, even if returned since), not those still ahead on its route.
@@ -270,6 +329,8 @@ export function refUndoBase(doc) {
 export function signatureMissing(doc) {
   const wf = doc?.workflow;
   if (!wf || wf.state !== 'in-progress' || !wf.steps[wf.stage]?.sign) return false;
+  // Uploaded at this step already signed by this office on the paper (transition).
+  if (doc.transition?.signedHere && wf.stage === doc.transition.stage) return false;
   const files = liveFiles(doc.pdf?.files);
   // Since the last new PDF (converted, or uploaded as the document itself).
   const current = files.slice(Math.max(...files.map((f, i) => (f.kind === 'generated' || f.kind === 'uploaded' ? i : -1))) + 1);
@@ -483,7 +544,7 @@ export const ACTION_LABELS = { release: 'Route', return: 'Return', complete: 'Ma
 // A routed document is overdue when it has stayed more than OVERDUE_DAYS days with the same office
 // (or person) without being routed on: counted from when it reached them.
 export const OVERDUE_DAYS = 3;
-const ARRIVALS = new Set(['started', 'released', 'returned', 'referred', 'referral back']);
+const ARRIVALS = new Set(['started', 'released', 'returned', 'referred', 'referral back', 'imported']);
 export function waitingSince(d) {
   const wf = d?.workflow;
   if (!wf || wf.state !== 'in-progress') return '';

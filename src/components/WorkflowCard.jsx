@@ -8,7 +8,7 @@ import Select from './Select.jsx';
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const EVENT_TEXT = {
   started: 'Started', released: 'Routed', returned: 'Returned', completed: 'Processed', cancelled: 'Cancelled', assigned: 'Assigned',
-  route: 'Offices chosen', referred: 'Referred', 'referral back': 'Sent back', held: 'Put on hold', resumed: 'Taken off hold', disapproved: 'DISAPPROVED',
+  route: 'Offices chosen', referred: 'Referred', 'referral back': 'Sent back', imported: 'Uploaded (transition)', held: 'Put on hold', resumed: 'Taken off hold', disapproved: 'DISAPPROVED',
 };
 
 // The preparer chooses which office handles each step that has alternates (e.g. the Mayor or the
@@ -197,6 +197,10 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
           {wf.state === 'done' ? 'Processed' : wf.state === 'cancelled' ? 'Cancelled' : wf.state === 'disapproved' ? 'Disapproved' : `${wf.hold ? 'On hold · ' : ''}Step ${wf.stage + 1} of ${wf.steps.length}`}
         </span>
       </div>
+      {doc.transition && (
+        <p className="small alert-info">Uploaded to DMS at step {doc.transition.stage + 1} by {doc.transition.byName}{doc.transition.byOffice ? ` (${doc.transition.byOffice})` : ''} on {when(doc.transition.at)}:
+          the steps before it were done outside DMS (before DMS){doc.transition.signedHere ? `, and step ${doc.transition.stage + 1} had signed it on the paper` : ''}. Their signatures are on the uploaded PDF.</p>
+      )}
       <ol className="wf-steps">
         {wf.steps.map((step, i) => {
           const state = wf.state === 'done' || i < wf.stage ? 'done' : i === wf.stage && wf.state === 'in-progress' ? 'current' : i === wf.stage && wf.state === 'disapproved' ? 'disapproved' : 'pending';
@@ -218,7 +222,7 @@ export default function WorkflowCard({ doc, canAct, canStart, busy, onAction, on
                   <div key={j} className={`small ${e.type === 'returned' ? 'wf-returned' : 'muted'}`}>
                     {e.type === 'assigned'
                       ? <><b className="wf-assigned">{e.remarks}</b> assigned by {e.by} · {when(e.at)}</>
-                      : <>{EVENT_TEXT[e.type]} by {e.by} · {when(e.at)}{e.remarks && <> — <i>{e.remarks}</i></>}</>}
+                      : <>{EVENT_TEXT[e.type]} by {e.by} · {e.outside ? new Date(e.at).toLocaleDateString('en-PH', { dateStyle: 'medium' }) : when(e.at)}{e.remarks && <> — <i>{e.remarks}</i></>}</>}
                   </div>
                 ))}
                 {(doc.stepFiles || []).filter((f) => f.stage === i).map((f, j) => (

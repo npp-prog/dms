@@ -89,7 +89,7 @@ export default function Documents() {
               {shown.length === 0 && <tr><td colSpan={10} className="muted">No documents found. Processed documents are in the <Link to="/archive">Archive</Link>.</td></tr>}
               {shown.map((d) => (
                 <tr key={d.id}>
-                  <td><Link to={`/documents/${d.id}`}><b>{d.controlNo}</b></Link></td>
+                  <td><Link to={`/documents/${d.id}`}><b>{d.controlNo}</b></Link>{d.transition && <> <span className="badge badge-gray" title="Uploaded partway through its route (transition)">Transition</span></>}</td>
                     <td className="small">{drnOf(d) || '—'}</td>
                   <td>{d.typeCode}</td>
                   <td>{d.title}</td>

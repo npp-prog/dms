@@ -9,7 +9,7 @@ import Icon from './Icon.jsx';
 import { drnOf } from '../lib/naming.js';
 
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '');
-const EVENT = { started: 'Started', released: 'Routed', returned: 'Returned', completed: 'Processed', cancelled: 'Cancelled', assigned: 'Assigned', route: 'Offices chosen', referred: 'Referred', 'referral back': 'Sent back' };
+const EVENT = { started: 'Started', released: 'Routed', returned: 'Returned', completed: 'Processed', cancelled: 'Cancelled', assigned: 'Assigned', route: 'Offices chosen', referred: 'Referred', 'referral back': 'Sent back', imported: 'Uploaded (transition)' };
 
 // Where a routed document is: its state for the filters.
 export function stateOf(d, office, uid = '') {

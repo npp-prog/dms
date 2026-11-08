@@ -508,6 +508,8 @@ service cloud.firestore {
       // of folders of every office): does what its preparer does.
       function actsAsPreparer() {
         return resource.data.createdBy == request.auth.uid
+          // a document uploaded partway through its route (transition): its uploader, until its route starts
+          || (!('workflow' in resource.data) && resource.data.get('transition', {}).get('by', '') == request.auth.uid)
           || (myOffice() != '' && resource.data.get('office', '') == myOffice()
               && request.auth.uid in resource.data.get('editors', []))
           || (folderGranted() && get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.get('edit', false) == true
@@ -544,8 +546,36 @@ service cloud.firestore {
       function typeRoute() {
         return get(/databases/$(database)/documents/documentTypes/$(resource.data.get('typeId', '-'))).data.get('route', []);
       }
+      // (The usual step first: only its office chosen, routedTo, differs from the saved one; every
+      // expression counts toward the limit of 1000 a request may evaluate.)
       function stepMatches(s, t, docOffice) {
-        return s.diff(t).affectedKeys().hasOnly(['office', 'routedTo', 'sign', 'alternates', 'positions', 'bySignatory', 'thirdParty', 'approval']) && s.office == (t.office == '' ? 'Requesting office' : t.office) && (s.sign || !t.sign || t.get('signUnless', '') != '') && s.get('positions', []) == (t.get('headOnly', false) ? ['Office Head'] : (t.office == '' ? [] : t.get('positions', []))) && (t.office == '' ? (s.routedTo == '' || (t.get('headOnly', false) && s.routedTo == docOffice)) : (s.routedTo == t.office || s.routedTo in s.get('alternates', []))) && (s.get('alternates', []) == t.get('alternates', []) || (s.get('bySignatory', false) == true && t.office.matches('.*[Mm]ayor.*') && s.alternates.removeAll(t.get('alternates', [])).size() == 1 && s.alternates.removeAll(t.get('alternates', []))[0].matches('.*[Vv]ice [Mm]ayor.*')));
+        return (t.get('office', '') != '' && s.diff(t).affectedKeys().hasOnly(['routedTo', 'approval'])
+                && s.get('routedTo', '') in [t.office].concat(t.get('alternates', [])))
+          || stepMatchesFull(s, t, docOffice);
+      }
+      function stepMatchesFull(s, t, docOffice) {
+        return s.diff(t).affectedKeys().hasOnly(['office', 'routedTo', 'sign', 'alternates', 'positions', 'bySignatory', 'thirdParty', 'approval', 'party']) && s.office == (t.office == '' ? 'Requesting office' : t.office) && (s.sign || !t.sign || t.get('signUnless', '') != '') && s.get('positions', []) == (t.get('headOnly', false) ? ['Office Head'] : (t.office == '' ? [] : t.get('positions', []))) && (t.office == '' ? (s.routedTo == '' || (t.get('headOnly', false) && s.routedTo == docOffice)) : (s.routedTo == t.office || s.routedTo in s.get('alternates', []))) && (s.get('alternates', []) == t.get('alternates', []) || (s.get('bySignatory', false) == true && t.office.matches('.*[Mm]ayor.*') && s.alternates.removeAll(t.get('alternates', [])).size() == 1 && s.alternates.removeAll(t.get('alternates', []))[0].matches('.*[Vv]ice [Mm]ayor.*')));
+      }
+      // A step already done outside DMS (transition): the same step, at the same office.
+      function stepDone(s, t) {
+        return s.diff(t).affectedKeys().hasOnly(['office', 'routedTo', 'sign', 'alternates', 'positions', 'bySignatory', 'thirdParty', 'approval', 'party'])
+          && s.office == (t.office == '' ? 'Requesting office' : t.office);
+      }
+      // The type's route, from step k on as stepMatches says, the steps before it done.
+      function startsTypeRouteAt(k) {
+        let steps = request.resource.data.workflow.steps;
+        let route = typeRoute();
+        let n = route.size();
+        let off = resource.data.get('office', '');
+        return steps.size() == n && n > 0 && n <= 8
+          && ((k > 0 && stepDone(steps[0], route[0])) || (k <= 0 && stepMatches(steps[0], route[0], off)))
+          && (n < 2 || ((k > 1 && stepDone(steps[1], route[1])) || (k <= 1 && stepMatches(steps[1], route[1], off))))
+          && (n < 3 || ((k > 2 && stepDone(steps[2], route[2])) || (k <= 2 && stepMatches(steps[2], route[2], off))))
+          && (n < 4 || ((k > 3 && stepDone(steps[3], route[3])) || (k <= 3 && stepMatches(steps[3], route[3], off))))
+          && (n < 5 || ((k > 4 && stepDone(steps[4], route[4])) || (k <= 4 && stepMatches(steps[4], route[4], off))))
+          && (n < 6 || ((k > 5 && stepDone(steps[5], route[5])) || (k <= 5 && stepMatches(steps[5], route[5], off))))
+          && (n < 7 || ((k > 6 && stepDone(steps[6], route[6])) || (k <= 6 && stepMatches(steps[6], route[6], off))))
+          && (n < 8 || stepMatches(steps[7], route[7], off));
       }
       function startsTypeRoute() {
         let steps = request.resource.data.workflow.steps;
@@ -594,7 +624,7 @@ service cloud.firestore {
         return viaParent(0) || viaParent(1) || viaParent(2);
       }
       function readsItself() {
-        return resource.data.createdBy == request.auth.uid || isAdmin() || heldByMyOffice() || headSees() || referredToMe() || referredByMyOffice() || isRecords() || routeStaff()
+        return resource.data.createdBy == request.auth.uid || resource.data.get('transition', {}).get('by', '') == request.auth.uid || isAdmin() || heldByMyOffice() || headSees() || referredToMe() || referredByMyOffice() || isRecords() || routeStaff()
             // asked to sign it (a signature request)
             || request.auth.uid in resource.data.get('signers', [])
             // forwarded to this user, or referred to them (also after they sent it back)
@@ -643,12 +673,57 @@ service cloud.firestore {
         && (get(/databases/$(database)/documents/documents/$(request.resource.data.linkedTo[request.resource.data.linkedTo.size() - 1])).data.get('createdBy', '') == request.auth.uid
             || (myOffice() != '' && get(/databases/$(database)/documents/documents/$(request.resource.data.linkedTo[request.resource.data.linkedTo.size() - 1])).data.get('currentOffice', '') == myOffice()))
         && readsItself();
+      // ---- Transition (2026 → 2027): a document already partway through its route ----
+      // Uploaded by the office holding it now (at step transition.stage of its type's route), or by
+      // the Records Officer or an administrator, until the date in Settings (transitionUntilMs). Its
+      // preparer (createdBy) is a DMS user of the office that prepared it.
+      function transitionOpen() {
+        return request.time.toMillis() < get(/databases/$(database)/documents/meta/settings).data.get('transitionUntilMs', 0);
+      }
+      // The office of a route step for a document of that office: the step's office (the preparer's
+      // office for its own steps), one of its alternates, or the Vice Mayor's for the Mayor's.
+      function holdsRouteStep(t, docOffice) {
+        let o = t.get('office', '');
+        return myOffice() != ''
+          && (myOffice() == (o == '' ? docOffice : o) || myOffice() in t.get('alternates', [])
+              || (o.matches('.*[Mm]ayor.*') && myOffice().matches('.*[Vv]ice [Mm]ayor.*')));
+      }
+      allow create: if isStaff() && 'transition' in request.resource.data && transitionOpen()
+        && request.resource.data.transition.by == request.auth.uid
+        && request.resource.data.transition.stage is int && request.resource.data.transition.stage >= 1
+        && request.resource.data.transition.stage < get(/databases/$(database)/documents/documentTypes/$(request.resource.data.typeId)).data.get('route', []).size()
+        && get(/databases/$(database)/documents/users/$(request.resource.data.createdBy)).data.active == true
+        && get(/databases/$(database)/documents/users/$(request.resource.data.createdBy)).data.get('office', '') == request.resource.data.get('office', '-')
+        && request.resource.data.office != ''
+        && request.resource.data.get('restricted', true) == false && request.resource.data.status == 'draft'
+        && !request.resource.data.keys().hasAny(['workflow', 'currentOffice', 'atPreparer', 'routeOffices', 'sharedWith', 'archive', 'reviews', 'access', 'editors', 'pdf', 'refNos', 'referred'])
+        && (isAdmin()
+            || holdsRouteStep(get(/databases/$(database)/documents/documentTypes/$(request.resource.data.typeId)).data.route[request.resource.data.transition.stage], request.resource.data.office));
+      // Its route starts at that step (by its uploader): its type's route as saved, the steps before
+      // it done outside DMS, placed with the office of that step.
+      // With the office of that step (its alternate chosen; the preparer's office at its own step), or
+      // the third party designated. (lib/workflow.js placement; placedRight would pass the limit.)
+      function transitionPlaced(st) {
+        return request.resource.data.get('currentOffice', '') == (st.get('office', '') == '@third-party' ? 'person:' + st.get('party', {}).get('uid', '-')
+            : (st.get('routedTo', '') != '' ? st.routedTo : resource.data.get('office', '')))
+          && request.resource.data.get('atPreparer', false) == (st.get('routedTo', '') == '' && st.get('office', '') != '@third-party');
+      }
+      allow update: if 'workflow' in resource.data ? false : ('transition' in resource.data && 'workflow' in request.resource.data
+        && resource.data.transition.by == request.auth.uid && profile().active == true && resource.data.get('status', '') != 'cancelled'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['workflow', 'currentOffice', 'atPreparer', 'routeOffices', 'updatedAt', 'history'])
+        && appended('history')
+        && request.resource.data.workflow.state == 'in-progress' && request.resource.data.workflow.stage == resource.data.transition.stage
+        && request.resource.data.workflow.get('referral', null) == null
+        && request.resource.data.workflow.events.size() <= request.resource.data.workflow.stage + 3
+        && request.resource.data.get('routeOffices', []).size() <= request.resource.data.workflow.stage + 1
+        && transitionPlaced(request.resource.data.workflow.steps[request.resource.data.workflow.stage])
+        && startsTypeRouteAt(resource.data.transition.stage));
       // A new document is not routed, shared or archived yet.
       allow create: if isStaff()
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.get('office', '') == myOffice()
         && request.resource.data.get('restricted', true) == false
-        && !request.resource.data.keys().hasAny(['workflow', 'currentOffice', 'atPreparer', 'routeOffices', 'sharedWith', 'archive', 'reviews', 'access', 'editors', 'pdf', 'refNos', 'referred']);
+        && !request.resource.data.keys().hasAny(['workflow', 'currentOffice', 'atPreparer', 'routeOffices', 'sharedWith', 'archive', 'reviews', 'access', 'editors', 'pdf', 'refNos', 'referred', 'transition']);
       // The preparer moves the route only one step on (release), back (return) or cancels it; and
       // marks it processed only from its last step.
       function preparerRouteOk() {
@@ -744,7 +819,7 @@ service cloud.firestore {
         let held = off != '' && holder() == off && resource.data.get('atPreparer', true) == false;
         return ('workflow' in resource.data || !('workflow' in request.resource.data) || admin)
         && active
-        && unchanged(['createdBy', 'createdAt', 'typeId', 'controlNo', 'typeSnapshot', 'office'])
+        && unchanged(['createdBy', 'createdAt', 'typeId', 'controlNo', 'typeSnapshot', 'office', 'transition'])
         && referralAllowed(admin, p)
         && (admin
             // The person whose turn it is on a signature request signs it, or declines. (Its first
@@ -903,7 +978,7 @@ service cloud.firestore {
         return getAfter(/databases/$(database)/documents/documents/$(docId)).data;
       }
       function handles(d) {
-        return d.createdBy == request.auth.uid
+        return d.createdBy == request.auth.uid || d.get('transition', {}).get('by', '') == request.auth.uid
           || (myOffice() != '' && d.get('office', '') == myOffice() && request.auth.uid in d.get('editors', []))
           || (exists(/databases/$(database)/documents/folderAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/folderAccess/$(request.auth.uid)).data.get('edit', false) == true
@@ -1204,6 +1279,11 @@ service cloud.firestore {
               && getAfter(/databases/$(database)/documents/documents/$(request.resource.data.doc)).data.get('refNos', {}).get(request.resource.data.field, {}).get('counter', '') == counterId
               && getAfter(/databases/$(database)/documents/documents/$(request.resource.data.doc)).data.get('refNos', {}).get(request.resource.data.field, {}).get('seq', -1) == request.resource.data.value);
       }
+      // An administrator sets where a reference no. series continues (Workflow → Last number used:
+      // numbers already given outside DMS, e.g. in 2026).
+      allow create, update: if isAdmin() && counterId.matches('.*REF_.*')
+        && request.resource.data.keys().hasOnly(['value', 'setBy', 'setAt'])
+        && request.resource.data.value is int && request.resource.data.value >= 0 && request.resource.data.value < 1000000;
       allow create: if isStaff() && request.resource.data.value == 1 && refCounterOk();
       allow update: if isStaff() && request.resource.data.value == resource.data.value + 1 && refCounterOk();
       allow delete: if isSuper();
