@@ -1480,8 +1480,12 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .pending-actions { justify-content: center; }
 .qr-missing { align-items: center; justify-content: space-between; }
 /* Tracking stages fill the width: one equal column each, centred */
-.stats.wf-views { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
+.stats.wf-views { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
 .wf-views button.stat { justify-content: center; padding-left: .4rem; padding-right: .4rem; }
+/* Each stage: icon and count on top, its name below (wrapping if needed), so all stay the same size */
+.stats.wf-views button.stat { display: grid; grid-template-columns: auto auto; justify-content: center; align-items: center;
+  column-gap: .4rem; row-gap: .15rem; min-width: 0; text-align: center; }
+.stats.wf-views button.stat .l { grid-column: 1 / -1; white-space: normal; overflow-wrap: anywhere; min-width: 0; line-height: 1.25; }
 @media (max-width: 640px) {
   .stats.wf-views { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
