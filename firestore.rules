@@ -79,6 +79,8 @@ service cloud.firestore {
     // read or deletes them. Each is also emailed to them (netlify/functions/email.mjs).
     match /users/{uid}/notifications/{nid} {
       allow read, delete: if isActive() && request.auth.uid == uid;
+      // the superadmin clears them all (Settings → Reset documents)
+      allow list, delete: if isSuper();
       // its sender may read it back (to email it: netlify/functions/email.mjs)
       allow get: if isActive() && resource.data.from == request.auth.uid;
       allow create: if isActive() && request.resource.data.from == request.auth.uid
@@ -202,7 +204,9 @@ service cloud.firestore {
     match /backups/{id} {
       allow read: if isRecords() || isAdmin();
       allow create: if (isRecords() || isAdmin()) && request.resource.data.by == request.auth.uid;
-      allow update, delete: if false;
+      allow update: if false;
+      // only with every document (Settings → Reset documents)
+      allow delete: if isSuper();
     }
 
     // ---- Online status (Messages): each user writes their own; turned off: hidden ----
@@ -963,7 +967,9 @@ service cloud.firestore {
         // What it says is what the document and the file just added say.
         && request.resource.data.get('typeName', '') == docAdded().get('typeName', '')
         && request.resource.data.get('kind', '') == docAdded().pdf.files[docAdded().pdf.files.size() - 1].get('kind', '');
-      allow update, delete: if false;
+      allow update: if false;
+      // only with every document (Settings → Reset documents)
+      allow delete: if isSuper();
     }
 
     // ---- Public record of a document (what the QR code on its PDF opens) ----

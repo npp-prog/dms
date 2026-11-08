@@ -160,7 +160,9 @@ service firebase.storage {
       allow create: if resource == null && isActive() && canAdd(docOf(docId))
         && request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp)|application/zip')
         && request.resource.size < 20 * 1024 * 1024;
-      allow update, delete: if false;
+      allow update: if false;
+      // the superadmin, removing every document (Settings → Reset documents)
+      allow delete: if request.auth != null && profile().role == 'superadmin' && profile().active == true;
     }
 
     match /documents/{docId}/{file} {
@@ -177,7 +179,9 @@ service firebase.storage {
         && file.matches('[0-9]+-(generated|signed|esigned|uploaded|stamped|restored|disapproved)\\.pdf')
         && request.resource.contentType == 'application/pdf'
         && request.resource.size < 25 * 1024 * 1024;
-      allow update, delete: if false;
+      allow update: if false;
+      // the superadmin, removing every document (Settings → Reset documents)
+      allow delete: if request.auth != null && profile().role == 'superadmin' && profile().active == true;
     }
   }
 }

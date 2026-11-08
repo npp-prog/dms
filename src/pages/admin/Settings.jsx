@@ -10,7 +10,7 @@ import { fundsOf, positionsOf } from '../../lib/defaults.js';
 const lines = (t) => [...new Set(t.split('\n').map((o) => o.trim()).filter(Boolean))];
 
 export default function Settings() {
-  const { settings, setSettings, actor } = useAuth();
+  const { settings, setSettings, actor, isSuper } = useAuth();
   // Numbering: the DMS control number (saved with the settings) and the reference numbers (DRN)
   // the routes assign (saved in each document type's route, as Administration → Workflow does).
   const [ctl, setCtl] = useState(controlNoSettings(settings));
@@ -212,6 +212,57 @@ export default function Settings() {
           {status && <span className="muted">{status}</span>}
         </div>
       </form>
+      {isSuper && <ResetDocuments />}
     </div>
   );
 }
+
+// The superadmin only: every document, its files and the Archive removed, the numbering restarted
+// (lib/reset.js). Asked to type the phrase first: it cannot be undone.
+function ResetDocuments() {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState('');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const run = async () => {
+    setError(''); setResult(null);
+    try {
+      const { resetAllDocuments } = await import('../../lib/reset.js');
+      setResult(await resetAllDocuments(setBusy));
+      setTyped(''); setOpen(false);
+    } catch (e) { setError(e.message); }
+    setBusy('');
+  };
+  return (
+    <section className="card danger-zone">
+      <h3>Reset documents</h3>
+      <p className="small muted">Deletes <b>every document</b> (prepared and uploaded), their PDFs and attachments, the <b>Archive</b>, the QR check
+        records, everyone&apos;s notifications, the archive backup log and the document links of work items and projects, and restarts the numbering:
+        the next document is <b>DMS-{new Date().getFullYear()}-000001</b> and every reference no. series (DV No., OBR No.…) starts at 0001.
+        Users, offices, settings, document types, routes, checklists, boards and projects stay. Copies already backed up to Google Drive are not
+        touched. <b>This cannot be undone.</b></p>
+      {result && (
+        <div className="alert alert-ok">Done: {result.documents} document(s), {result.files} file(s), {result.counters} counter(s), {result.notifications} notification(s)
+          and {result.backups} backup log entr{result.backups === 1 ? 'y' : 'ies'} removed; {result.links} work item(s) or project(s) unlinked.
+          {result.failed > 0 && ` ${result.failed} item(s) could not be removed: run it again.`}</div>
+      )}
+      {error && <div className="alert">{error}</div>}
+      {!open ? (
+        <button type="button" className="btn btn-danger" onClick={() => setOpen(true)}>Reset documents…</button>
+      ) : (
+        <div className="fields">
+          <div className="field field-wide">
+            <label className="field-label" htmlFor="reset-phrase">Type {RESET_TEXT} to confirm</label>
+            <input id="reset-phrase" value={typed} onChange={(e) => setTyped(e.target.value)} disabled={!!busy} autoComplete="off" />
+          </div>
+          <div className="row gap">
+            <button type="button" className="btn btn-danger" disabled={typed !== RESET_TEXT || !!busy} onClick={run}>{busy || 'Delete everything and restart'}</button>
+            {!busy && <button type="button" className="btn btn-ghost" onClick={() => { setOpen(false); setTyped(''); }}>Cancel</button>}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+const RESET_TEXT = 'DELETE ALL DOCUMENTS';
