@@ -12,6 +12,11 @@ service firebase.storage {
     function docOf(docId) {
       return firestore.get(/databases/(default)/documents/documents/$(docId)).data;
     }
+    // As firestore.rules backedUp: the document's current state is in an archive backup.
+    function backedUp(d) {
+      return d.get('backup', null) is map && d.backup.get('at', null) is timestamp
+        && (!(d.get('updatedAt', null) is timestamp) || d.backup.at >= d.updatedAt);
+    }
     function isActive() {
       return request.auth != null && profile().active == true;
     }
@@ -161,8 +166,10 @@ service firebase.storage {
         && request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp)|application/zip')
         && request.resource.size < 20 * 1024 * 1024;
       allow update: if false;
-      // the superadmin, removing every document (Settings → Reset documents)
-      allow delete: if request.auth != null && profile().role == 'superadmin' && profile().active == true;
+      // the superadmin, purging a backed-up document (Archive → Purge), or removing every document
+      // until 1 January 2027 (Settings → Reset documents)
+      allow delete: if request.auth != null && profile().role == 'superadmin' && profile().active == true
+        && (request.time < timestamp.date(2027, 1, 1) - duration.value(8, 'h') || backedUp(docOf(docId)));
     }
 
     match /documents/{docId}/{file} {
@@ -180,8 +187,10 @@ service firebase.storage {
         && request.resource.contentType == 'application/pdf'
         && request.resource.size < 25 * 1024 * 1024;
       allow update: if false;
-      // the superadmin, removing every document (Settings → Reset documents)
-      allow delete: if request.auth != null && profile().role == 'superadmin' && profile().active == true;
+      // the superadmin, purging a backed-up document (Archive → Purge), or removing every document
+      // until 1 January 2027 (Settings → Reset documents)
+      allow delete: if request.auth != null && profile().role == 'superadmin' && profile().active == true
+        && (request.time < timestamp.date(2027, 1, 1) - duration.value(8, 'h') || backedUp(docOf(docId)));
     }
   }
 }

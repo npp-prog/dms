@@ -121,6 +121,7 @@ export async function buildBackup(docs, onProgress = () => {}) {
   const zip = new JSZip();
   const rows = [['Control No.', 'Type', 'Payee / Subject', 'Office', 'Prepared by', 'Processed', 'Filed at', 'Folder'].map(csv).join(',')];
   const failed = [];
+  const failedIds = new Set();
   let files = 0;
   for (const [i, d] of docs.entries()) {
     onProgress(`Adding ${i + 1} of ${docs.length}: ${d.controlNo}`);
@@ -138,6 +139,7 @@ export async function buildBackup(docs, onProgress = () => {}) {
         files++;
       } catch (e) {
         failed.push(`${d.controlNo} ${name}: ${e.message}`);
+        failedIds.add(d.id);
       }
     }
     const { typeSnapshot, ...record } = d;
@@ -148,7 +150,27 @@ export async function buildBackup(docs, onProgress = () => {}) {
   if (failed.length) zip.file('could-not-be-added.txt', failed.join('\r\n'));
   onProgress('Making the ZIP…');
   const blob = await zip.generateAsync({ type: 'blob' });
-  return { blob, files, failed };
+  return { blob, files, failed, failedIds };
+}
+
+// After a backup: each document it saved whole is stamped (backup: { at, where, name, by }), so it
+// may later be purged from DMS (Archive → Purge, the superadmin). Only if it has not changed since
+// the backup read it (its updatedAt is the same): otherwise the backup holds an older state.
+// where: 'device' (a ZIP) or 'drive'. Returns how many were stamped.
+export async function markBackedUp(docs, { where, name = '' }, user) {
+  const { serverTimestamp: now, runTransaction: tx0 } = await import('firebase/firestore');
+  let n = 0;
+  const same = (a, b) => (a?.toMillis ? a.toMillis() : String(a || '')) === (b?.toMillis ? b.toMillis() : String(b || ''));
+  for (let i = 0; i < docs.length; i += 20) {
+    await Promise.all(docs.slice(i, i + 20).map((d) => tx0(db, async (tx) => {
+      const ref = doc(db, 'documents', d.id);
+      const cur = await tx.get(ref);
+      if (!cur.exists() || !same(cur.data().updatedAt, d.updatedAt)) return;
+      tx.update(ref, { backup: { at: now(), where, name: String(name).slice(0, 80), by: user.displayName || user.email } });
+      n += 1;
+    }).catch(() => {})));
+  }
+  return n;
 }
 
 // Save the ZIP where the Records Officer chooses (a folder on an external drive, a network

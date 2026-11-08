@@ -1813,3 +1813,4 @@ button.stat:focus-visible, a.stat:focus-visible { outline: 2px solid var(--prima
 .transition-steps .row input[type=date] { flex: 0 1 11rem; }
 .transition-now { display: grid; gap: .5rem; padding: .6rem .8rem; border-left: 3px solid var(--accent, #2f5f7a); background: var(--surface, #fff); border-radius: 6px; }
 .danger-zone { margin-top: 1.5rem; border-color: #ebc6c2; }
+.purge-bar { display: grid; gap: .6rem; margin-bottom: 1rem; border-color: #ebc6c2; }

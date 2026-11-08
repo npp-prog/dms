@@ -212,7 +212,7 @@ export default function Settings() {
           {status && <span className="muted">{status}</span>}
         </div>
       </form>
-      {isSuper && <ResetDocuments />}
+      {isSuper && new Date() < new Date('2027-01-01T00:00:00+08:00') && <ResetDocuments />}
     </div>
   );
 }
@@ -241,7 +241,7 @@ function ResetDocuments() {
         records, everyone&apos;s notifications, the archive backup log and the document links of work items and projects, and restarts the numbering:
         the next document is <b>DMS-{new Date().getFullYear()}-000001</b> and every reference no. series (DV No., OBR No.…) starts at 0001.
         Users, offices, settings, document types, routes, checklists, boards and projects stay. Copies already backed up to Google Drive are not
-        touched. <b>This cannot be undone.</b></p>
+        touched. <b>This cannot be undone.</b> Available until 31 December 2026; from then on, only documents already in a backup can be removed (Archive → Purge).</p>
       {result && (
         <div className="alert alert-ok">Done: {result.documents} document(s), {result.files} file(s), {result.counters} counter(s), {result.notifications} notification(s)
           and {result.backups} backup log entr{result.backups === 1 ? 'y' : 'ies'} removed; {result.links} work item(s) or project(s) unlinked.

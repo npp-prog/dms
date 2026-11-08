@@ -63,7 +63,24 @@ export async function firebaseAs(refreshToken, fetchImpl = fetch) {
       if (!q.ok) throw new Error(`Reading the archive: ${rows?.[0]?.error?.message || rows?.error?.message || q.status}`);
       return rows.filter((x) => x.document).map((x) => ({
         id: x.document.name.split('/').pop(), raw: x.document.fields?.updatedAt?.timestampValue || '1970-01-01T00:00:00Z', data: fromFields(x.document.fields),
+        updateTime: x.document.updateTime || '',
       }));
+    },
+    // The document is in the Drive backup as it was read (updateTime: unchanged since): stamped
+    // backup { at, where, name, by }, so the superadmin may purge it from DMS (firestore.rules
+    // backedUp). Not if it changed since it was read (the precondition fails).
+    async markBackedUp(id, updateTime) {
+      if (!updateTime) return false;
+      const r = await fetchImpl(`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents:commit`, {
+        method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({ writes: [{
+          update: { name: `${ROOT}/documents/${id}`, fields: { backup: { mapValue: { fields: { where: { stringValue: 'drive' }, name: { stringValue: 'Google Drive' }, by: { stringValue: 'Google Drive backup' } } } } } },
+          updateMask: { fieldPaths: ['backup.where', 'backup.name', 'backup.by'] },
+          updateTransforms: [{ fieldPath: 'backup.at', setToServerValue: 'REQUEST_TIME' }],
+          currentDocument: { updateTime },
+        }] }),
+      });
+      return r.ok;
     },
     // One document (null if it cannot be read), e.g. a supporting document of an archived one.
     async getDocument(id) {

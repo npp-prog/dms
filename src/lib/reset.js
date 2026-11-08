@@ -82,3 +82,36 @@ export async function resetAllDocuments(onProgress = () => {}) {
   onProgress('');
   return done;
 }
+
+// Settings → Reset documents is open until 1 January 2027 (Philippine time); the rules close it then.
+export const RESET_UNTIL = new Date('2027-01-01T00:00:00+08:00');
+export const resetOpen = (now = new Date()) => now < RESET_UNTIL;
+
+// Is the document's current state in an archive backup (stamped by it after its last change)?
+// As firestore.rules backedUp.
+const ms = (t) => (t?.toMillis ? t.toMillis() : t ? new Date(t).getTime() : 0);
+export const isBackedUp = (d) => Boolean(d?.backup?.at) && (!d.updatedAt || ms(d.backup.at) >= ms(d.updatedAt));
+
+// Archive → Purge (the superadmin only): removes these documents from DMS, with their files, public
+// check records and verification records. Only those already backed up as they are (isBackedUp);
+// the rules refuse the others. Their copies in the backups stay. Returns { purged, skipped, failed }.
+export async function purgeDocuments(docs, onProgress = () => {}) {
+  const done = { purged: 0, skipped: 0, failed: 0, files: 0 };
+  for (let i = 0; i < docs.length; i += 1) {
+    const d = docs[i];
+    onProgress(`Purging ${i + 1} of ${docs.length}: ${d.controlNo}`);
+    if (!isBackedUp(d)) { done.skipped += 1; continue; }
+    for (const f of await filesUnder(`documents/${d.id}`)) {
+      try { await deleteObject(f); done.files += 1; } catch { /* left in storage: the document still goes */ }
+    }
+    const batch = writeBatch(db);
+    [...new Set((d.pdf?.files || []).map((f) => f.sha256).filter(Boolean))].forEach((h) => batch.delete(doc(db, 'verifications', h)));
+    batch.delete(doc(db, 'checks', d.id));
+    batch.delete(doc(db, 'documents', d.id));
+    try { await batch.commit(); done.purged += 1; } catch {
+      try { await deleteDoc(doc(db, 'documents', d.id)); await deleteDoc(doc(db, 'checks', d.id)).catch(() => {}); done.purged += 1; } catch { done.failed += 1; }
+    }
+  }
+  onProgress('');
+  return done;
+}

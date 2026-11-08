@@ -81,6 +81,7 @@ export async function runBackup({ source, drive, store, budgetMs = 20000, now = 
       const d = { id: row.id, ...row.data };
       if (isArchived(d)) {
         let done;
+        const missingBefore = missing.length;
         try {
           done = await backUp(d, (await store.get(`doc/${row.id}`)) || { files: {} });
         } catch (err) {
@@ -92,6 +93,8 @@ export async function runBackup({ source, drive, store, budgetMs = 20000, now = 
         }
         if (!done) break; // the next run goes on with this document
         documents++; totals.documents++;
+        // All its files are up: stamped as backed up (it may be purged from DMS later).
+        if (missing.length === missingBefore && source.markBackedUp) await source.markBackedUp(row.id, row.updateTime).catch(() => false);
       }
       cursor = { at: row.raw, id: row.id };
       await save(false);

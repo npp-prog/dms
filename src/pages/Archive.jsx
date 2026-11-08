@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { matchesSearch } from '../lib/docSearch.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { isBackedUp, purgeDocuments } from '../lib/reset.js';
 import { listDocuments } from '../lib/api.js';
 import {
-  backupStatus, buildBackup, driveCall, fileInArchive, getArchiveSettings, isArchived, listArchive, listBackups, logBackup,
+  backupStatus, buildBackup, driveCall, fileInArchive, getArchiveSettings, isArchived, listArchive, listBackups, logBackup, markBackedUp,
   processedAt, saveArchiveSettings, saveBackup, toBackUp,
 } from '../lib/archive.js';
 import { drnOf } from '../lib/naming.js';
@@ -19,8 +20,11 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('en-PH', { dateStyle: 
 // documents they may open; the Records Officer (and administrators) see them all, record where
 // each is filed, and back the archive up to the devices they keep.
 export default function Archive() {
-  const { user, profile, isAdmin, isHead, isRecords, actor } = useAuth();
+  const { user, profile, isAdmin, isHead, isRecords, isSuper, actor } = useAuth();
   const keeper = isRecords || isAdmin;
+  // Purge (the superadmin): documents already backed up as they are, removed from DMS.
+  const [picked, setPicked] = useState(new Set());
+  const [purge, setPurge] = useState(null); // { typed, busy, result, error }
   const [docs, setDocs] = useState(null);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({ q: '', type: '', office: '', year: '' });
@@ -43,6 +47,19 @@ export default function Archive() {
       && (!filters.year || yearOf(d) === filters.year)
       && matchesSearch(d, q);
   }), [docs, filters]);
+
+  const pickable = shown.filter(isBackedUp);
+  const toggle = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const runPurge = async () => {
+    const list = (docs || []).filter((d) => picked.has(d.id));
+    setPurge((p) => ({ ...p, busy: 'Starting…', error: '' }));
+    try {
+      const result = await purgeDocuments(list, (t) => setPurge((p) => ({ ...p, busy: t })));
+      setPicked(new Set());
+      setPurge({ result });
+      await load();
+    } catch (e) { setPurge((p) => ({ ...p, busy: '', error: e.message })); }
+  };
 
   const saveFiling = async () => {
     try { await fileInArchive(filing.id, filing, actor); setFiling(null); await load(); } catch (e) { setError(e.message); }
@@ -72,15 +89,44 @@ export default function Archive() {
         )}
       </div>
       {error && <div className="alert">{error}</div>}
+      {isSuper && docs && (
+        <div className="card purge-bar">
+          <div className="row gap wrap">
+            <b>Purge</b>
+            <span className="small muted">Removes documents from DMS for good (with their files), only those already in a backup as they are
+              now (Backed up). Their copies in the backup stay. Tick them below.</span>
+          </div>
+          <div className="row gap wrap">
+            <button type="button" className="btn btn-ghost btn-sm" disabled={!pickable.length} onClick={() => setPicked(new Set(pickable.map((d) => d.id)))}>Tick all backed up shown ({pickable.length})</button>
+            {picked.size > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPicked(new Set())}>Untick all</button>}
+            <button type="button" className="btn btn-danger btn-sm" disabled={!picked.size} onClick={() => setPurge({ typed: '' })}>Purge {picked.size || ''} document{picked.size === 1 ? '' : 's'}…</button>
+          </div>
+          {purge && !purge.result && (
+            <div className="row gap wrap">
+              <label className="field-label" htmlFor="purge-typed">Type PURGE to remove {picked.size} document(s) from DMS</label>
+              <input id="purge-typed" value={purge.typed || ''} onChange={(e) => setPurge({ ...purge, typed: e.target.value })} disabled={!!purge.busy} autoComplete="off" />
+              <button type="button" className="btn btn-danger btn-sm" disabled={purge.typed !== 'PURGE' || !!purge.busy || !picked.size} onClick={runPurge}>{purge.busy || 'Purge now'}</button>
+              {!purge.busy && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPurge(null)}>Cancel</button>}
+            </div>
+          )}
+          {purge?.error && <div className="alert small">{purge.error}</div>}
+          {purge?.result && (
+            <div className="alert alert-ok small">Purged {purge.result.purged} document(s){purge.result.skipped ? `; ${purge.result.skipped} skipped (not backed up as they are now)` : ''}{purge.result.failed ? `; ${purge.result.failed} could not be removed` : ''}.</div>
+          )}
+        </div>
+      )}
       {!docs && !error && <div className="spinner" />}
       {docs && (
         <div className="card table-card">
           <table className="data-table">
-            <thead><tr><th>Control No.</th><th>DRN</th><th>Type</th><th>Payee / Subject</th>{keeper && <th>Office</th>}<th>Processed</th><th>Filed at</th></tr></thead>
+            <thead><tr>{isSuper && <th aria-label="Purge" />}<th>Control No.</th><th>DRN</th><th>Type</th><th>Payee / Subject</th>{keeper && <th>Office</th>}<th>Processed</th><th>Filed at</th>{keeper && <th>Backed up</th>}</tr></thead>
             <tbody>
-              {shown.length === 0 && <tr><td colSpan={7} className="muted">No processed documents{filters.q || filters.type || filters.year || filters.office ? ' match' : ' yet'}.</td></tr>}
+              {shown.length === 0 && <tr><td colSpan={9} className="muted">No processed documents{filters.q || filters.type || filters.year || filters.office ? ' match' : ' yet'}.</td></tr>}
               {shown.map((d) => (
                 <tr key={d.id}>
+                  {isSuper && (
+                    <td>{isBackedUp(d) && <input type="checkbox" aria-label={`Purge ${d.controlNo}`} checked={picked.has(d.id)} onChange={() => toggle(d.id)} />}</td>
+                  )}
                   <td><Link to={`/documents/${d.id}`}><b>{d.controlNo}</b></Link></td>
                   <td className="small">{drnOf(d) || '—'}</td>
                   <td>{d.typeCode}</td>
@@ -104,6 +150,13 @@ export default function Archive() {
                       </>
                     )}
                   </td>
+                  {keeper && (
+                    <td className="small">
+                      {!d.backup?.at ? <span className="muted">Not yet</span>
+                        : <>{isBackedUp(d) ? '✓ ' : ''}{day(d.backup.at?.toDate ? d.backup.at.toDate().toISOString() : d.backup.at)}
+                          <div className="muted">{d.backup.where === 'drive' ? 'Google Drive' : d.backup.name || 'Device'}{!isBackedUp(d) && ' · changed since'}</div></>}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -232,11 +285,13 @@ function Backups({ docs, me }) {
   const run = async () => {
     setBusy('Preparing…'); setMsg(null);
     try {
-      const { blob, files, failed } = await buildBackup(batch, setBusy);
+      const { blob, files, failed, failedIds } = await buildBackup(batch, setBusy);
       const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
       const saved = await saveBackup(blob, `DMS archive ${stamp} ${form.kind === 'all' ? 'all' : 'new'}.zip`);
       if (saved === 'cancelled') { setMsg({ ok: false, text: 'Not saved: no backup recorded.' }); return; }
       await logBackup({ device: device.id, deviceName: device.name, kind: form.kind, count: batch.length, files, failed: failed.length }, me);
+      // (each document saved whole: stamped as backed up, so it may be purged later)
+      await markBackedUp(batch.filter((d) => !failedIds.has(d.id)), { where: 'device', name: device.name }, me);
       await load();
       setMsg({ ok: !failed.length, text: `${saved === 'saved' ? 'Saved' : 'Downloaded: move the ZIP to'} ${saved === 'saved' ? `to ${device.name}` : device.name}. ${batch.length} document(s), ${files} file(s)${failed.length ? `; ${failed.length} file(s) could not be added (listed in could-not-be-added.txt)` : ''}.` });
     } catch (e) {
