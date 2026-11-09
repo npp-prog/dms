@@ -96,6 +96,8 @@ function Wizard({ typeId, docId }) {
           if (d.status === 'cancelled') throw new Error('This document was cancelled and can no longer be edited.');
           // On its route (not back at the preparer's step) or processed: only an administrator edits it.
           if (!isAdmin && !editableByPreparer(d)) throw new Error('This document is on its route or processed: it can be edited only when it is returned to your office.');
+          // An uploaded file (or a supporting document) has no form to fill in: its file is the document.
+          if (d.uploaded) throw new Error('This document was uploaded as a file: it has no form to edit. Open it to see its PDF or upload a new version.');
           const t = await getTypeForDocument(d);
           if (!t) throw new Error('The document type of this document no longer exists.');
           setExisting(d);

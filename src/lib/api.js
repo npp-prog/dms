@@ -1847,7 +1847,8 @@ export async function getTypeForDocument(document) {
   if (document.typeSnapshot?.template !== undefined || !document.typeId) {
     // Saved before the snapshot kept the letterhead office (the Travel Order: the Mayor's).
     const headerOffice = document.typeSnapshot?.headerOffice ?? STARTER_TYPES.find((t) => t.code === document.typeSnapshot?.code)?.headerOffice;
-    return withApprover({ id: document.typeId, ...document.typeSnapshot, ...(headerOffice ? { headerOffice } : {}) });
+    // (fields and steps always lists: a document saved without its format's copy has none)
+    return withApprover({ id: document.typeId, fields: [], steps: [], ...document.typeSnapshot, ...(headerOffice ? { headerOffice } : {}) });
   }
   return getDocumentType(document.typeId);
 }
