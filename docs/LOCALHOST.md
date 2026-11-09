@@ -171,6 +171,8 @@ The printout follows the Accounting Office's Word checklist: A4, Times New Roman
 6. The PDF scan of the document as it is now (with the signatures already on it), then **Upload document**.
 The document is then at that step, as if it had come there through DMS: the office acts on it as usual (takes it off hold, signs, routes, returns, approves or disapproves) and it goes on along its route to the Archive. The Workflow card shows the earlier steps as **Done outside DMS (before DMS)** with who and when, and who uploaded it. Its waiting days count from the upload. Documents lists show it with a **Transition** badge.
 
+**Obligation Request.** The **OBR No.** is not typed in the draft: it is assigned along the route, by the step in Administration → Workflow that assigns it (the Budget Office: *Assigns a reference no.*, field *OBR No.*).
+
 **Office fields.** The **Office** (or Department/Office) of the OBR, FURS, Liquidation Report, Payroll and Purchase Request is chosen from the offices in Settings; a value saved earlier stays.
 
 **Purchase Request.** The **Department** is chosen from the offices in Settings. The **PR No.** is not typed in the draft: it is assigned along the route, by the office whose step in Administration → Workflow assigns it (tick *Assigns a reference no.* on that step and choose *PR No.*, with its pattern), and printed on the PR from then on.
