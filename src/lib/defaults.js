@@ -131,9 +131,9 @@ const OBR = {
   active: true,
   checklistSource: 'own',
   // Redrawn after the LGU's form; sites that have not edited it are updated (lib/api.js).
-  starterVersion: 6,
+  starterVersion: 7,
   steps: [
-    { id: 's1', title: 'Payee and Office', instructions: 'Encode the payee and choose the requesting office. The OBR No. is assigned along its route (Budget Office).' },
+    { id: 's1', title: 'Payee and Office', instructions: 'Encode the payee and choose the requesting office. The OBR No. and its date are assigned along its route (Budget Office).' },
     { id: 's2', title: 'Particulars', instructions: 'One line per charge: responsibility center, particulars, F.P.P. (function/program/project), account code and amount. The total is computed.' },
     { id: 's3', title: 'Box A', instructions: 'The head of the requesting office certifies Box A. Box B prints the Budget Officer from Settings.' },
   ],
@@ -145,7 +145,8 @@ const OBR = {
     // Not encoded in the draft: assigned along its route (Administration → Workflow: the Budget
     // Office's step assigns the OBR No.).
     { key: 'obrNo', label: 'OBR No.', type: 'text', filledBy: 'office' },
-    { key: 'date', label: 'Date', type: 'date', step: 's1' },
+    // Given with the OBR No. by the Budget Office along the route (Workflow: its date field).
+    { key: 'date', label: 'Date', type: 'date', filledBy: 'office' },
     {
       key: 'items', label: 'Particulars', type: 'table', required: true, step: 's2',
       columns: [

@@ -720,3 +720,13 @@ test('a form with an Office field prints the office, not the letterhead ("[objec
   assert.doesNotMatch(blank, /object Object/i);
   assert.equal(obr.fields.find((f) => f.key === 'office').optionsFrom, 'offices');
 });
+
+test('OBR: its No. and date are not encoded in the draft (the Budget Office assigns them)', async () => {
+  const { initialData, buildSteps } = await import('./forms.js');
+  const obr = STARTER_TYPES.find((t) => t.code === 'OBR');
+  const data = initialData(obr);
+  assert.equal(data.date, '');
+  assert.equal(data.obrNo, '');
+  const keys = obr.fields.filter((f) => f.step).map((f) => f.key);
+  assert.ok(!keys.includes('date') && !keys.includes('obrNo'));
+});

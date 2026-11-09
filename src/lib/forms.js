@@ -90,7 +90,8 @@ export function initialData(type) {
   const data = {};
   for (const f of type?.fields || []) {
     if (f.type === 'table') data[f.key] = [];
-    else if (f.type === 'date' && f.key === 'date') data[f.key] = localDay();
+    // (today's date, unless an office fills it in along the route: e.g. the OBR's, with its No.)
+    else if (f.type === 'date' && f.key === 'date' && !f.filledBy) data[f.key] = localDay();
     else data[f.key] = f.default ?? '';
   }
   return data;
