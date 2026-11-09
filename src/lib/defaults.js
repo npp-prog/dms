@@ -292,7 +292,7 @@ const PR = {
   active: true,
   checklistSource: 'own',
   // No checklist: only the DV and the Liquidation Report have one (v2).
-  starterVersion: 4,
+  starterVersion: 5,
   steps: [
     { id: 's1', title: 'Office', instructions: 'Choose the requesting department (office), then the section, fund and FPP (function/program/project). The PR No. is assigned along its route.' },
     { id: 's2', title: 'Items', instructions: 'One line per item: unit, description (with specifications), quantity and estimated unit cost based on your price reference. The total cost is computed.' },
@@ -333,7 +333,7 @@ const PR = {
   template: `${header('PURCHASE REQUEST')}
   <table class="pmeta-t"><tr><td></td><td class="r">Fund: <b>{{fund}}</b></td></tr></table>
   <table class="pt">
-    <tr><td>Department: <b>{{department}}</b></td><td>PR No.: <b>{{prNo}}</b></td><td>Date: <b>{{date|date}}</b></td></tr>
+    <tr><td style="width:40%">Department: <b>{{department}}</b></td><td style="width:32%">PR No.: <b style="white-space:nowrap">{{prNo}}</b></td><td style="width:28%">Date: <b>{{date|date}}</b></td></tr>
     <tr><td>Section: <b>{{section}}</b></td><td colspan="2">FPP: <b>{{fpp}}</b></td></tr>
   </table>
   {{table:items}}
