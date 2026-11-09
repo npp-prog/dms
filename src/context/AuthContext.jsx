@@ -5,7 +5,7 @@ import {
   signInWithRedirect, signOut, updateProfile,
 } from 'firebase/auth';
 import { auth } from '../firebase.js';
-import { assignAccountNo, assignMissingAccountNos, ensureUserProfile, getFolderAccess, getSettings, listUsers, setupSite, syncDirectory, syncDirectoryEntry, syncFolderGrants, recordsPositionToRole, updateUser } from '../lib/api.js';
+import { assignAccountNo, assignMissingAccountNos, ensureUserProfile, getFolderAccess, getSettings, listUsers, setupSite, syncDirectory, syncDirectoryEntry, syncFolderGrants, syncSeeKeys, setSessionKeys, recordsPositionToRole, updateUser } from '../lib/api.js';
 import { isAdminRole, managesSettings, managesUsers } from '../lib/roles.js';
 
 const AuthContext = createContext(null);
@@ -41,6 +41,7 @@ export function AuthProvider({ children }) {
     // Their DMS account number, once (lib/accountNo.js).
     if (p.active && !p.accountNo) p.accountNo = await assignAccountNo(firebaseUser.uid).catch(() => '') || '';
     setProfile(p);
+    setSessionKeys(p.seeKeys);
     if (p.active) {
       setSettings(await getSettings().catch(() => ({})));
       setFolderGrant(p.role !== 'payee' ? await getFolderAccess(firebaseUser.uid).catch(() => null) : null);
@@ -53,7 +54,7 @@ export function AuthProvider({ children }) {
         listUsers().then(async (users) => {
           if (['admin', 'superadmin', 'itadmin'].includes(p.role)) await assignMissingAccountNos(users).catch(() => {});
           return users;
-        }).then((users) => Promise.all([syncDirectory(users), syncFolderGrants(users),
+        }).then((users) => Promise.all([syncDirectory(users), syncFolderGrants(users), syncSeeKeys(users),
           ['admin', 'superadmin'].includes(p.role) ? recordsPositionToRole(users) : null])).catch(() => {});
       }
     }

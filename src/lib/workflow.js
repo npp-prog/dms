@@ -238,10 +238,44 @@ export function placement(workflow, doc) {
     : Math.max(workflow.stage, ...(workflow.events || []).filter((e) => e.type === 'released').map((e) => e.stage + 1));
   // (offices only: a third party reads it through currentOffice and the referred list)
   const offices = [...new Set(workflow.steps.slice(0, reached + 1).filter((s) => !isThirdParty(s)).map((s) => officeOf(s, doc)).filter(Boolean))];
+  const seeKeys = officeSeeKeys(workflow.steps.slice(0, reached + 1), doc);
   const moving = workflow.state === 'in-progress';
-  if (moving && workflow.referral) return { currentOffice: `person:${workflow.referral.uid}`, atPreparer: false, routeOffices: offices };
-  const current = moving ? holderOf(workflow.steps[workflow.stage], doc) : '';
-  return { currentOffice: current, atPreparer: moving && !workflow.steps[workflow.stage].routedTo, routeOffices: offices };
+  if (moving && workflow.referral) return { currentOffice: `person:${workflow.referral.uid}`, atPreparer: false, routeOffices: offices, holdKeys: [], seeKeys };
+  const step = moving ? workflow.steps[workflow.stage] : null;
+  const current = step ? holderOf(step, doc) : '';
+  const atPreparer = Boolean(step) && !step.routedTo;
+  return {
+    currentOffice: current, atPreparer, routeOffices: offices,
+    // who in the office holding it may see it now (none at the preparer's own step: theirs, and their head's)
+    holdKeys: step && !atPreparer && !isThirdParty(step) ? officeSeeKeys([step], doc) : [],
+    seeKeys,
+  };
+}
+
+// ---------- Who in an office sees a document (firestore.rules seesIt) ----------
+// A step that names positions is seen, at its office, only by the people in those positions (and the
+// office head, who sees all that reaches the office); a step naming none, by the whole office.
+// Keys: "<office>|<position>", or "<office>|*" for the whole office. holdKeys: the step it is at;
+// seeKeys: the steps it has reached (the offices it passed through keep seeing it, in those positions).
+export function officeSeeKeys(steps, doc) {
+  const keys = new Set();
+  for (const s of steps || []) {
+    if (!s || isThirdParty(s)) continue;
+    const office = officeOf(s, doc);
+    if (!office) continue;
+    const named = (s.positions || []).filter(Boolean);
+    if (!named.length) keys.add(`${office}|*`);
+    else named.forEach((p) => keys.add(`${office}|${p}`));
+  }
+  return [...keys].sort();
+}
+
+// A user's keys: for each office they belong to (theirs, and any others given in Users), the whole
+// office and each position they hold. Kept in their profile (seeKeys), set by administrators.
+export function userSeeKeys(p) {
+  const offices = [...new Set([p?.office, ...((p?.offices || []).map((o) => o?.office))].filter(Boolean))];
+  const positions = [...new Set((p?.positions || []).filter(Boolean))];
+  return offices.flatMap((o) => [`${o}|*`, ...positions.map((x) => `${o}|${x}`)]).sort();
 }
 
 // Does the user hold a position the step names (or does it name none)? The office head always may.
@@ -554,7 +588,9 @@ export function waitingSince(d) {
 export function daysWaiting(d, now = new Date()) {
   const at = waitingSince(d);
   if (!at) return null;
-  return Math.max(0, Math.floor((new Date(now) - new Date(at)) / 864e5));
+  const days = Math.floor((new Date(now) - new Date(at)) / 864e5);
+  // (an unreadable date: unknown, not "NaN days")
+  return Number.isFinite(days) ? Math.max(0, days) : null;
 }
 export const isOverdue = (d, now = new Date()) => (daysWaiting(d, now) ?? 0) > OVERDUE_DAYS;
 

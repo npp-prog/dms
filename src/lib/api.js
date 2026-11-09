@@ -8,7 +8,7 @@ import { isOwnerEmail } from './owner.js';
 import { controlNumber, DEFAULT_REF_PATTERN, refFieldLabel, refNumber } from './naming.js';
 import { CHECKLIST_LIBRARY_VERSION, DEFAULT_SETTINGS, FORMAT_KEYS, STARTER_TYPES, positionsOf } from './defaults.js';
 import { checkRecord, pdfIsPublic } from './publicRecord.js';
-import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing, routeFromGuide, MAX_ROUTE_STEPS, transitionWorkflow } from './workflow.js';
+import { applyAction, assignPending, buildWorkflow, cancelWorkflow, officeOf, chooseOffices, placement, referDocument as referPatch, refStampMissing, routeFromGuide, MAX_ROUTE_STEPS, transitionWorkflow, userSeeKeys } from './workflow.js';
 import { withApprover, isApprovalStep } from './approver.js';
 import { copiedData } from './forms.js';
 import { localDay, withParents } from './archiveFiles.js';
@@ -98,6 +98,16 @@ export async function ensureUserProfile(user, extra = {}) {
   };
   await setDoc(ref, profile);
   return { id: user.uid, ...profile };
+}
+
+// Administrators: every user's keys (lib/workflow.js userSeeKeys: their offices and positions), as
+// the rules read them to show a routed document only to the positions its steps name.
+export async function syncSeeKeys(users) {
+  const all = users || await listUsers();
+  for (const u of all) {
+    const keys = userSeeKeys(u);
+    if (JSON.stringify(keys) !== JSON.stringify(u.seeKeys || null)) await updateDoc(doc(db, 'users', u.id || u.uid), { seeKeys: keys }).catch(() => {});
+  }
 }
 
 // Accounts waiting for approval (or deactivated): the Dashboard's count, without reading every user.
@@ -218,7 +228,12 @@ async function readDirectory() {
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() })).sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-export function updateUser(uid, patch) {
+export async function updateUser(uid, patch) {
+  // (an administrator changing someone's office or positions: their keys follow, userSeeKeys)
+  if (['office', 'positions', 'offices'].some((k) => k in patch)) {
+    const cur = (await getDoc(doc(db, 'users', uid))).data() || {};
+    return updateDoc(doc(db, 'users', uid), { ...patch, seeKeys: userSeeKeys({ ...cur, ...patch }) });
+  }
   return updateDoc(doc(db, 'users', uid), patch);
 }
 
@@ -550,6 +565,22 @@ export async function setupSite(user) {
   for (const d of ahead) await updateDoc(d.ref, { routeOffices: placement(d.data().workflow, d.data()).routeOffices });
   if (ahead.length) done.push(`limited ${ahead.length} routed document(s) to the offices they have reached`);
   if (older.length) done.push(`updated ${older.length} routed document(s) for the new office access`);
+  // Who in an office sees a routed document (its steps' positions: holdKeys, seeKeys), for documents
+  // routed before it was recorded: those on their way, and once, those already processed.
+  const keysOf = (x) => { const pl = placement(x.workflow, x); return { holdKeys: pl.holdKeys, seeKeys: pl.seeKeys }; };
+  const unkeyed = moving.docs.filter((d) => !Array.isArray(d.data().holdKeys) || !Array.isArray(d.data().seeKeys));
+  for (const d of unkeyed) await updateDoc(d.ref, keysOf(d.data())).catch(() => {});
+  if (unkeyed.length) done.push(`recorded who sees ${unkeyed.length} routed document(s) (the positions of their steps)`);
+  const siteSettings = await getSettings().catch(() => ({}));
+  if (!siteSettings.seeKeysDone) {
+    let n = 0;
+    for (const state of ['done', 'disapproved', 'cancelled']) {
+      const past = await getDocs(query(collection(db, 'documents'), where('workflow.state', '==', state))).catch(() => ({ docs: [] }));
+      for (const d of past.docs.filter((x) => !Array.isArray(x.data().seeKeys))) { await updateDoc(d.ref, keysOf(d.data())).catch(() => {}); n += 1; }
+    }
+    await saveSettings({ ...siteSettings, seeKeysDone: true }).catch(() => {});
+    if (n) done.push(`recorded who sees ${n} processed document(s)`);
+  }
 
   const settings = await getSettings();
   // Documents saved before restricting existed: not restricted (folder access finds them).
@@ -1743,14 +1774,28 @@ export async function listForwarded(uid, max = 100) {
 // Documents waiting in an office (all routed documents for admins: office '').
 // Documents waiting for the user: in their office at a routed step, and their own documents at
 // the preparer's step. The office head gets everything waiting in the office.
+// The signed-in user's keys (their profile's seeKeys: lib/workflow.js userSeeKeys), set when their
+// profile loads. A staff member's lists ask only for the documents their keys let them see (the
+// rules refuse a query that could return others: firestore.rules heldByMyOffice).
+let sessionKeys = null;
+export function setSessionKeys(keys) { sessionKeys = Array.isArray(keys) ? keys : null; }
+// Documents held now by the office, for its people in the positions their steps name.
+function heldQueries(docs, office, max) {
+  const keys = sessionKeys || [`${office}|*`];
+  const out = [];
+  for (let i = 0; i < keys.length; i += 30) out.push(query(docs, where('holdKeys', 'array-contains-any', keys.slice(i, i + 30)), limit(max)));
+  return out;
+}
+const heldBy = (office) => (d) => d.currentOffice === office && d.atPreparer === false;
+
 export async function listInbox({ office, uid, all = false, head = false, max = 300 }) {
   const docs = collection(db, 'documents');
   const queries = all
     ? [query(docs, where('workflow.state', '==', 'in-progress'), limit(max))]
     : [
-      ...(office ? [head
-        ? query(docs, where('currentOffice', '==', office), limit(max))
-        : query(docs, where('currentOffice', '==', office), where('atPreparer', '==', false), limit(max))] : []),
+      ...(office ? (head
+        ? [query(docs, where('currentOffice', '==', office), limit(max))]
+        : heldQueries(docs, office, max)) : []),
       ...(uid ? [query(docs, where('createdBy', '==', uid), where('atPreparer', '==', true), limit(max)),
         // referred to this user by the office holding it
         query(docs, where('currentOffice', '==', `person:${uid}`), limit(max))] : []),
@@ -1759,7 +1804,10 @@ export async function listInbox({ office, uid, all = false, head = false, max = 
   for (const snap of await Promise.all(queries.map((q) => getDocs(q)))) {
     for (const d of snap.docs) byId.set(d.id, { id: d.id, ...d.data() });
   }
-  return [...byId.values()].filter((d) => d.workflow?.state === 'in-progress')
+  // (a staff member's keys may also match documents held by another office they belong to: those
+  // are not this office's list)
+  const mine = (d) => all || head || heldBy(office)(d) || (d.createdBy === uid && d.atPreparer) || d.currentOffice === `person:${uid}`;
+  return [...byId.values()].filter((d) => d.workflow?.state === 'in-progress' && mine(d))
     .sort((a, b) => (a.updatedAt?.seconds || 0) - (b.updatedAt?.seconds || 0));
 }
 
@@ -1845,9 +1893,7 @@ export async function listDocuments({ uid, office = '', all = false, head = fals
         query(docs, where('routeOffices', 'array-contains', office), limit(max)),
         query(docs, where('currentOffice', '==', office), limit(max)),
       ] : []),
-      ...(office && !head ? [
-        query(docs, where('currentOffice', '==', office), where('atPreparer', '==', false), limit(max)),
-      ] : []),
+      ...(office && !head ? heldQueries(docs, office, max) : []),
       ...(granted ? [query(docs, where('access', 'array-contains', uid), limit(max))] : []),
       ...folderQueries,
     ];

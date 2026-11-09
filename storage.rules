@@ -31,7 +31,11 @@ service firebase.storage {
     }
     // Waiting in the user's office at a routed step (not at the preparer's own step).
     function heldByMyOffice(d) {
-      return myOffice() != '' && d.get('currentOffice', '') == myOffice() && d.get('atPreparer', true) == false;
+      // (as firestore.rules: its keys match the user's)
+      return d.get('holdKeys', []).hasAny(myKeys());
+    }
+    function myKeys() {
+      return profile().get('seeKeys', [myOffice() + '|*']);
     }
     // Referred to this user by the office holding it (outside the route).
     function referredToMe(d) {
@@ -80,7 +84,8 @@ service firebase.storage {
     }
     // Staff of an office the document reached on its route (not its own office): as firestore.rules.
     function routeStaff(d) {
-      return myOffice() != '' && myOffice() != d.get('office', '') && myOffice() in d.get('routeOffices', []);
+      return myOffice() != '' && myOffice() != d.get('office', '') && myOffice() in d.get('routeOffices', [])
+        && d.get('seeKeys', []).hasAny(myKeys());
     }
     function canRead(d) {
       return isAdmin() || isRecords() || d.createdBy == request.auth.uid || d.get('transition', {}).get('by', '') == request.auth.uid || heldByMyOffice(d) || referredToMe(d) || routeStaff(d) || request.auth.uid in d.get('signers', []) || referredByMyOffice(d) || request.auth.uid in d.get('sharedWith', []) || request.auth.uid in d.get('referred', [])
