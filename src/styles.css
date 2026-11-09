@@ -568,8 +568,9 @@ details summary { cursor: pointer; font-weight: 600; margin-top: .8rem; }
 .doc-render .obr tr.obr-item td { border-top: 0; border-bottom: 0; height: calc(18pt * var(--k)); padding-top: calc(3pt * var(--k)); padding-bottom: calc(3pt * var(--k)); }
 .doc-render .obr .obr-rc { text-align: center; font-size: calc(20pt * var(--k)); line-height: 1.15; }
 .doc-render .obr .obr-part { text-align: center; white-space: pre-line; }
-.doc-render .obr .obr-code { text-align: center; }
-.doc-render .obr .obr-code span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); }
+.doc-render .obr .obr-code, .doc-render .obr .obr-fpp { text-align: center; overflow-wrap: anywhere; }
+/* (printed normally, left to right, wrapping in its cell; it was sideways and upside down) */
+.doc-render .obr .obr-code span { display: inline; writing-mode: horizontal-tb; transform: none; }
 .doc-render .obr .obr-amt { text-align: right; font-weight: 700; font-size: calc(13pt * var(--k)); padding-right: calc(8pt * var(--k)); }
 .doc-render .obr-total td { height: calc(18pt * var(--k)); font-size: calc(11.3pt * var(--k)); border-bottom: 2pt double #000; }
 .doc-render .obr-total td:first-child { border-right: 0; padding-right: calc(2pt * var(--k)); }

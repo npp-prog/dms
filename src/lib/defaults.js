@@ -131,7 +131,7 @@ const OBR = {
   active: true,
   checklistSource: 'own',
   // Redrawn after the LGU's form; sites that have not edited it are updated (lib/api.js).
-  starterVersion: 5,
+  starterVersion: 6,
   steps: [
     { id: 's1', title: 'Payee and Office', instructions: 'Encode the payee and choose the requesting office. The OBR No. is assigned along its route (Budget Office).' },
     { id: 's2', title: 'Particulars', instructions: 'One line per charge: responsibility center, particulars, F.P.P. (function/program/project), account code and amount. The total is computed.' },
@@ -169,7 +169,7 @@ const OBR = {
   // Laid out like the Obligation Request of the Municipal Government of Candoni (28_OBR.xlsx, printed
   // from Google Sheets), as the Budget Office's system fills it in.
   template: `<div class="obr"><table class="obr-main" data-grow>
-  <colgroup><col style="width:13.946%"><col style="width:43.802%"><col style="width:7.438%"><col style="width:4.029%"><col style="width:9.401%"><col style="width:21.384%"></colgroup>
+  <colgroup><col style="width:13.946%"><col style="width:35.4%"><col style="width:10.6%"><col style="width:4.029%"><col style="width:14.641%"><col style="width:21.384%"></colgroup>
   <tr class="obr-head"><td colspan="6"><img class="obr-seal" src="{{lgu.seal}}" alt="">
     <div>Republic of the Philippines</div><div class="b">MUNICIPAL GOVERNMENT OF CANDONI</div><div>Municipal Building, Candoni, Negros Occidental 6110</div></td></tr>
   <tr class="obr-title"><td colspan="3">OBLIGATION REQUEST</td><td class="c">No.</td><td colspan="2" class="obr-no">{{obrNo}}</td></tr>
@@ -177,7 +177,7 @@ const OBR = {
   <tr class="obr-r obr-office"><td>OFFICE</td><td colspan="5" class="obr-val">{{office|upper}}</td></tr>
   <tr class="obr-r obr-addr"><td>ADDRESS</td><td colspan="5" class="obr-val">{{address|upper}}</td></tr>
   <tr class="obr-cols"><td>Responsibility<br>Center</td><td>Particulars</td><td colspan="2">F.P.P.</td><td>Account<br>Code</td><td>Amount</td></tr>
-  {{#each items}}<tr class="blank obr-item" data-fill><td class="obr-rc">{{respCenter}}</td><td class="obr-part">{{particulars}}</td><td colspan="2" class="c">{{fpp}}</td><td class="obr-code"><span>{{accountCode}}</span></td><td class="obr-amt">{{amount|currency}}</td></tr>{{/each}}
+  {{#each items}}<tr class="blank obr-item" data-fill><td class="obr-rc">{{respCenter}}</td><td class="obr-part">{{particulars}}</td><td colspan="2" class="c obr-fpp">{{fpp}}</td><td class="obr-code"><span>{{accountCode}}</span></td><td class="obr-amt">{{amount|currency}}</td></tr>{{/each}}
   {{#if !items}}<tr class="blank obr-item"><td></td><td></td><td colspan="2"></td><td></td><td></td></tr>{{/if}}
   <tr class="obr-total"><td colspan="2" class="r">TOTAL</td><td colspan="3" class="r"><b>P</b></td><td class="obr-amt">{{sum:items.amount|currency}}</td></tr>
   </table>
