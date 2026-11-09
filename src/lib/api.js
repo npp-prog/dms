@@ -339,12 +339,19 @@ export async function getDocumentType(id) {
   return snap.exists() ? withApprover({ id: snap.id, ...snap.data() }) : null;
 }
 
+// Turning a document type on or off is not an edit of its format (it keeps receiving DMS's
+// revised starter format).
+export async function setDocumentTypeActive(id, active) {
+  await updateDoc(doc(db, 'documentTypes', id), { active: Boolean(active), updatedAt: serverTimestamp() });
+}
+
 export async function saveDocumentType(id, data, user) {
   linkOnceCache = null; // "May be linked to only one document" may have changed
   const { id: _ignored, createdAt, ...clean } = data;
   const payload = { ...clean, updatedAt: serverTimestamp(), updatedBy: user.uid };
   if (id) {
-    await updateDoc(doc(db, 'documentTypes', id), { ...payload, version: (Number(data.version) || 1) + 1 });
+    // (edited in DMS: DMS no longer replaces it with its revised starter format by itself)
+    await updateDoc(doc(db, 'documentTypes', id), { ...payload, version: (Number(data.version) || 1) + 1, customized: true });
     await ensureTypeRoutes().catch(() => {});
     return id;
   }
@@ -475,6 +482,8 @@ export async function applyStarterFormat(id, starter) {
   await updateDoc(doc(db, 'documentTypes', id), {
     ...Object.fromEntries(FORMAT_KEYS.map((k) => [k, starter[k] ?? null])),
     starterVersion: starter.starterVersion || 1,
+    // the starter format as DMS ships it: its later revisions are brought in by themselves again
+    customized: false,
     // a route taken from the processing guide follows the new guide (a route saved in Workflow stays)
     ...(cur.routeAuto ? { route: deleteField(), routeAuto: deleteField() } : {}),
     updatedAt: serverTimestamp(),
@@ -496,7 +505,9 @@ export async function setupSite(user) {
     const updated = [];
     for (const t of types) {
       const starter = STARTER_TYPES.find((s) => s.code === t.code);
-      if (starter && (t.starterVersion || 1) < (starter.starterVersion || 1) && (Number(t.version) || 1) === 1) {
+      // not edited in DMS: never saved in the editor, or set back to the starter format (Update format)
+      const untouched = t.customized === false || (t.customized === undefined && (Number(t.version) || 1) === 1);
+      if (starter && (t.starterVersion || 1) < (starter.starterVersion || 1) && untouched) {
         await applyStarterFormat(t.id, starter);
         updated.push(t.code);
       }

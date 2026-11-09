@@ -3,7 +3,7 @@ import Select from '../../components/Select.jsx';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import {
-  applyStarterFormat, deleteDocumentType, importDocumentTypes, listDocumentTypes, saveDocumentType,
+  applyStarterFormat, deleteDocumentType, importDocumentTypes, listDocumentTypes, setDocumentTypeActive,
 } from '../../lib/api.js';
 import { FORMAT_KEYS, STARTER_TYPES } from '../../lib/defaults.js';
 
@@ -117,7 +117,7 @@ export default function DocumentTypes() {
                   <td>
                     <button className={`badge ${t.active === false ? 'badge-gray' : 'badge-green'}`} disabled={busy}
                       title="Toggle active"
-                      onClick={() => run(() => saveDocumentType(t.id, { ...t, active: t.active === false }, actor))}>
+                      onClick={() => run(() => setDocumentTypeActive(t.id, t.active === false))}>
                       {t.active === false ? 'Inactive' : 'Active'}
                     </button>
                   </td>
