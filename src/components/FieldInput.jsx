@@ -174,7 +174,8 @@ function TableInput({ field, value, onChange, disabled }) {
 // positions: for a Position field that follows a person field of the form, the person's positions
 // (null: no person chosen yet; undefined: an ordinary field).
 export default function FieldInput({ field, value, onChange, onPatch, data = {}, positions, disabled, invalid }) {
-  const funds = fundsOf(useAuth().settings);
+  const { settings } = useAuth();
+  const funds = fundsOf(settings);
   const label = (
     <label className="field-label" htmlFor={`f-${field.key}`}>
       {field.label} {field.required && <span className="req">*</span>}
@@ -195,9 +196,9 @@ export default function FieldInput({ field, value, onChange, onPatch, data = {},
     control = <textarea id={`f-${field.key}`} rows={3} value={value ?? ''} disabled={disabled} className={field.keepCase ? '' : 'caps'}
       onChange={(e) => onChange(field.keepCase ? e.target.value : toCaps(e.target.value))} />;
   } else if (field.type === 'select') {
-    // The Fund field lists the LGU's funds (Settings), not the ones saved in the format; a value
-    // chosen earlier stays listed.
-    const listed = field.key === 'fund' ? funds : (field.options || []);
+    // The Fund field lists the LGU's funds (Settings), not the ones saved in the format; a field
+    // listing offices (optionsFrom: 'offices') the offices in Settings. A value chosen earlier stays listed.
+    const listed = field.key === 'fund' ? funds : field.optionsFrom === 'offices' ? (settings?.offices || []) : (field.options || []);
     const options = value && !listed.includes(value) ? [...listed, value] : listed;
     control = (
       <Select id={`f-${field.key}`} value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value)}>

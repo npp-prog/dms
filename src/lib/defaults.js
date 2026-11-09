@@ -292,18 +292,21 @@ const PR = {
   active: true,
   checklistSource: 'own',
   // No checklist: only the DV and the Liquidation Report have one (v2).
-  starterVersion: 3,
+  starterVersion: 4,
   steps: [
-    { id: 's1', title: 'Office', instructions: 'Encode the requesting department and section, fund and FPP (function/program/project).' },
+    { id: 's1', title: 'Office', instructions: 'Choose the requesting department (office), then the section, fund and FPP (function/program/project). The PR No. is assigned along its route.' },
     { id: 's2', title: 'Items', instructions: 'One line per item: unit, description (with specifications), quantity and estimated unit cost based on your price reference. The total cost is computed.' },
     { id: 's3', title: 'Purpose & Signatories', instructions: 'State the purpose. "Cash Availability" and "Approved by" print the Treasurer and Mayor from Settings.' },
   ],
   fields: [
     fundField('s1'),
-    { key: 'department', label: 'Department', type: 'text', required: true, step: 's1' },
+    // the requesting office, from the list of offices in Settings
+    { key: 'department', label: 'Department', type: 'select', optionsFrom: 'offices', options: [], required: true, step: 's1' },
     { key: 'section', label: 'Section', type: 'text', step: 's1' },
     { key: 'fpp', label: 'FPP', type: 'text', step: 's1' },
-    { key: 'prNo', label: 'PR No.', type: 'text', step: 's1' },
+    // Not encoded in the draft: assigned along its route (Administration → Workflow: the step that
+    // assigns the PR No.).
+    { key: 'prNo', label: 'PR No.', type: 'text', filledBy: 'office' },
     { key: 'date', label: 'Date', type: 'date', required: true, step: 's1' },
     {
       key: 'items', label: 'Items', type: 'table', required: true, step: 's2', minRows: 20,
