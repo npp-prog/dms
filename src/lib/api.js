@@ -374,17 +374,35 @@ export async function ensureTypeRoutes(offices) {
     const d = t.data();
     if ((d.route || []).length) {
       // a route saved before approval steps were saved as signing (the rules check the signatures)
-      if (d.route.some((s) => isApprovalStep(s) && !s.sign)) {
-        await updateDoc(t.ref, { route: d.route.map((s) => (isApprovalStep(s) ? { ...s, sign: true } : s)) });
-        n += 1;
+      const route = d.route.some((s) => isApprovalStep(s) && !s.sign) ? d.route.map((s) => (isApprovalStep(s) ? { ...s, sign: true } : s)) : null;
+      // the offices of its route, kept with it (the rules check a transition upload against them)
+      const officeList = routeOfficeList(route || d.route, list);
+      if (route || JSON.stringify(officeList) !== JSON.stringify(d.routeOfficeList || null)) {
+        await updateDoc(t.ref, { ...(route ? { route } : {}), routeOfficeList: officeList });
+        if (route) n += 1;
       }
       continue;
     }
     if (!(d.processing || []).length) continue;
-    await updateDoc(t.ref, { route: cleanSteps(routeFromGuide(d, list)), routeAuto: true });
+    const route = cleanSteps(routeFromGuide(d, list));
+    await updateDoc(t.ref, { route, routeAuto: true, routeOfficeList: routeOfficeList(route, list) });
     n += 1;
   }
   return n;
+}
+
+// Every office a document of this route may reach: each step's office, its alternates, and the
+// Vice Mayor's office for the Mayor's steps (chosen by the signatory). Sorted, without the
+// preparer's office (a step at '' is the office that prepared it).
+export function routeOfficeList(route, offices = []) {
+  const vm = (offices || []).find((o) => /vice mayor/i.test(o)) || 'Office of the Municipal Vice Mayor';
+  const out = new Set();
+  for (const s of route || []) {
+    if (s.office && s.office !== '@third-party') out.add(s.office);
+    (s.alternates || []).forEach((o) => o && out.add(o));
+    if (/mayor/i.test(s.office || '') && !/vice/i.test(s.office || '')) out.add(vm);
+  }
+  return [...out].sort();
 }
 
 // The route of a document type (Administration > Workflow). Not part of the format: saving it
@@ -409,8 +427,10 @@ const cleanSteps = (route) => route.map((s) => ({
 // The route of a type; a step may have alternate offices.
 export async function saveRoute(typeId, route, user) {
   if (route.length > MAX_ROUTE_STEPS) throw new Error(`A route has at most ${MAX_ROUTE_STEPS} steps.`);
+  const offices = (settingsCache || await getSettings().catch(() => ({}))).offices || DEFAULT_SETTINGS.offices;
   await updateDoc(doc(db, 'documentTypes', typeId), {
     route: cleanSteps(route),
+    routeOfficeList: routeOfficeList(cleanSteps(route), offices),
     routeName: deleteField(), altRoutes: deleteField(), routeAuto: deleteField(),
     routeUpdatedAt: serverTimestamp(), routeUpdatedBy: user.displayName || user.email,
   });
@@ -1359,7 +1379,7 @@ export async function addPdfVersion(id, bytes, user, { kind, method = 'dms', sig
     // A signature request: the person whose turn it is signed; it passes to the next one.
     if ((kind === 'signed' || kind === 'esigned') && isMyTurn(d, user.uid)) signed = afterSigned(d.signRequest, file.at);
     tx.update(docRef, {
-      ...(signed ? { signRequest: signed } : {}),
+      ...(signed ? { signRequest: signed, toSignUid: signed.state === 'open' ? signed.steps[signed.current]?.uid || '' : '' } : {}),
       // basisV: how the basis was computed (bases computed another way are not compared).
       pdf,
       updatedAt: serverTimestamp(),
@@ -1399,6 +1419,8 @@ export async function requestSignatures(id, steps, note, user) {
     if (d.signRequest?.state === 'open') throw new Error('It is already out for signature.');
     tx.update(ref, {
       signRequest: r,
+      // whose turn it is to sign (Notifications: Waiting for your signature)
+      toSignUid: r.steps[0]?.uid || '',
       signers: [...new Set([...(d.signers || []), ...r.steps.map((s) => s.uid)])],
       updatedAt: serverTimestamp(),
       history: [...(d.history || []), historyEntry('sent for signature', user, r.steps.map((s) => `${s.name}${s.label ? ` (${s.label})` : ''}`).join(', '))],
@@ -1412,7 +1434,7 @@ export async function declineSignature(id, remarks, user) {
   await runTransaction(db, async (tx) => {
     d = (await tx.get(ref)).data();
     if (!isMyTurn(d, user.uid)) throw new Error('It is not yours to sign now.');
-    tx.update(ref, { signRequest: afterDeclined(d.signRequest, remarks), updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('declined to sign', user, String(remarks).trim())] });
+    tx.update(ref, { signRequest: afterDeclined(d.signRequest, remarks), toSignUid: '', updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('declined to sign', user, String(remarks).trim())] });
   });
   tellPreparer(d, id, `${user.displayName || user.email} declined to sign it — ${String(remarks).trim()}.`, user);
 }
@@ -1436,7 +1458,7 @@ export async function cancelSignRequest(id, user) {
   await runTransaction(db, async (tx) => {
     const d = (await tx.get(ref)).data();
     if (!d.signRequest || d.signRequest.state === 'done') return;
-    tx.update(ref, { signRequest: { ...d.signRequest, state: 'cancelled' }, updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('signature request withdrawn', user)] });
+    tx.update(ref, { signRequest: { ...d.signRequest, state: 'cancelled' }, toSignUid: '', updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry('signature request withdrawn', user)] });
   });
 }
 
@@ -1559,6 +1581,8 @@ export async function setDocumentAccess(id, person, role, user) {
       access: role ? [...access, person.uid] : access,
       editors: role === 'editor' ? [...editors, person.uid] : editors,
       history: [...(d.history || []), historyEntry(role ? 'access given' : 'access removed', user, role ? `${name}, ${role}` : name)],
+      // (a change since the last archive backup: backed up again before it may be purged)
+      updatedAt: serverTimestamp(),
     });
   });
 }
@@ -1570,7 +1594,7 @@ export async function setDocumentRestricted(id, restricted, user) {
   await runTransaction(db, async (tx) => {
     const d = (await tx.get(ref)).data();
     if (Boolean(d.restricted) === restricted) return;
-    tx.update(ref, { restricted, history: [...(d.history || []), historyEntry(restricted ? 'restricted' : 'restriction lifted', user, '')] });
+    tx.update(ref, { restricted, updatedAt: serverTimestamp(), history: [...(d.history || []), historyEntry(restricted ? 'restricted' : 'restriction lifted', user, '')] });
   });
 }
 
@@ -1698,8 +1722,16 @@ export async function listReferred(uid, max = 200) {
 // are asked to sign whose turn is theirs now, longest waiting first.
 export async function listToSign(uid, max = 200) {
   const { isMyTurn, turnSince } = await import('./signRequest.js');
-  const snap = await getDocs(query(collection(db, 'documents'), where('signers', 'array-contains', uid), limit(max)));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => isMyTurn(d, uid))
+  const docs = collection(db, 'documents');
+  // Those whose turn is the user's (toSignUid), and, for requests sent before it was recorded,
+  // those the user is asked to sign (signers, which only grows: the most recent first).
+  const [now, older] = await Promise.all([
+    getDocs(query(docs, where('toSignUid', '==', uid), limit(max))),
+    getDocs(query(docs, where('signers', 'array-contains', uid), limit(max))).catch(() => ({ docs: [] })),
+  ]);
+  const seen = new Map();
+  for (const x of [...now.docs, ...older.docs]) seen.set(x.id, { id: x.id, ...x.data() });
+  return [...seen.values()].filter((d) => isMyTurn(d, uid))
     .sort((a, b) => String(turnSince(a)).localeCompare(String(turnSince(b))));
 }
 

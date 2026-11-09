@@ -641,6 +641,7 @@ service cloud.firestore {
         return resource.data.createdBy == request.auth.uid || resource.data.get('transition', {}).get('by', '') == request.auth.uid || isAdmin() || heldByMyOffice() || headSees() || referredToMe() || referredByMyOffice() || isRecords() || routeStaff()
             // asked to sign it (a signature request)
             || request.auth.uid in resource.data.get('signers', [])
+            || resource.data.get('toSignUid', '') == request.auth.uid
             // forwarded to this user, or referred to them (also after they sent it back)
             || request.auth.uid in resource.data.get('sharedWith', [])
             || request.auth.uid in resource.data.get('referred', [])
@@ -700,7 +701,7 @@ service cloud.firestore {
         let o = t.get('office', '');
         return myOffice() != ''
           && (myOffice() == (o == '' ? docOffice : o) || myOffice() in t.get('alternates', [])
-              || (o.matches('.*[Mm]ayor.*') && myOffice().matches('.*[Vv]ice [Mm]ayor.*')));
+              || (o.lower().matches('.*mayor.*') && myOffice().lower().matches('.*vice mayor.*')));
       }
       allow create: if isStaff() && 'transition' in request.resource.data && transitionOpen()
         && request.resource.data.transition.by == request.auth.uid
@@ -730,6 +731,8 @@ service cloud.firestore {
         && request.resource.data.workflow.get('referral', null) == null
         && request.resource.data.workflow.events.size() <= request.resource.data.workflow.stage + 3
         && request.resource.data.get('routeOffices', []).size() <= request.resource.data.workflow.stage + 1
+        // only offices of its route (its own office, and the steps' offices as chosen)
+        && request.resource.data.get('routeOffices', []).hasOnly(get(/databases/$(database)/documents/documentTypes/$(resource.data.get('typeId', '-'))).data.get('routeOfficeList', []).concat([resource.data.get('office', '')]))
         && transitionPlaced(request.resource.data.workflow.steps[request.resource.data.workflow.stage])
         && startsTypeRouteAt(resource.data.transition.stage));
       // A new document is not routed, shared or archived yet.
@@ -842,8 +845,11 @@ service cloud.firestore {
             // The person whose turn it is on a signature request signs it, or declines. (Its first
             // test is cheap, so route moves below lose almost nothing to it.)
             || (signTurn()
-                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pdf', 'signRequest', 'updatedAt', 'history'])
-                && appended('history') && pdfAppended() && signStepOk())
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pdf', 'signRequest', 'toSignUid', 'updatedAt', 'history'])
+                && appended('history') && pdfAppended() && signStepOk()
+                // whose turn it is now: the next signer, or no one
+                && (request.resource.data.get('toSignUid', '') == ''
+                    || request.resource.data.toSignUid == request.resource.data.signRequest.steps[request.resource.data.signRequest.current].uid))
             // (First: route moves are the most frequent update, and every rule expression evaluated,
             // also of the branches that fail, counts toward Firestore's limit of 1000.)
             // The office holding a routed document receives, releases or returns it, and signs its PDF.
@@ -877,7 +883,7 @@ service cloud.firestore {
             // office access to it (viewer, or editor: also in editors), takes it back, or restricts
             // it (no access through folders).
             || (((head && resource.data.get('office', '') == off) || records) && appended('history')
-                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['access', 'editors', 'restricted', 'history'])
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['access', 'editors', 'restricted', 'history', 'updatedAt'])
                 && request.resource.data.get('restricted', false) is bool
                 && request.resource.data.get('access', []).hasAll(request.resource.data.get('editors', [])))
             // Someone it was sent to for review writes their review (nothing else).
@@ -899,7 +905,10 @@ service cloud.firestore {
       // saved as a draft again. Not while it is complete or out on its route.
       // The superadmin purges a document already in an archive backup (Archive → Purge), or any
       // document until 1 January 2027 (Settings → Reset documents).
-      allow delete: if (isSuper() && (backedUp(resource.data) || resetWindow()))
+      allow delete: if (isSuper() && (backedUp(resource.data) || resetWindow()
+          // a supporting document goes with its main document: its file is in that one's backup
+          || (resource.data.get('supports', null) is map
+              && backedUp(get(/databases/$(database)/documents/documents/$(resource.data.supports.id)).data))))
         || (isActive() && actsAsPreparer() && resource.data.status == 'draft'
             && (!('workflow' in resource.data)
                 || (resource.data.workflow.state == 'in-progress' && resource.data.workflow.stage == 0
@@ -989,7 +998,9 @@ service cloud.firestore {
       allow update: if false;
       // with its document: purged (backed up), or every document until 2027 (Reset documents)
       allow delete: if isSuper() && (resetWindow()
-        || backedUp(get(/databases/$(database)/documents/documents/$(resource.data.docId)).data));
+        || backedUp(get(/databases/$(database)/documents/documents/$(resource.data.docId)).data)
+        || (get(/databases/$(database)/documents/documents/$(resource.data.docId)).data.get('supports', null) is map
+            && backedUp(get(/databases/$(database)/documents/documents/$(get(/databases/$(database)/documents/documents/$(resource.data.docId)).data.supports.id)).data)));
     }
 
     // ---- Public record of a document (what the QR code on its PDF opens) ----

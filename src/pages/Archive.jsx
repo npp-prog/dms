@@ -290,8 +290,10 @@ function Backups({ docs, me }) {
       const saved = await saveBackup(blob, `DMS archive ${stamp} ${form.kind === 'all' ? 'all' : 'new'}.zip`);
       if (saved === 'cancelled') { setMsg({ ok: false, text: 'Not saved: no backup recorded.' }); return; }
       await logBackup({ device: device.id, deviceName: device.name, kind: form.kind, count: batch.length, files, failed: failed.length }, me);
-      // (each document saved whole: stamped as backed up, so it may be purged later)
-      await markBackedUp(batch.filter((d) => !failedIds.has(d.id)), { where: 'device', name: device.name }, me);
+      // (each document saved whole: stamped as backed up, so it may be purged later; a ZIP only
+      // downloaded counts once the Records Officer confirms it is on the device)
+      const onDevice = saved === 'saved' || window.confirm(`Is the ZIP now saved on ${device.name}? Answer OK only once it is there: the documents in it can then be purged from DMS. Cancel: they are not marked as backed up (run the backup again later).`);
+      if (onDevice) await markBackedUp(batch.filter((d) => !failedIds.has(d.id)), { where: 'device', name: device.name }, me);
       await load();
       setMsg({ ok: !failed.length, text: `${saved === 'saved' ? 'Saved' : 'Downloaded: move the ZIP to'} ${saved === 'saved' ? `to ${device.name}` : device.name}. ${batch.length} document(s), ${files} file(s)${failed.length ? `; ${failed.length} file(s) could not be added (listed in could-not-be-added.txt)` : ''}.` });
     } catch (e) {

@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDocs, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { deleteObject, listAll, ref as storageRef } from 'firebase/storage';
 import { db, storage } from '../firebase.js';
 
@@ -101,14 +101,25 @@ export async function purgeDocuments(docs, onProgress = () => {}) {
     const d = docs[i];
     onProgress(`Purging ${i + 1} of ${docs.length}: ${d.controlNo}`);
     if (!isBackedUp(d)) { done.skipped += 1; continue; }
+    // (read again just before: changed since the Archive was loaded, it is in no backup as it is now)
+    const fresh = await getDoc(doc(db, 'documents', d.id)).catch(() => null);
+    if (!fresh?.exists() || !isBackedUp(fresh.data())) { done.skipped += 1; continue; }
+    // Its supporting documents (DMS documents of their own, filed in its backup folder) go with it.
+    const supporting = (await getDocs(query(collection(db, 'documents'), where('supports.id', '==', d.id))).catch(() => ({ docs: [] }))).docs;
     for (const f of await filesUnder(`documents/${d.id}`)) {
       try { await deleteObject(f); done.files += 1; } catch { /* left in storage: the document still goes */ }
     }
-    const batch = writeBatch(db);
-    [...new Set((d.pdf?.files || []).map((f) => f.sha256).filter(Boolean))].forEach((h) => batch.delete(doc(db, 'verifications', h)));
-    batch.delete(doc(db, 'checks', d.id));
-    batch.delete(doc(db, 'documents', d.id));
-    try { await batch.commit(); done.purged += 1; } catch {
+    // (one batch per document: a batch may look up only 20 documents in the rules; the supporting
+    // ones first, while their main document is there to show it is backed up)
+    const remove = (x) => {
+      const b = writeBatch(db);
+      [...new Set((x.data().pdf?.files || []).map((f) => f.sha256).filter(Boolean))].forEach((h) => b.delete(doc(db, 'verifications', h)));
+      b.delete(doc(db, 'checks', x.id));
+      b.delete(doc(db, 'documents', x.id));
+      return b.commit();
+    };
+    for (const x of supporting) await remove(x).catch(() => { done.failed += 1; });
+    try { await remove(fresh); done.purged += 1; } catch {
       try { await deleteDoc(doc(db, 'documents', d.id)); await deleteDoc(doc(db, 'checks', d.id)).catch(() => {}); done.purged += 1; } catch { done.failed += 1; }
     }
   }

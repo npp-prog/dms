@@ -85,10 +85,10 @@ export default function UploadDocument() {
       await Promise.all([loadPdfjs(), import('pdf-lib'), import('../lib/signing.js'), import('../lib/qr.js')]);
       const contentText = kind === 'application/pdf' ? await pdfText(pdf) : '';
       // A draft until its file is stored: if anything below fails, the draft is removed again.
-      const transition = tr.on && type.id;
+      const transition = tr.on && canTransition;
       if (transition) {
         if (!tr.preparer) throw new Error('Choose who prepared it.');
-        if (!tr.stage) throw new Error('Choose the step it is at now.');
+        if (!tr.stage || tr.stage >= route.length) throw new Error('Choose the step it is at now.');
         if (tr.hold && !tr.reason.trim()) throw new Error('Say why it is on hold.');
       }
       const created = transition
@@ -145,7 +145,7 @@ export default function UploadDocument() {
       <form className="card upload-form" onSubmit={submit}>
         <div className="field upload-wide">
           <label className="field-label" htmlFor={`${id}-t`}>Document type</label>
-          <Select id={`${id}-t`} value={typeId} onChange={(e) => setTypeId(e.target.value)} disabled={!types}>
+          <Select id={`${id}-t`} value={typeId} onChange={(e) => { setTypeId(e.target.value); setTr((t) => ({ ...t, on: false, stage: 0, done: [], numbers: {}, picks: {}, signedHere: false, hold: false, reason: '' })); }} disabled={!types}>
             <option value="">Other document (no workflow)</option>
             {(types || []).map((t) => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
           </Select>
@@ -205,7 +205,7 @@ export default function UploadDocument() {
                     {!allowed.some(Boolean) && <span className="xs sig-problem">No step of this route is at your office: the office that has it now (or the Records Officer) uploads it.</span>}
                   </div>
                 )}
-                {tr.stage > 0 && (
+                {tr.stage > 0 && tr.stage < route.length && (
                   <>
                     <div className="field-label">Done outside DMS</div>
                     <ol className="transition-steps">
