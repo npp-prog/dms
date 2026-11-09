@@ -9,18 +9,27 @@ export function useLiveRefresh(uid) {
   const newest = useRef(null);
   useEffect(() => {
     if (!uid) return undefined;
+    // (At most one reload every 15 seconds: a burst of notifications, e.g. a circular to many
+    // offices, reloads the page once, not once each.)
+    let last = 0;
+    let timer = null;
+    const bump = () => {
+      const wait = 15000 - (Date.now() - last);
+      if (wait <= 0) { last = Date.now(); setTick((t) => t + 1); return; }
+      if (!timer) timer = setTimeout(() => { timer = null; last = Date.now(); setTick((t) => t + 1); }, wait);
+    };
     const stop = watchNotifications(uid, (list) => {
       const top = list[0]?.id || '';
-      if (newest.current !== null && top !== newest.current) setTick((t) => t + 1);
+      if (newest.current !== null && top !== newest.current) bump();
       newest.current = top;
     }, () => {});
     let hidden = 0;
     const onVisible = () => {
       if (document.hidden) { hidden = Date.now(); return; }
-      if (hidden && Date.now() - hidden > 30000) setTick((t) => t + 1);
+      if (hidden && Date.now() - hidden > 30000) bump();
     };
     document.addEventListener('visibilitychange', onVisible);
-    return () => { stop(); document.removeEventListener('visibilitychange', onVisible); };
+    return () => { stop(); clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [uid]);
   return tick;
 }

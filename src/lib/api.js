@@ -1,5 +1,5 @@
 import {
-  addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, getDoc, getDocs, limit, orderBy, query,
+  addDoc, collection, deleteDoc, deleteField, doc, documentId, onSnapshot, getDoc, getDocs, limit, orderBy, query,
   runTransaction, serverTimestamp, setDoc, startAfter, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { deleteObject, getBytes, getDownloadURL, getMetadata, ref as storageRef, uploadBytes, uploadBytesResumable } from 'firebase/storage';
@@ -100,6 +100,12 @@ export async function ensureUserProfile(user, extra = {}) {
   return { id: user.uid, ...profile };
 }
 
+// Accounts waiting for approval (or deactivated): the Dashboard's count, without reading every user.
+export async function listInactiveUsers() {
+  const snap = await getDocs(query(collection(db, 'users'), where('active', '==', false), limit(500)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 export async function listUsers() {
   const snap = await getDocs(collection(db, 'users'));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -197,7 +203,17 @@ export async function syncDirectory(users) {
   }
 }
 
-export async function listDirectory() {
+// (Read once and kept for 10 minutes: every person picker, Messages, Circulars and access card use
+// it, and with many users it is a large read each time.)
+let directoryCache = null; // { at, promise }
+export function listDirectory({ fresh = false } = {}) {
+  if (!fresh && directoryCache && Date.now() - directoryCache.at < 10 * 60 * 1000) return directoryCache.promise;
+  const promise = readDirectory();
+  directoryCache = { at: Date.now(), promise };
+  promise.catch(() => { directoryCache = null; });
+  return promise;
+}
+async function readDirectory() {
   const snap = await getDocs(collection(db, 'directory'));
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() })).sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
@@ -1839,9 +1855,22 @@ export async function getPresence(uid) {
   const snap = await getDoc(doc(db, 'presence', uid)).catch(() => null);
   return snap?.exists() ? snap.data() : null;
 }
-// Everyone's online status, live. Returns the unsubscribe function.
-export function watchPresence(onChange, onError) {
-  return onSnapshot(collection(db, 'presence'), (snap) => onChange(Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]))), onError);
+// The online status of these people only (those on screen: conversation partners, a community's
+// members), live; at most 120, 30 per query. Not everyone's: with many users, each heartbeat would
+// be read by every open Messages page. Returns the unsubscribe function.
+export function watchPresence(uids, onChange, onError) {
+  const ids = [...new Set((uids || []).filter(Boolean))].slice(0, 120);
+  if (!ids.length) { onChange({}); return () => {}; }
+  const parts = {};
+  const stops = [];
+  for (let i = 0; i < ids.length; i += 30) {
+    const chunk = ids.slice(i, i + 30);
+    stops.push(onSnapshot(query(collection(db, 'presence'), where(documentId(), 'in', chunk)), (snap) => {
+      parts[i] = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
+      onChange(Object.assign({}, ...Object.values(parts)));
+    }, onError));
+  }
+  return () => stops.forEach((f) => f());
 }
 export function watchMyPresence(uid, onChange) {
   return onSnapshot(doc(db, 'presence', uid), (snap) => onChange(snap.exists() ? snap.data() : null), () => onChange(null));

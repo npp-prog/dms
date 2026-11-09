@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { HEARTBEAT_MS } from '../lib/presence.js';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -67,11 +67,19 @@ export default function Layout() {
   // Documents waiting in the user's office (refreshed as the user moves around).
   const [waiting, setWaiting] = useState(0);
   const [circulars, setCirculars] = useState([]); // ids of circulars the office has to receive
+  const [unreadUpdates, setUnreadUpdates] = useState([]);
+  // (At most once a minute as the user moves from page to page, and whenever a notification
+  // arrives: with many users, reading these on every click adds up.)
+  const listsAt = useRef(0);
+  const listsKey = useRef('');
   useEffect(() => {
     if (!profile?.active) return;
+    const key = `${profile.office}|${unreadUpdates.length}|${isHead}|${isAdmin}`;
+    if (Date.now() - listsAt.current < 60 * 1000 && listsKey.current === key) return;
+    listsAt.current = Date.now(); listsKey.current = key;
     listInbox({ office: profile.office, uid: user.uid, head: isHead || isAdmin }).then((d) => setWaiting(d.length)).catch(() => {});
     if (!isExternal) listCirculars({ office: profile.office, uid: user.uid, isAdmin: false }).then((l) => setCirculars(toReceive(l, profile.office).map((c) => c.id))).catch(() => {});
-  }, [location.pathname, profile?.office, profile?.active, isAdmin, isHead, user.uid]);
+  }, [location.pathname, profile?.office, profile?.active, isAdmin, isHead, user.uid, unreadUpdates.length]);
 
   // Conversations with a message not seen yet (live).
   const [unread, setUnread] = useState(0);
@@ -81,7 +89,6 @@ export default function Layout() {
   }, [user.uid, profile?.active]);
 
   // Updates not read yet (live), and communities with a message not seen yet.
-  const [unreadUpdates, setUnreadUpdates] = useState([]);
   useEffect(() => {
     if (!profile?.active) return undefined;
     return watchNotifications(user.uid, (list) => setUnreadUpdates(list.filter((n) => !n.read)), () => setUnreadUpdates([]));

@@ -148,7 +148,9 @@ function Room({ c, me, manages, onBack, onGone }) {
   // Who is online among the members (lib/presence.js), re-checked every 30 seconds.
   const [presence, setPresence] = useState({});
   const [, setTick] = useState(0);
-  useEffect(() => watchPresence(setPresence, () => {}), []);
+  // (only this community's members)
+  const membersKey = [...c.members].sort().join(',');
+  useEffect(() => watchPresence(membersKey.split(','), setPresence, () => {}), [membersKey]);
   useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30e3); return () => clearInterval(t); }, []);
   const online = (uid) => isOnline(presence[uid]);
   const onlineCount = c.members.filter(online).length;

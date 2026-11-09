@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { OVERDUE_DAYS, daysWaiting, isOverdue } from '../lib/workflow.js';
 import { matchesSearch } from '../lib/docSearch.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { listDocuments, listDocumentTypes, listUsers } from '../lib/api.js';
+import { listDocuments, listDocumentTypes, listInactiveUsers } from '../lib/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
 import Icon, { Avatar } from '../components/Icon.jsx';
 import { stateOf, trackingViews } from '../components/WorkflowTracking.jsx';
@@ -74,7 +74,7 @@ export default function Dashboard() {
     Promise.all([
       listDocumentTypes({ activeOnly: true }),
       listDocuments({ uid: user.uid, office: profile.office, all: isAdmin, head: isHead }),
-      canManageUsers ? listUsers() : Promise.resolve([]),
+      canManageUsers ? listInactiveUsers() : Promise.resolve([]),
     ])
       .then(([t, d, u]) => { setTypes(t.filter((x) => !x.uploadOnly)); setDocs(d); setLoaded(true); setPendingUsers(u.filter((x) => !x.active && !x.deactivated).length); })
       .catch((e) => setError(e.message));

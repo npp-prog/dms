@@ -45,7 +45,11 @@ export function AuthProvider({ children }) {
       setSettings(await getSettings().catch(() => ({})));
       setFolderGrant(p.role !== 'payee' ? await getFolderAccess(firebaseUser.uid).catch(() => null) : null);
       syncDirectoryEntry(firebaseUser.uid, p).catch(() => {});
-      if (isAdminRole(p.role)) {
+      // (Upkeep for every user: at most once an hour per browser, as it reads every user.)
+      let due = true;
+      try { due = Date.now() - Number(localStorage.getItem('dms-admin-upkeep') || 0) > 60 * 60 * 1000; } catch { /* storage blocked: run it */ }
+      if (isAdminRole(p.role) && due) {
+        try { localStorage.setItem('dms-admin-upkeep', String(Date.now())); } catch { /* ignore */ }
         listUsers().then(async (users) => {
           if (['admin', 'superadmin', 'itadmin'].includes(p.role)) await assignMissingAccountNos(users).catch(() => {});
           return users;

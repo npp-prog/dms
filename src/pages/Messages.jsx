@@ -60,7 +60,10 @@ export default function Messages() {
   // Who is online (lib/presence.js); re-checked every 30 seconds. The user may turn theirs off.
   const [presence, setPresence] = useState({});
   const [, setTick] = useState(0);
-  useEffect(() => watchPresence(setPresence, () => {}), []);
+  // (only the people on screen: the conversation partners, the new one, and the user)
+  const watched = [user.uid, ...(convos || []).slice(0, 100).map((c) => c.members.find((m) => m !== user.uid)), newTo?.uid].filter(Boolean);
+  const watchedKey = [...new Set(watched)].sort().join(',');
+  useEffect(() => watchPresence(watchedKey.split(','), setPresence, () => {}), [watchedKey]);
   useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30e3); return () => clearInterval(t); }, []);
   const online = (uid) => isOnline(presence[uid]);
   const meVisible = !presence[user.uid]?.hidden;
