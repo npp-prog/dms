@@ -131,7 +131,7 @@ const OBR = {
   active: true,
   checklistSource: 'own',
   // Redrawn after the LGU's form; sites that have not edited it are updated (lib/api.js).
-  starterVersion: 3,
+  starterVersion: 4,
   steps: [
     { id: 's1', title: 'Payee and Office', instructions: 'Encode the payee and the requesting office. The OBR No. is assigned by the Budget Office; leave it blank.' },
     { id: 's2', title: 'Particulars', instructions: 'One line per charge: responsibility center, particulars, F.P.P. (function/program/project), account code and amount. The total is computed.' },
@@ -139,7 +139,7 @@ const OBR = {
   ],
   fields: [
     { key: 'payee', label: 'Payee', type: 'text', required: true, step: 's1' },
-    { key: 'office', label: 'Office', type: 'text', required: true, step: 's1' },
+    { key: 'office', label: 'Office', type: 'select', optionsFrom: 'offices', options: [], required: true, step: 's1' },
     { key: 'address', label: 'Address', type: 'text', step: 's1' },
     fundField('s1'),
     { key: 'obrNo', label: 'OBR No. (Budget Office)', type: 'text', step: 's1' },
@@ -204,7 +204,7 @@ const FURS = {
   active: true,
   checklistSource: 'own',
   // No checklist: only the DV and the Liquidation Report have one (v2).
-  starterVersion: 3,
+  starterVersion: 4,
   steps: [
     { id: 's1', title: 'Payee and Office', instructions: 'Encode the payee and the requesting office. The FURS No. is assigned by the Accounting Office.' },
     { id: 's2', title: 'Particulars', instructions: 'For each line: the project/purpose, particulars, account code and amount.' },
@@ -212,7 +212,7 @@ const FURS = {
   ],
   fields: [
     { key: 'payee', label: 'Payee', type: 'text', required: true, step: 's1' },
-    { key: 'office', label: 'Office', type: 'text', required: true, step: 's1' },
+    { key: 'office', label: 'Office', type: 'select', optionsFrom: 'offices', options: [], required: true, step: 's1' },
     { key: 'address', label: 'Address', type: 'text', step: 's1' },
     fundField('s1', { default: 'Trust Fund' }),
     { key: 'date', label: 'Date', type: 'date', step: 's1' },
@@ -586,7 +586,7 @@ const LR = {
   active: true,
   checklistSource: 'liquidation',
   // Redrawn after the LGU's form; sites that have not edited it are updated (lib/api.js).
-  starterVersion: 2,
+  starterVersion: 3,
   steps: [
     { id: 's1', title: 'Cash Advance', instructions: 'Encode the period covered, fund, office and function/program/project, and the cash advance being liquidated (amount, DV No. and date).' },
     { id: 's2', title: 'Particulars', instructions: 'List each expense with its amount. The total spent is computed.' },
@@ -597,7 +597,7 @@ const LR = {
     { key: 'date', label: 'Date', type: 'date', required: true, step: 's1' },
     { key: 'periodCovered', label: 'Period Covered', type: 'text', required: true, step: 's1' },
     fundField('s1'),
-    { key: 'office', label: 'Department/Office', type: 'text', required: true, step: 's1' },
+    { key: 'office', label: 'Department/Office', type: 'select', optionsFrom: 'offices', options: [], required: true, step: 's1' },
     { key: 'fpp', label: 'Function/Program/Project', type: 'text', step: 's1' },
     { key: 'cashAdvance', label: 'Amount of Cash Advance', type: 'currency', required: true, step: 's1' },
     { key: 'dvNo', label: 'Cash Advance DV No.', type: 'text', required: true, step: 's1' },
@@ -816,7 +816,7 @@ const PAYROLL = {
   active: true,
   checklistSource: 'own',
   // No checklist: only the DV and the Liquidation Report have one (v2).
-  starterVersion: 4,
+  starterVersion: 5,
   steps: [
     { id: 's1', title: 'Payroll', instructions: 'The period covered, fund, office and the approved OBR No. The Payroll No. is assigned by Accounting.' },
     { id: 's2', title: 'Employees', instructions: 'One line per employee: choose them from DMS (by name, email or DMS account no.), then the position, employee no., gross amount earned and total deductions. The net amount due is computed.' },
@@ -825,7 +825,7 @@ const PAYROLL = {
   fields: [
     { key: 'period', label: 'For the period', type: 'text', required: true, step: 's1', placeholder: 'e.g. October 1-15, 2026' },
     fundField('s1'),
-    { key: 'office', label: 'Office', type: 'text', required: true, step: 's1' },
+    { key: 'office', label: 'Office', type: 'select', optionsFrom: 'offices', options: [], required: true, step: 's1' },
     { key: 'obrNo', label: 'OBR No.', type: 'text', required: true, step: 's1' },
     { key: 'payrollNo', label: 'Payroll No. (Accounting)', type: 'text', step: 's1' },
     {

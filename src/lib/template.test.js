@@ -709,3 +709,14 @@ test('Travel Order: to the office head (recommending approval), EXEC- or LEGIS- 
   assert.equal(refNumber(mayor.assign.pattern, { date: new Date('2026-11-04T08:00:00') }).format(1), 'EXEC-2026-0001');
   assert.equal(refNumber(mayor.assign.altPattern, { date: new Date('2026-11-04T08:00:00') }).format(1), 'LEGIS-2026-0001');
 });
+
+test('a form with an Office field prints the office, not the letterhead ("[object Object]")', () => {
+  const obr = STARTER_TYPES.find((t) => t.code === 'OBR');
+  const office = { letterhead: 'Office of the Mayor', email: 'x@y' };
+  const html = renderTemplate(obr.template, { fields: obr.fields, data: { office: 'Municipal Engineering Office', payee: 'X' }, office });
+  assert.match(html, /MUNICIPAL ENGINEERING OFFICE/);
+  assert.doesNotMatch(html, /object Object/i);
+  const blank = renderTemplate(obr.template, { fields: obr.fields, data: {}, office });
+  assert.doesNotMatch(blank, /object Object/i);
+  assert.equal(obr.fields.find((f) => f.key === 'office').optionsFrom, 'offices');
+});

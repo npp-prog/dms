@@ -157,11 +157,12 @@ function renderTokens(template, scope, ctx) {
       return ctx.checklist?.[head.slice(6)] ? '&#9745;' : '&#9744;';
     }
     const value = lookup(scope, head);
-    if (value !== null && typeof value === 'object' && !filters.length) return '';
+    // (a group of values, e.g. the letterhead office, never prints as "[object Object]")
+    if (value !== null && typeof value === 'object' && (!filters.length || !Array.isArray(value))) return '';
     const out = applyFilters(value ?? '', filters);
     // ctx.caps: encoded entries print in capitals, including formatted dates. Settings
     // (lgu, sig) and the document context (controlNo, today, preparedBy) print as they are.
-    const encoded = !/^(lgu|sig|docType|office)\./.test(head) && !['controlNo', 'today', 'preparedBy', 'preparedByPosition', 'preparedByIdNo'].includes(head)
+    const encoded = !/^(lgu|sig|docType|office|letterhead)\./.test(head) && !['controlNo', 'today', 'preparedBy', 'preparedByPosition', 'preparedByIdNo'].includes(head)
       && !keptCase(ctx).has(head);
     return escapeHtml(ctx.caps && encoded ? String(out).toUpperCase() : out);
   });
@@ -182,7 +183,11 @@ export function renderTemplate(template, ctx = {}) {
     preparedByDmsNo: ctx.preparedByIdNo || '',
     // The Vice Mayor prints in the Mayor's place when the preparer chose them as approver.
     sig: approverSignatories(ctx.signatories || {}, ctx.data),
-    office: ctx.office || {},
+    // The letterhead office (lib/letterhead.js: {{office.letterhead}}, {{office.email}}…; also
+    // {{letterhead.…}}), unless the form has an Office field of its own: then {{office}} is that
+    // field (an OBR, FURS, LR… printed "[object Object]" otherwise).
+    office: (ctx.fields || []).some((f) => f.key === 'office') || typeof ctx.data?.office === 'string' ? (ctx.data?.office ?? '') : (ctx.office || {}),
+    letterhead: ctx.office || {},
   };
 
   // A Travel Order saved before the Mayor/Vice Mayor choice prints "Mayor" under the name as text.
