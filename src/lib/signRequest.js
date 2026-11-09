@@ -29,6 +29,8 @@ export function buildSignRequest(steps, note, user, at = new Date().toISOString(
 export const openRequest = (d) => (d?.signRequest?.state === 'open' ? d.signRequest : null);
 export const currentSigner = (d) => { const r = openRequest(d); return r ? r.steps[r.current] || null : null; };
 export const isMyTurn = (d, uid) => Boolean(uid) && currentSigner(d)?.uid === uid;
+// Since when it is the current signer's turn: the previous person signed, or it was sent.
+export const turnSince = (d) => { const r = openRequest(d); return r ? (r.current > 0 ? r.steps[r.current - 1]?.at : '') || r.at || '' : ''; };
 
 // The current person signed: their step is done; the next one's turn, or the request is done.
 export function afterSigned(r, at = new Date().toISOString()) {

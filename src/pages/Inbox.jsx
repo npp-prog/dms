@@ -2,7 +2,8 @@ import { useLiveRefresh } from '../lib/useLiveRefresh.js';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { listForwarded, listInbox, listReferred } from '../lib/api.js';
+import { listForwarded, listInbox, listReferred, listToSign } from '../lib/api.js';
+import { currentSigner, turnSince } from '../lib/signRequest.js';
 import { HIDDEN_EVENTS, officeOf } from '../lib/workflow.js';
 import Select from '../components/Select.jsx';
 import { drnOf } from '../lib/naming.js';
@@ -60,10 +61,13 @@ export default function Inbox() {
   const notice = useLocation().state?.notice || '';
   const [docs, setDocs] = useState(null);
   const [error, setError] = useState('');
+  // Documents waiting for this user's signature (signature requests outside any route).
+  const [toSign, setToSign] = useState([]);
   // Documents someone forwarded to this user.
   const [forwarded, setForwarded] = useState(null);
   const live = useLiveRefresh(user.uid); // reload on a new notification
   useEffect(() => { listForwarded(user.uid).then(setForwarded).catch(() => setForwarded([])); }, [user.uid, live]);
+  useEffect(() => { listToSign(user.uid).then(setToSign).catch(() => setToSign([])); }, [user.uid, live]);
   // A supplier or payee: the documents they signed and sent back (still open to them).
   const [sentBack, setSentBack] = useState([]);
   useEffect(() => {
@@ -101,6 +105,33 @@ export default function Inbox() {
         )}
       </div>
       {notice && <div className="alert alert-ok">{notice}</div>}
+      {toSign.length > 0 && (
+        <section id="to-sign">
+          <h2 className="inbox-sub">Waiting for your signature <span className="badge badge-red">{toSign.length}</span></h2>
+          <div className="card table-card">
+            <table className="data-table">
+              <thead><tr><th>Control No.</th><th>Type</th><th>Payee / Subject</th><th>Asked by</th><th>You sign as</th><th>Note</th><th>Since</th></tr></thead>
+              <tbody>
+                {toSign.map((d) => {
+                  const step = currentSigner(d) || {};
+                  const r = d.signRequest;
+                  return (
+                    <tr key={d.id}>
+                      <td><Link to={`/documents/${d.id}`}><b>{d.controlNo}</b></Link></td>
+                      <td>{d.typeCode}</td>
+                      <td>{d.title}</td>
+                      <td className="small">{r.by}</td>
+                      <td className="small">{step.label || '—'}{r.steps.length > 1 && <div className="muted">{r.current + 1} of {r.steps.length} signers</div>}</td>
+                      <td className="small">{r.note || '—'}</td>
+                      <td className="small">{ago(turnSince(d))}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       <Updates uid={user.uid} external={isExternal} />
       {circulars.length > 0 && (
         <>

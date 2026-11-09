@@ -1694,6 +1694,15 @@ export async function listReferred(uid, max = 200) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 }
 
+// Documents waiting for this user's signature (signature requests outside any route): those they
+// are asked to sign whose turn is theirs now, longest waiting first.
+export async function listToSign(uid, max = 200) {
+  const { isMyTurn, turnSince } = await import('./signRequest.js');
+  const snap = await getDocs(query(collection(db, 'documents'), where('signers', 'array-contains', uid), limit(max)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => isMyTurn(d, uid))
+    .sort((a, b) => String(turnSince(a)).localeCompare(String(turnSince(b))));
+}
+
 export async function listForwarded(uid, max = 100) {
   const snap = await getDocs(query(collection(db, 'documents'), where('sharedWith', 'array-contains', uid), limit(max)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
