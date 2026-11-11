@@ -11,3 +11,6 @@ dist
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# local Firebase emulator exports (may hold test data): never committed
+firebase-export-*/

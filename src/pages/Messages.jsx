@@ -16,8 +16,10 @@ function Linked({ text }) {
     let url;
     try { url = new URL(part); } catch { return part; }
     const inDms = url.origin === window.location.origin || /(^|\.)dms\.mgocandoni\.com$/.test(url.hostname);
+    // (always a path on this site: "//other.site" or a backslash would lead elsewhere)
+    const path = `/${url.pathname.replace(/\\/g, '/').replace(/^\/+/, '')}${url.search}${url.hash}`;
     return inDms
-      ? <Link key={i} to={`${url.pathname}${url.search}${url.hash}`}>{part}</Link>
+      ? <Link key={i} to={path}>{part}</Link>
       : <a key={i} href={url.href} target="_blank" rel="noopener noreferrer">{part}</a>;
   });
 }

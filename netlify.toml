@@ -3,7 +3,8 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  # (Node 22: the long-term support version; 20 reached its end of life in April 2026)
+  NODE_VERSION = "22"
   # Netlify's smart secret detection fails the build when it sees a value shaped like
   # a Google API key. The Firebase web apiKey (src/firebase-config.js) is public by
   # design (access is controlled by Firebase Auth and firestore.rules), so allow just
@@ -31,6 +32,9 @@
     X-Frame-Options = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    # always over HTTPS; DMS uses no camera, microphone or location
+    Strict-Transport-Security = "max-age=31536000"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
 
 [functions]
   node_bundler = "esbuild"
