@@ -62,3 +62,11 @@ test('the pre-audit check: DVs and Liquidation Reports only, each with its own i
   assert.match(brief, /OR No\. 123/);
   assert.equal(precheckFiles(lr)[0].label, 'The Liquidation Report itself (DMS-9)');
 });
+
+test('the pre-audit check is not run by the document\'s own preparer, even in Accounting', async () => {
+  const { canRunPrecheckOn } = await import('./precheck.js');
+  const acct = { office: 'Municipal Accounting Office', role: 'user' };
+  assert.equal(canRunPrecheckOn(acct, 'u1', { createdBy: 'u2' }), true);
+  assert.equal(canRunPrecheckOn(acct, 'u1', { createdBy: 'u1' }), false);
+  assert.equal(canRunPrecheckOn({ office: 'Municipal Engineering Office', role: 'user' }, 'u1', { createdBy: 'u2' }), false);
+});

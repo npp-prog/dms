@@ -16,6 +16,8 @@ export const SEVERITIES = { high: 'Must fix', medium: 'Check', low: 'Note' };
 // (someone with more than one office switches to it first). Not third parties.
 export const isAccountingOffice = (office) => /\baccounting\b/i.test(String(office || ''));
 export const canRunPrecheck = (profile) => Boolean(profile?.active !== false && profile?.role !== 'payee' && isAccountingOffice(profile?.office));
+// On a given document: not by its own preparer (also when in Accounting): they read its results only.
+export const canRunPrecheckOn = (profile, uid, doc) => canRunPrecheck(profile) && Boolean(uid) && doc?.createdBy !== uid;
 
 const s = (v) => (v === undefined || v === null ? '' : String(v));
 

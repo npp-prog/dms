@@ -69,7 +69,7 @@ export default function PrecheckCard({ docId, version, typeCode = 'DV' }) {
           </details>
         </>
       )}
-      {s && !running && !s.canRun && <p className="xs muted">Only the Municipal Accounting Office runs this check.</p>}
+      {s && !running && !s.canRun && <p className="xs muted">{s.mine ? 'You prepared this document: the Municipal Accounting Office runs this check; you can read its results here.' : 'Only the Municipal Accounting Office runs this check.'}</p>}
       {s && !running && s.canRun && (
         <div className="row gap wrap" style={{ marginTop: '.5rem' }}>
           <button type="button" className={`btn btn-sm btn-ai${r && !s.stale ? ' btn-ai-quiet' : ''}`} disabled={starting} onClick={run}>

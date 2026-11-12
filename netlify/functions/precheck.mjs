@@ -1,7 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import { userFromRequest } from '../lib/fb.mjs';
 import { readDocument } from '../lib/precheckRun.mjs';
-import { PRECHECK_TYPES, canRunPrecheck, precheckBasis } from '../../src/lib/precheck.js';
+import { PRECHECK_TYPES, canRunPrecheckOn, precheckBasis } from '../../src/lib/precheck.js';
 
 // The DV pre-audit check's latest result for a document (POST { docId }), for someone who may open
 // that document (read with their own token): { state, result, read, skipped, at, byName, stale }.
@@ -25,7 +25,7 @@ export default async (req) => {
   // An error left by the former AI service (Anthropic, before OpenAI): not shown (the check runs anew).
   const oldError = r?.state === 'error' && (/^claude/i.test(r.model || '') || /anthropic/i.test(r.error || ''));
   return json(200, {
-    configured: true, supported: true, canRun: canRunPrecheck(user.profile),
+    configured: true, supported: true, canRun: canRunPrecheckOn(user.profile, user.uid, d), mine: d.createdBy === user.uid,
     state: running ? 'running' : r?.state === 'running' ? 'error' : oldError ? (r?.result ? 'done' : 'none') : r?.state || 'none',
     error: r?.state === 'running' && !running ? 'The check did not finish. Please run it again.' : oldError ? '' : r?.error || '',
     result: r?.result || null, read: r?.read || [], skipped: r?.skipped || [], pages: r?.pages || 0,

@@ -2,7 +2,7 @@ import { getStore } from '@netlify/blobs';
 import { userFromRequest } from '../lib/fb.mjs';
 import { takeQuestion } from '../lib/askLimit.mjs';
 import { precheckError, precheckModel, readDocument, runPrecheck } from '../lib/precheckRun.mjs';
-import { PRECHECK_TYPES, canRunPrecheck } from '../../src/lib/precheck.js';
+import { PRECHECK_TYPES, canRunPrecheck, canRunPrecheckOn } from '../../src/lib/precheck.js';
 
 // The DV pre-audit check (AI), run in the background (it reads every PDF of the DV, which can take a
 // minute or more). The browser starts it with the signed-in user's Firebase ID token, then asks
@@ -24,7 +24,8 @@ export default async (req) => {
   const prev = await store.get(docId, { type: 'json' }).catch(() => null);
   if (prev?.state === 'running' && Date.now() - Date.parse(prev.startedAt) < RUNNING_FOR) return;
   const d = await readDocument(docId, user.token).catch(() => null);
-  if (!d || !PRECHECK_TYPES.includes(d.typeCode)) return;
+  // (not its own preparer, even in Accounting: they read the results only)
+  if (!d || !PRECHECK_TYPES.includes(d.typeCode) || !canRunPrecheckOn(user.profile, user.uid, d)) return;
 
   const base = { by: user.uid, byName: user.profile.displayName || user.profile.email || '', startedAt: new Date().toISOString(), model: precheckModel() };
   const limit = Number(process.env.PRECHECK_DAILY_LIMIT) > 0 ? Number(process.env.PRECHECK_DAILY_LIMIT) : 20;
